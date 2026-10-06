@@ -6,7 +6,10 @@
 **Realtime:** HighLevelSummary and VerboseLogs are **SignalR**, not REST columns.
 
 Canonical contracts: `docs/buildgenix-api-contracts.md` (agent store) / controllers under `buildgenix-api`.  
-Surface-level map (grouped by UI shell): `docs/ui-endpoint-map.md` in the Project agent store.
+Surface-level map (grouped by UI shell): `docs/ui-endpoint-map.md` in the Project agent store.  
+**Full junior wiring (DTO + wire status + problem codes):** [`junior-ui-endpoint-wiring.md`](./junior-ui-endpoint-wiring.md).
+
+Intake summary GET returns `markerOnly=true` and `contentUrl=null` until B1 writes the blob (do not treat BlobPath on the POST ref as a downloadable URL yet).
 
 ### Work-item lifecycle (remember this)
 

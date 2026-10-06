@@ -15,8 +15,12 @@ Project Context (decisions, iteration plan, full contracts) also lives in the Cu
 
 | Doc | Audience |
 |---|---|
+| [`docs/junior-ui-endpoint-wiring.md`](docs/junior-ui-endpoint-wiring.md) | Juniors: mock → endpoint → DTO → wire status + problem codes |
 | [`docs/ui-mock-endpoint-map.md`](docs/ui-mock-endpoint-map.md) | Juniors: page-by-page mock (01–23) → endpoints |
 | [`docs/ui-endpoint-map.md`](docs/ui-endpoint-map.md) | Surface-level UI shell → endpoints |
+| [`docs/buildgenix-api-new-machine-integration.md`](docs/buildgenix-api-new-machine-integration.md) | Spoon-feed Copilot prompt to merge BG catalog into new-machine boilerplate |
+| [`docs/agenthub-api-new-machine-integration.md`](docs/agenthub-api-new-machine-integration.md) | Spoon-feed Copilot prompt for AH HEALTHY + AI Gateway merge |
+| [`docs/azure-appservice-deploy-baby-steps.md`](docs/azure-appservice-deploy-baby-steps.md) | Baby-step Azure App Service deploy + verify for DevOps |
 
 ## Local run
 
@@ -26,4 +30,6 @@ See each folder's `README.md`. Ports: buildgenix `18765`, agenthub `18766`.
 
 - I0a / I0b on `main` with D-C1 heartbeat order fixed (publish → mark → complete).
 - I1 controllers + catalog routes on `main` under `buildgenix-api/`.
-- Live Docker smoke needs a host that can run containers.
+- PE Important hardenings on `main` (emulator `/health` on AH, MessageId safety, Implement lock compensate + terminal release, DefaultAzureCredential ServiceUri, problem `code`).
+- Migration spoon-feed docs + junior wiring guide on `main`.
+- Local Docker E2E re-verified for BG catalog + AH HEALTHY (Fixture) on commit `39673c4`+.
