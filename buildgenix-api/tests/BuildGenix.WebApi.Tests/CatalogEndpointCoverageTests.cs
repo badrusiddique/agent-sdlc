@@ -120,6 +120,11 @@ public sealed class CatalogEndpointCoverageTests : IClassFixture<BuildGenixApiFa
         var created = await wi.Content.ReadFromJsonAsync<CreateWorkItemResponse>();
         Assert.Equal("I01", created!.ConversationThreadId);
 
+        var summary = await _client.PostAsJsonAsync(
+            $"/api/work-items/{created.WorkItemId}/conversations/I01/summaries",
+            new ProduceIntakeSummaryRequest(null));
+        Assert.Equal(HttpStatusCode.OK, summary.StatusCode);
+
         var execute = await _client.PostAsJsonAsync(
             $"/api/work-items/{created.WorkItemId}/execute",
             new ExecuteWorkItemRequest(1, null));

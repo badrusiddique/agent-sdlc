@@ -184,6 +184,12 @@ public sealed class WorkItemRepository : IWorkItemRepository
             return new WorkItemImplementResult(WorkItemImplementOutcome.SameWiDifferentRevisionOpen, item);
         }
 
+        // Contracts Execute matrix: committed intake summary required for the revision.
+        if (summaryRevision > item.LatestCommittedSummaryRevision)
+        {
+            return new WorkItemImplementResult(WorkItemImplementOutcome.SummaryNotFound, item);
+        }
+
         var client = _factory.GetClient(TableNames.WorkItems);
         var now = DateTimeOffset.UtcNow;
 
@@ -233,6 +239,57 @@ public sealed class WorkItemRepository : IWorkItemRepository
             .ConfigureAwait(false);
 
         return new WorkItemImplementResult(WorkItemImplementOutcome.Started, item);
+    }
+
+    public async Task<IntakeSummaryCommitResult?> TryCommitIntakeSummaryAsync(
+        string workItemId,
+        CancellationToken cancellationToken = default)
+    {
+        var item = await GetByIdAsync(workItemId, cancellationToken).ConfigureAwait(false);
+        if (item is null)
+        {
+            return null;
+        }
+
+        var revision = item.LatestCommittedSummaryRevision + 1;
+        var now = DateTimeOffset.UtcNow;
+        var artifactId = Guid.CreateVersion7().ToString("N");
+        var blobPath = $"{item.ProjectId}/{item.WorkItemId}/v{revision}/intake-summary.json";
+
+        item.LatestCommittedSummaryRevision = revision;
+        item.UpdatedAt = now;
+
+        var client = _factory.GetClient(TableNames.WorkItems);
+        await client.UpdateEntityAsync(item, item.ETag, TableUpdateMode.Replace, cancellationToken)
+            .ConfigureAwait(false);
+
+        return new IntakeSummaryCommitResult(true, revision, artifactId, blobPath, now);
+    }
+
+    public async Task<IntakeSummaryCommitResult?> GetIntakeSummaryAsync(
+        string workItemId,
+        int revision,
+        CancellationToken cancellationToken = default)
+    {
+        if (revision <= 0)
+        {
+            return null;
+        }
+
+        var item = await GetByIdAsync(workItemId, cancellationToken).ConfigureAwait(false);
+        if (item is null)
+        {
+            return null;
+        }
+
+        if (revision > item.LatestCommittedSummaryRevision)
+        {
+            return new IntakeSummaryCommitResult(true, 0, string.Empty, string.Empty, default);
+        }
+
+        var artifactId = $"intake-summary-r{revision:D4}";
+        var blobPath = $"{item.ProjectId}/{item.WorkItemId}/v{revision}/intake-summary.json";
+        return new IntakeSummaryCommitResult(true, revision, artifactId, blobPath, item.UpdatedAt);
     }
 
     private async Task<WorkItemEntity?> GetInProjectAsync(

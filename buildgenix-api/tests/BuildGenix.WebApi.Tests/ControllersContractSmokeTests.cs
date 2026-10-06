@@ -38,6 +38,20 @@ public sealed class ControllersContractSmokeTests : IClassFixture<BuildGenixApiF
         Assert.Equal("I01", created1!.ConversationThreadId);
         Assert.Equal(WorkItemStatuses.Queued, created1.Status);
 
+        var withoutSummary = await _client.PostAsJsonAsync(
+            $"/api/work-items/{created1.WorkItemId}/execute",
+            new ExecuteWorkItemRequest(1, null));
+        Assert.Equal(HttpStatusCode.BadRequest, withoutSummary.StatusCode);
+
+        var summary1 = await _client.PostAsJsonAsync(
+            $"/api/work-items/{created1.WorkItemId}/conversations/I01/summaries",
+            new ProduceIntakeSummaryRequest(null));
+        Assert.Equal(HttpStatusCode.OK, summary1.StatusCode);
+        var summary2 = await _client.PostAsJsonAsync(
+            $"/api/work-items/{created2!.WorkItemId}/conversations/I01/summaries",
+            new ProduceIntakeSummaryRequest(null));
+        Assert.Equal(HttpStatusCode.OK, summary2.StatusCode);
+
         var execute = await _client.PostAsJsonAsync(
             $"/api/work-items/{created1.WorkItemId}/execute",
             new ExecuteWorkItemRequest(1, null));

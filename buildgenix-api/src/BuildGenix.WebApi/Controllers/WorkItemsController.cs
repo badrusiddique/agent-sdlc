@@ -119,6 +119,9 @@ public sealed class WorkItemsController : ControllerBase
                 ApiProblems.NotFound($"Work item '{workItemId}' was not found."),
             WorkItemImplementOutcome.InvalidRevision =>
                 ApiProblems.ValidationFailed("summaryRevision must be greater than 0."),
+            WorkItemImplementOutcome.SummaryNotFound =>
+                ApiProblems.SummaryNotFound(
+                    $"No committed intake summary for summaryRevision {request.SummaryRevision}."),
             WorkItemImplementOutcome.ActiveConflict =>
                 ApiProblems.ActiveConflict(
                     "Another work item holds the project active lock.",

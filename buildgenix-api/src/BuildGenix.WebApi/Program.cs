@@ -1,7 +1,11 @@
+using System.Text.Json;
 using BuildGenix.Data;
 using BuildGenix.WebApi.Auth;
+using BuildGenix.WebApi.Health;
 using BuildGenix.WebApi.Heartbeat;
 using BuildGenix.WebApi.Options;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Serilog;
 
 try
@@ -42,17 +46,33 @@ try
     });
 
     builder.Services.AddOpenApi();
+    builder.Services.AddHttpClient(nameof(ServiceBusEmulatorHealthCheck));
 
-    var serviceBusConnection = builder.Configuration.GetSection(ServiceBusOptions.SectionName)["ConnectionString"];
+    var serviceBusSection = builder.Configuration.GetSection(ServiceBusOptions.SectionName);
+    var serviceBusConnection = serviceBusSection["ConnectionString"];
+    var pingTopic = serviceBusSection["PingTopic"] ?? "bg-heartbeat-ping";
+    var usesEmulator = !string.IsNullOrWhiteSpace(serviceBusConnection)
+                       && serviceBusConnection.Contains(
+                           "UseDevelopmentEmulator=true",
+                           StringComparison.OrdinalIgnoreCase);
     var healthChecks = builder.Services.AddHealthChecks();
     if (!string.IsNullOrWhiteSpace(serviceBusConnection))
     {
-        healthChecks.AddAzureServiceBusTopic(
-            serviceBusConnection,
-            topicName: builder.Configuration.GetSection(ServiceBusOptions.SectionName)["PingTopic"]
-                       ?? "bg-heartbeat-ping",
-            name: "servicebus-ping-topic",
-            tags: ["ready"]);
+        if (usesEmulator)
+        {
+            healthChecks.AddCheck<ServiceBusEmulatorHealthCheck>(
+                "servicebus-emulator",
+                failureStatus: HealthStatus.Unhealthy,
+                tags: ["ready"]);
+        }
+        else
+        {
+            healthChecks.AddAzureServiceBusTopic(
+                serviceBusConnection,
+                topicName: pingTopic,
+                name: "servicebus-ping-topic",
+                tags: ["ready"]);
+        }
     }
 
     var app = builder.Build();
@@ -72,8 +92,11 @@ try
         });
     }
 
-    app.MapHealthChecks("/health");
-    app.MapHealthChecks("/health/live", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+    app.MapHealthChecks("/health", new HealthCheckOptions
+    {
+        ResponseWriter = WriteHealthJsonAsync
+    });
+    app.MapHealthChecks("/health/live", new HealthCheckOptions
     {
         Predicate = _ => false
     });
@@ -97,6 +120,26 @@ catch (Exception ex) when (ex is not HostAbortedException)
 finally
 {
     await Log.CloseAndFlushAsync().ConfigureAwait(false);
+}
+
+static Task WriteHealthJsonAsync(HttpContext context, HealthReport report)
+{
+    context.Response.ContentType = "application/json; charset=utf-8";
+    var payload = new
+    {
+        status = report.Status.ToString(),
+        totalDurationMs = report.TotalDuration.TotalMilliseconds,
+        entries = report.Entries.ToDictionary(
+            e => e.Key,
+            e => new
+            {
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                durationMs = e.Value.Duration.TotalMilliseconds,
+                error = e.Value.Exception?.Message
+            })
+    };
+    return context.Response.WriteAsync(JsonSerializer.Serialize(payload));
 }
 
 public partial class Program;

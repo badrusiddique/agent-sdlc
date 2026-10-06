@@ -66,7 +66,8 @@ public sealed class InMemoryWorkItemRepository : IWorkItemRepository
             DisplayNumber = next,
             CreatedAt = now,
             UpdatedAt = now,
-            BlobPrefix = $"{projectId}/{id}"
+            BlobPrefix = $"{projectId}/{id}",
+            LatestCommittedSummaryRevision = 0
         };
         _byId[id] = item;
         return Task.FromResult(new WorkItemCreateResult(WorkItemCreateOutcome.Created, Clone(item)));
@@ -99,6 +100,11 @@ public sealed class InMemoryWorkItemRepository : IWorkItemRepository
             return Task.FromResult(new WorkItemImplementResult(WorkItemImplementOutcome.SameWiDifferentRevisionOpen, Clone(item)));
         }
 
+        if (summaryRevision > item.LatestCommittedSummaryRevision)
+        {
+            return Task.FromResult(new WorkItemImplementResult(WorkItemImplementOutcome.SummaryNotFound, Clone(item)));
+        }
+
         if (_activeByProject.TryGetValue(item.ProjectId, out var holder) && holder != item.WorkItemId)
         {
             var blocking = _byId[holder];
@@ -118,6 +124,47 @@ public sealed class InMemoryWorkItemRepository : IWorkItemRepository
         return Task.FromResult(new WorkItemImplementResult(WorkItemImplementOutcome.Started, Clone(item)));
     }
 
+    public Task<IntakeSummaryCommitResult?> TryCommitIntakeSummaryAsync(
+        string workItemId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_byId.TryGetValue(workItemId, out var item))
+        {
+            return Task.FromResult<IntakeSummaryCommitResult?>(null);
+        }
+
+        var revision = item.LatestCommittedSummaryRevision + 1;
+        var now = DateTimeOffset.UtcNow;
+        item.LatestCommittedSummaryRevision = revision;
+        item.UpdatedAt = now;
+        var artifactId = Guid.CreateVersion7().ToString("N");
+        var blobPath = $"{item.ProjectId}/{item.WorkItemId}/v{revision}/intake-summary.json";
+        return Task.FromResult<IntakeSummaryCommitResult?>(
+            new IntakeSummaryCommitResult(true, revision, artifactId, blobPath, now));
+    }
+
+    public Task<IntakeSummaryCommitResult?> GetIntakeSummaryAsync(
+        string workItemId,
+        int revision,
+        CancellationToken cancellationToken = default)
+    {
+        if (revision <= 0 || !_byId.TryGetValue(workItemId, out var item))
+        {
+            return Task.FromResult<IntakeSummaryCommitResult?>(null);
+        }
+
+        if (revision > item.LatestCommittedSummaryRevision)
+        {
+            return Task.FromResult<IntakeSummaryCommitResult?>(
+                new IntakeSummaryCommitResult(true, 0, string.Empty, string.Empty, default));
+        }
+
+        var artifactId = $"intake-summary-r{revision:D4}";
+        var blobPath = $"{item.ProjectId}/{item.WorkItemId}/v{revision}/intake-summary.json";
+        return Task.FromResult<IntakeSummaryCommitResult?>(
+            new IntakeSummaryCommitResult(true, revision, artifactId, blobPath, item.UpdatedAt));
+    }
+
     private static WorkItemEntity Clone(WorkItemEntity e) => new()
     {
         PartitionKey = e.PartitionKey,
@@ -133,6 +180,7 @@ public sealed class InMemoryWorkItemRepository : IWorkItemRepository
         UpdatedAt = e.UpdatedAt,
         BlobPrefix = e.BlobPrefix,
         BoundSummaryRevision = e.BoundSummaryRevision,
+        LatestCommittedSummaryRevision = e.LatestCommittedSummaryRevision,
         PipelineStarted = e.PipelineStarted,
         HumanMessage = e.HumanMessage,
         CurrentInputVersion = e.CurrentInputVersion

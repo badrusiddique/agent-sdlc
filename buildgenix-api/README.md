@@ -24,12 +24,17 @@ Independent .NET 10 solution for the BuildGenix orchestration Web API (Iteration
 ```bash
 cd buildgenix-api
 cp .env.example .env   # optional; defaults work for local
+# Prefer clean volumes if emulator state is stale:
+docker compose down -v
 docker compose up -d
+# wait until curl -s http://127.0.0.1:5300/health shows healthy
 ```
 
 - Azurite table endpoint: `http://127.0.0.1:10002`
 - Service Bus emulator AMQP: `localhost:5672`
-- Emulator management/health: `http://localhost:5300`
+- Emulator management/health: `http://127.0.0.1:5300/health`
+
+Compose note: SQL Edge and the Service Bus emulator share one network namespace (`network_mode: service:sqledge`) so the emulator reaches SQL on `127.0.0.1`. This avoids Docker bridge inter-container blocks seen on some VMs (iptables-legacy FORWARD DROP). Do not run AgentHub and BuildGenix compose stacks at the same time (shared host ports).
 
 Connection string used by the API (already in `appsettings.Development.json`):
 
@@ -38,6 +43,8 @@ Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAcce
 ```
 
 Emulator EULA: set `ACCEPT_EULA=Y` (see Microsoft Service Bus emulator docs).
+
+Readiness: `GET /health` probes the emulator HTTP health URL when `UseDevelopmentEmulator=true`. `GET /health/live` is process liveness only.
 
 ### 2. Run the API
 
@@ -71,7 +78,8 @@ HTTP surface follows Project Context `docs/buildgenix-api-contracts.md` (D-C6). 
 |------|----------------------|
 | Projects CRUD-ish | Wired to Azure Tables |
 | Work items create / get / list | Wired; **create does not take `~ACTIVE`** (D-C4b) |
-| Implement now `POST …/execute` | Wired; lock + D-C5 same-revision no-op |
+| Intake summary marker `POST …/conversations/{threadId}/summaries` | Commits next `summaryRevision` marker (full chat B1 later) |
+| Implement now `POST …/execute` | Requires committed summary revision; lock + D-C5 same-revision no-op |
 | pending-actions, home/activity, progress, artifacts, gates, activity, steering, … | Routes present; empty or `501` until B1/B2a/E* persistence |
 | Heartbeat | Unchanged (`/api/connectivity/heartbeat`) |
 

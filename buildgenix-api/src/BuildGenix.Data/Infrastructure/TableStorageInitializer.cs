@@ -6,8 +6,7 @@ using Microsoft.Extensions.Logging;
 namespace BuildGenix.Data.Infrastructure;
 
 /// <summary>
-/// Creates BuildGenix tables that Iteration 0a repositories touch.
-/// Remaining catalog tables are added as their repositories land.
+/// Creates every table listed in <see cref="TableCatalog.Built"/> at host start.
 /// </summary>
 public sealed class TableStorageInitializer : IHostedService
 {
@@ -25,16 +24,17 @@ public sealed class TableStorageInitializer : IHostedService
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
-        var projects = scope.ServiceProvider.GetRequiredService<IProjectRepository>();
-        var workItems = scope.ServiceProvider.GetRequiredService<IWorkItemRepository>();
-        var wm = scope.ServiceProvider.GetRequiredService<IWmProcessedEventsRepository>();
+        var writer = scope.ServiceProvider.GetRequiredService<ITableEntityWriter>();
 
-        await projects.EnsureTableAsync(cancellationToken).ConfigureAwait(false);
-        await workItems.EnsureTablesAsync(cancellationToken).ConfigureAwait(false);
-        await wm.EnsureTableAsync(cancellationToken).ConfigureAwait(false);
+        foreach (var tableName in TableCatalog.Built)
+        {
+            await writer.EnsureTableAsync(tableName, cancellationToken).ConfigureAwait(false);
+            _logger.LogDebug("Ensured table {TableName}", tableName);
+        }
 
         _logger.LogInformation(
-            "BuildGenix table storage ready. Catalog size={CatalogCount}",
+            "BuildGenix table storage ready. Ensured {EnsuredCount}/{CatalogCount} catalog tables.",
+            TableCatalog.Built.Count,
             TableCatalog.Built.Count);
     }
 

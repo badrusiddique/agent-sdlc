@@ -16,7 +16,16 @@ public enum WorkItemImplementOutcome
     NotFound,
     InvalidRevision,
     SameWiDifferentRevisionOpen,
+    /// <summary>No committed intake summary for the requested revision (contracts Execute matrix).</summary>
+    SummaryNotFound,
 }
+
+public sealed record IntakeSummaryCommitResult(
+    bool WorkItemFound,
+    int Revision,
+    string ArtifactId,
+    string BlobPath,
+    DateTimeOffset ProducedAt);
 
 public sealed record WorkItemCreateResult(WorkItemCreateOutcome Outcome, WorkItemEntity? Item);
 
@@ -46,5 +55,17 @@ public interface IWorkItemRepository
     Task<WorkItemImplementResult> TryImplementAsync(
         string workItemId,
         int summaryRevision,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Commits the next intake summary revision marker (thin path until full B1 Conversations).
+    /// </summary>
+    Task<IntakeSummaryCommitResult?> TryCommitIntakeSummaryAsync(
+        string workItemId,
+        CancellationToken cancellationToken = default);
+
+    Task<IntakeSummaryCommitResult?> GetIntakeSummaryAsync(
+        string workItemId,
+        int revision,
         CancellationToken cancellationToken = default);
 }

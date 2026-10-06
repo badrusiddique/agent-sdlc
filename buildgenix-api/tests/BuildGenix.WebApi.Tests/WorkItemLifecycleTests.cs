@@ -19,11 +19,24 @@ public sealed class WorkItemLifecycleTests
     }
 
     [Fact]
+    public async Task TryImplement_without_summary_is_summary_not_found()
+    {
+        var repo = new InMemoryWorkItemRepository();
+        var a = (await repo.TryCreateAsync("p1", "Demo", "user-a", null)).Item!;
+
+        var missing = await repo.TryImplementAsync(a.WorkItemId, summaryRevision: 1);
+        Assert.Equal(WorkItemImplementOutcome.SummaryNotFound, missing.Outcome);
+        Assert.False(repo.HasActiveLock("p1"));
+    }
+
+    [Fact]
     public async Task TryImplement_acquires_active_lock_and_second_wi_conflicts()
     {
         var repo = new InMemoryWorkItemRepository();
         var a = (await repo.TryCreateAsync("p1", "Demo", "user-a", null)).Item!;
         var b = (await repo.TryCreateAsync("p1", "Demo", "user-a", null)).Item!;
+        await repo.TryCommitIntakeSummaryAsync(a.WorkItemId);
+        await repo.TryCommitIntakeSummaryAsync(b.WorkItemId);
 
         var started = await repo.TryImplementAsync(a.WorkItemId, summaryRevision: 1);
         Assert.Equal(WorkItemImplementOutcome.Started, started.Outcome);
@@ -40,6 +53,8 @@ public sealed class WorkItemLifecycleTests
     {
         var repo = new InMemoryWorkItemRepository();
         var a = (await repo.TryCreateAsync("p1", "Demo", "user-a", null)).Item!;
+        await repo.TryCommitIntakeSummaryAsync(a.WorkItemId);
+        await repo.TryCommitIntakeSummaryAsync(a.WorkItemId);
         await repo.TryImplementAsync(a.WorkItemId, 2);
         var again = await repo.TryImplementAsync(a.WorkItemId, 2);
 
@@ -53,6 +68,8 @@ public sealed class WorkItemLifecycleTests
     {
         var repo = new InMemoryWorkItemRepository();
         var a = (await repo.TryCreateAsync("p1", "Demo", "user-a", null)).Item!;
+        await repo.TryCommitIntakeSummaryAsync(a.WorkItemId);
+        await repo.TryCommitIntakeSummaryAsync(a.WorkItemId);
         await repo.TryImplementAsync(a.WorkItemId, 1);
         var open = await repo.TryImplementAsync(a.WorkItemId, 2);
         Assert.Equal(WorkItemImplementOutcome.SameWiDifferentRevisionOpen, open.Outcome);

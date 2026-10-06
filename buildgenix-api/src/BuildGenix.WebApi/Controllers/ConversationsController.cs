@@ -5,7 +5,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace BuildGenix.WebApi.Controllers;
 
-/// <summary>Conversation routes (planned B1). Typed DTOs only; persistence not implemented.</summary>
+/// <summary>
+/// Conversation routes. Full transcript persistence remains B1; intake summary revision
+/// markers are committed here so Implement can enforce the contracts Execute precondition.
+/// </summary>
 [ApiController]
 [Route("api/work-items/{workItemId}/conversations")]
 [Tags("Conversations")]
@@ -102,9 +105,13 @@ public sealed class ConversationsController : ControllerBase
         return Results.Ok(new IntakeContextDto([], [], [], [], []));
     }
 
+    /// <summary>
+    /// Commits the next intake summary revision marker (D-C3 filename intake-summary.json path).
+    /// Full summary body persistence remains B1; the marker unblocks Implement precondition checks.
+    /// </summary>
     [HttpPost("{threadId}/summaries")]
     [ProducesResponseType(typeof(IntakeSummaryRefDto), StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IResult> ProduceSummaryAsync(
         string workItemId,
         string threadId,
@@ -113,12 +120,18 @@ public sealed class ConversationsController : ControllerBase
     {
         _ = threadId;
         _ = request;
-        if (await MissingAsync(workItemId, cancellationToken).ConfigureAwait(false) is { } problem)
+        var committed = await _workItems.TryCommitIntakeSummaryAsync(workItemId, cancellationToken)
+            .ConfigureAwait(false);
+        if (committed is null)
         {
-            return problem;
+            return ApiProblems.NotFound($"Work item '{workItemId}' was not found.");
         }
 
-        return ApiProblems.NotReady("Intake summary production is planned B1.");
+        return Results.Ok(new IntakeSummaryRefDto(
+            committed.Revision,
+            committed.ArtifactId,
+            committed.BlobPath,
+            committed.ProducedAt));
     }
 
     [HttpGet("{threadId}/summaries/{revision:int}")]
@@ -136,12 +149,24 @@ public sealed class ConversationsController : ControllerBase
             return ApiProblems.ValidationFailed("revision must be greater than 0.");
         }
 
-        if (await MissingAsync(workItemId, cancellationToken).ConfigureAwait(false) is { } problem)
+        var summary = await _workItems.GetIntakeSummaryAsync(workItemId, revision, cancellationToken)
+            .ConfigureAwait(false);
+        if (summary is null)
         {
-            return problem;
+            return ApiProblems.NotFound($"Work item '{workItemId}' was not found.");
         }
 
-        return ApiProblems.NotFound($"Summary revision {revision} is not available (planned B1).");
+        if (summary.Revision == 0)
+        {
+            return ApiProblems.NotFound($"Summary revision {revision} is not available.");
+        }
+
+        return Results.Ok(new IntakeSummaryDetailDto(
+            summary.Revision,
+            summary.ArtifactId,
+            Content: null,
+            ContentUrl: summary.BlobPath,
+            ProducedAt: summary.ProducedAt));
     }
 
     private async Task<IResult?> MissingAsync(string workItemId, CancellationToken cancellationToken)

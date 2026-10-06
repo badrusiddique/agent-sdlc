@@ -32,6 +32,12 @@ public sealed class WorkItemEntity : ITableEntity
     /// <summary>Intake summary revision bound at Implement now (D-C5).</summary>
     public int BoundSummaryRevision { get; set; }
 
+    /// <summary>
+    /// Highest committed intake summary revision for this WI (marker until full B1 Conversations).
+    /// Implement requires summaryRevision &lt;= this value and &gt; 0.
+    /// </summary>
+    public int LatestCommittedSummaryRevision { get; set; }
+
     /// <summary>True after Implement starts the pipeline for BoundSummaryRevision.</summary>
     public bool PipelineStarted { get; set; }
 

@@ -15,4 +15,16 @@ public sealed class TableCatalogTests
             || name.Equals("EffectLedger", StringComparison.OrdinalIgnoreCase)
             || name.Equals("AgProcessedEvents", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void Built_catalog_lists_all_ten_owned_tables()
+    {
+        Assert.Equal(10, TableCatalog.Built.Count);
+        Assert.Contains(TableNames.Artifacts, TableCatalog.Built);
+        Assert.Contains(TableNames.ApprovalGates, TableCatalog.Built);
+        Assert.Contains(TableNames.Approvals, TableCatalog.Built);
+        Assert.Contains(TableNames.WorkItemEvents, TableCatalog.Built);
+        Assert.Contains(TableNames.SgProcessedEvents, TableCatalog.Built);
+        Assert.Equal(TableCatalog.Built.Count, TableCatalog.Built.Distinct(StringComparer.Ordinal).Count());
+    }
 }

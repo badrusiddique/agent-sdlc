@@ -10,6 +10,13 @@ public static class ApiProblems
         Results.Problem(detail: detail, statusCode: StatusCodes.Status400BadRequest, title: "Validation Failed",
             extensions: new Dictionary<string, object?> { ["code"] = "ValidationFailed" });
 
+    public static IResult SummaryNotFound(string detail) =>
+        Results.Problem(
+            detail: detail,
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "Summary Not Found",
+            extensions: new Dictionary<string, object?> { ["code"] = "SummaryNotFound" });
+
     public static IResult ActiveConflict(string detail, string? activeWorkItemId = null, int? activeDisplayNumber = null)
     {
         var extensions = new Dictionary<string, object?> { ["code"] = "ActiveConflict" };
