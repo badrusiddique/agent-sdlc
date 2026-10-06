@@ -135,6 +135,10 @@ public sealed class HealthyAgentDispatcher
         // D-C1: publish result → mark → (host completes). If publish throws, do not mark.
         await _results.PublishResultAsync(result, cancellationToken).ConfigureAwait(false);
         await _dedup.TryMarkProcessedAsync(serviceBusMessageId, cancellationToken).ConfigureAwait(false);
+        _logger.LogInformation(
+            "HEALTHY D-C1 order complete for {MessageId}: published Status={Status} then marked AgProcessedEvents",
+            serviceBusMessageId,
+            result.Status);
 
         return HealthyDispatchOutcome.Handled(result);
     }

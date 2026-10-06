@@ -1,6 +1,10 @@
 # Local dependencies for AgentHub.WebApi (D-CL-2: Docker local only).
 # Official Service Bus emulator + Azurite.
 # Port map matches BuildGenix local defaults; do not run both compose stacks at once.
+#
+# NOTE: On some cloud VMs, Docker bridge inter-container traffic is blocked
+# (iptables-legacy FORWARD DROP). SQL Edge and the Service Bus emulator therefore
+# share one network namespace so the emulator reaches SQL on 127.0.0.1.
 name: agenthub-local
 
 services:
@@ -21,35 +25,27 @@ services:
     environment:
       ACCEPT_EULA: ${ACCEPT_EULA:-Y}
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-AgentHub_Local_Str0ng!}
-    networks:
-      sb-emulator:
-        aliases:
-          - sqledge
+    ports:
+      - "5672:5672"
+      - "5300:5300"
+    # SQL tools / diagnostics only; emulator shares this namespace.
+    # 1433 is not published to avoid host conflicts.
 
   servicebus-emulator:
     image: mcr.microsoft.com/azure-messaging/servicebus-emulator:latest
     container_name: agenthub-servicebus-emulator
     pull_policy: always
+    network_mode: "service:sqledge"
     volumes:
       - ./docker/servicebus-config.json:/ServiceBus_Emulator/ConfigFiles/Config.json:ro
-    ports:
-      - "5672:5672"
-      - "5300:5300"
     environment:
-      SQL_SERVER: sqledge
+      SQL_SERVER: 127.0.0.1
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-AgentHub_Local_Str0ng!}
       ACCEPT_EULA: ${ACCEPT_EULA:-Y}
       EMULATOR_HTTP_PORT: 5300
-      SQL_WAIT_INTERVAL: 30
+      SQL_WAIT_INTERVAL: 15
     depends_on:
       - sqledge
-    networks:
-      sb-emulator:
-        aliases:
-          - sb-emulator
-
-networks:
-  sb-emulator:
 
 volumes:
   azurite-data:

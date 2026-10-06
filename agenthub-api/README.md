@@ -16,7 +16,7 @@ Independent .NET 10 solution for the AgentHub agent-host Web API.
 ## Prerequisites
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
-- Docker (for Azurite + Service Bus emulator). **This VM may not run Docker**; compose + unit tests still ship.
+- Docker (for Azurite + Service Bus emulator). Local only (D-CL-2).
 
 ## Run locally (E2E)
 
@@ -25,14 +25,16 @@ Independent .NET 10 solution for the AgentHub agent-host Web API.
 ```bash
 cd agenthub-api
 cp .env.example .env   # optional
+# Prefer clean volumes if emulator state is stale:
+docker compose down -v
 docker compose up -d
 ```
 
 - Azurite blob: `http://127.0.0.1:10000`
 - Azurite table: `http://127.0.0.1:10002`
-- Service Bus emulator AMQP: `localhost:5672`
+- Service Bus emulator AMQP: `localhost:5672` (HTTP health `http://127.0.0.1:5300/health`)
 
-If Docker fails on your machine: unit tests still prove handler + D-C1 publish→mark order without Docker.
+Compose note: SQL Edge and the Service Bus emulator share one network namespace (`network_mode: service:sqledge`) so the emulator reaches SQL on `127.0.0.1`. This avoids Docker bridge inter-container blocks seen on some VMs (iptables-legacy FORWARD DROP).
 
 ### 2. Run the API
 
