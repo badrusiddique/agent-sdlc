@@ -49,6 +49,7 @@ public sealed class ActivityController : ControllerBase
 
     [HttpGet("runs/{runId}/log")]
     [ProducesResponseType(typeof(RunLogResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IResult> RunLogAsync(
         string workItemId,
         string runId,
@@ -63,7 +64,8 @@ public sealed class ActivityController : ControllerBase
             return problem;
         }
 
-        return Results.Ok(new RunLogResponse(runId, []));
+        // RunLog persistence planned B2a; unknown run ids are not found (not empty OK).
+        return ApiProblems.NotFound($"Run log '{runId}' was not found.");
     }
 
     [HttpGet("activity/export")]

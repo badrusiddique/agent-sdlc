@@ -74,6 +74,7 @@ public sealed class WorkItemRepository : IWorkItemRepository
         string projectName,
         string userId,
         string? idempotencyKey,
+        string? title = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(projectId);
@@ -91,6 +92,7 @@ public sealed class WorkItemRepository : IWorkItemRepository
         var workItemId = Guid.CreateVersion7().ToString("N");
         var now = DateTimeOffset.UtcNow;
         var client = _factory.GetClient(TableNames.WorkItems);
+        var normalizedTitle = string.IsNullOrWhiteSpace(title) ? null : title.Trim();
 
         for (var attempt = 0; attempt < 5; attempt++)
         {
@@ -103,6 +105,7 @@ public sealed class WorkItemRepository : IWorkItemRepository
                 ProjectId = projectId,
                 ProjectName = projectName,
                 UserId = userId,
+                Title = normalizedTitle,
                 Status = WorkItemStatuses.Queued,
                 CurrentStage = string.Empty,
                 DisplayNumber = nextNumber,

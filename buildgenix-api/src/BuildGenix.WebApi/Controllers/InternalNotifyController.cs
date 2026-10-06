@@ -15,19 +15,29 @@ public sealed class InternalNotifyController : ControllerBase
 {
     [HttpPost("sdlc-results")]
     [ProducesResponseType(typeof(AcceptedResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult SdlcResults([FromBody] SdlcResultEnvelope envelope)
+    public IResult SdlcResults([FromBody] SdlcResultEnvelope? envelope)
     {
-        _ = envelope;
+        if (string.IsNullOrWhiteSpace(envelope?.MessageId))
+        {
+            return ApiProblems.ValidationFailed("messageId is required.");
+        }
+
         return ApiProblems.NotReady("Internal REST notify is optional; Phase 0 default is Service Bus only.");
     }
 
     [HttpPost("sdlc-events")]
     [ProducesResponseType(typeof(AcceptedResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
-    public IResult SdlcEvents([FromBody] SdlcEventEnvelope envelope)
+    public IResult SdlcEvents([FromBody] SdlcEventEnvelope? envelope)
     {
-        _ = envelope;
+        if (string.IsNullOrWhiteSpace(envelope?.MessageId))
+        {
+            return ApiProblems.ValidationFailed("messageId is required.");
+        }
+
         return ApiProblems.NotReady("Internal REST notify is optional; Phase 0 default is Service Bus only.");
     }
 }

@@ -19,6 +19,15 @@ public sealed class WorkItemLifecycleTests
     }
 
     [Fact]
+    public async Task TryCreate_persists_optional_title()
+    {
+        var repo = new InMemoryWorkItemRepository();
+        var created = await repo.TryCreateAsync("p1", "Demo", "user-a", null, "  Should Persist?  ");
+        Assert.Equal(WorkItemCreateOutcome.Created, created.Outcome);
+        Assert.Equal("Should Persist?", created.Item!.Title);
+    }
+
+    [Fact]
     public async Task TryImplement_without_summary_is_summary_not_found()
     {
         var repo = new InMemoryWorkItemRepository();

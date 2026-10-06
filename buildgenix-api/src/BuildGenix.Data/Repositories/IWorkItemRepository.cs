@@ -50,6 +50,7 @@ public interface IWorkItemRepository
         string projectName,
         string userId,
         string? idempotencyKey,
+        string? title = null,
         CancellationToken cancellationToken = default);
 
     Task<WorkItemImplementResult> TryImplementAsync(

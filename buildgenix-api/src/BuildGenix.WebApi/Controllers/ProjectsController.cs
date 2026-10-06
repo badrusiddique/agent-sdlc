@@ -77,20 +77,22 @@ public sealed class ProjectsController : ControllerBase
             return ApiProblems.ValidationFailed("At least one field is required.");
         }
 
+        // SettingsJson planned B3 — do not silently accept settings.
+        if (request.Settings is not null)
+        {
+            return ApiProblems.NotReady("Project settings persistence is planned B3.");
+        }
+
         var entity = await _projects.GetAsync(projectId, cancellationToken).ConfigureAwait(false);
         if (entity is null)
         {
             return ApiProblems.NotFound($"Project '{projectId}' was not found.");
         }
 
-        if (request.Description is not null)
-        {
-            entity.Description = string.IsNullOrWhiteSpace(request.Description)
-                ? null
-                : request.Description.Trim();
-        }
+        entity.Description = string.IsNullOrWhiteSpace(request.Description)
+            ? null
+            : request.Description.Trim();
 
-        // SettingsJson planned B3; accept payload without persisting opaque settings yet.
         await _projects.UpsertAsync(entity, cancellationToken).ConfigureAwait(false);
         return Results.Ok(MapDetail(entity));
     }

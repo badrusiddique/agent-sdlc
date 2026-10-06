@@ -47,6 +47,7 @@ public sealed class InMemoryWorkItemRepository : IWorkItemRepository
         string projectName,
         string userId,
         string? idempotencyKey,
+        string? title = null,
         CancellationToken cancellationToken = default)
     {
         _ = idempotencyKey;
@@ -62,6 +63,7 @@ public sealed class InMemoryWorkItemRepository : IWorkItemRepository
             ProjectId = projectId,
             ProjectName = projectName,
             UserId = userId,
+            Title = string.IsNullOrWhiteSpace(title) ? null : title.Trim(),
             Status = WorkItemStatuses.Queued,
             DisplayNumber = next,
             CreatedAt = now,
@@ -173,6 +175,7 @@ public sealed class InMemoryWorkItemRepository : IWorkItemRepository
         ProjectId = e.ProjectId,
         ProjectName = e.ProjectName,
         UserId = e.UserId,
+        Title = e.Title,
         Status = e.Status,
         CurrentStage = e.CurrentStage,
         DisplayNumber = e.DisplayNumber,

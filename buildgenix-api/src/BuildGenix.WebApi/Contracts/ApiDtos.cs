@@ -353,7 +353,7 @@ public sealed record ProjectDocumentDto(
 
 public sealed record ProjectDocumentListResponse(IReadOnlyList<ProjectDocumentDto> Items);
 
-public sealed record RegisterProjectDocumentRequest(string Name, string? ContentType, string? BlobPath);
+public sealed record RegisterProjectDocumentRequest(string? Name, string? ContentType, string? BlobPath);
 
 // --- Steering / sign-off ---
 public sealed record ProposalDto(
@@ -400,8 +400,8 @@ public sealed record SignOffDto(
     DateTimeOffset DecisionAt);
 
 // --- Internal ---
-public sealed record SdlcResultEnvelope(string MessageId, string? PayloadJson);
+public sealed record SdlcResultEnvelope(string? MessageId, string? PayloadJson);
 
-public sealed record SdlcEventEnvelope(string MessageId, string? PayloadJson);
+public sealed record SdlcEventEnvelope(string? MessageId, string? PayloadJson);
 
 public sealed record AcceptedResponse(bool Processed);

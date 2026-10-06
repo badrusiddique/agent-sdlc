@@ -18,6 +18,7 @@ public sealed class WorkItemEntity : ITableEntity
     public string ProjectId { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
     public string ProjectName { get; set; } = string.Empty;
+    public string? Title { get; set; }
     public string CurrentStage { get; set; } = string.Empty;
     public string Status { get; set; } = WorkItemStatuses.Queued;
     public int DisplayNumber { get; set; }

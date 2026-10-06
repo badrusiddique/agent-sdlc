@@ -45,7 +45,7 @@ public sealed class ProjectExtrasController : ControllerBase
     [ProducesResponseType(StatusCodes.Status501NotImplemented)]
     public async Task<IResult> AddDocumentAsync(
         string projectId,
-        [FromBody] RegisterProjectDocumentRequest request,
+        [FromBody] RegisterProjectDocumentRequest? request,
         CancellationToken cancellationToken)
     {
         if (await _projects.GetAsync(projectId, cancellationToken).ConfigureAwait(false) is null)
@@ -53,7 +53,7 @@ public sealed class ProjectExtrasController : ControllerBase
             return ApiProblems.NotFound($"Project '{projectId}' was not found.");
         }
 
-        if (string.IsNullOrWhiteSpace(request.Name))
+        if (string.IsNullOrWhiteSpace(request?.Name))
         {
             return ApiProblems.ValidationFailed("name is required.");
         }

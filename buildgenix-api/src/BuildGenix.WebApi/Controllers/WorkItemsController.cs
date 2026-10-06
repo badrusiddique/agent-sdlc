@@ -81,6 +81,7 @@ public sealed class WorkItemsController : ControllerBase
             project.Name,
             HttpContext.GetUserId(),
             idempotencyKey,
+            request?.Title,
             cancellationToken).ConfigureAwait(false);
 
         var item = result.Item!;
@@ -234,7 +235,7 @@ public sealed class WorkItemsController : ControllerBase
     }
 
     private static WorkItemListItemDto MapListItem(WorkItemEntity e) =>
-        new(e.WorkItemId, e.DisplayNumber, null, e.Status, e.CurrentStage, null, null, null);
+        new(e.WorkItemId, e.DisplayNumber, e.Title, e.Status, e.CurrentStage, null, null, null);
 
     private static WorkItemDetailDto MapDetail(WorkItemEntity e) =>
         new(
@@ -242,7 +243,7 @@ public sealed class WorkItemsController : ControllerBase
             e.ProjectId,
             e.ProjectName,
             e.DisplayNumber,
-            null,
+            e.Title,
             e.Status,
             e.CurrentStage,
             e.CreatedAt,

@@ -84,6 +84,10 @@ public sealed class HeartbeatPingConsumer : BackgroundService
         await _publisher
             .PublishPongAsync(pongBody, correlationId ?? messageId, cancellationToken)
             .ConfigureAwait(false);
+        _logger.LogInformation(
+            "Heartbeat ping {MessageId} pong published to {PongTopic} (D-C1 before mark)",
+            messageId,
+            _options.PongTopic);
 
         var firstSeen = await _idempotency
             .TryMarkProcessedAsync(messageId, enqueuedAt, "bg-heartbeat-ping", cancellationToken)
@@ -92,14 +96,15 @@ public sealed class HeartbeatPingConsumer : BackgroundService
         if (!firstSeen)
         {
             _logger.LogInformation(
-                "Heartbeat ping {MessageId} pong published; idempotency mark already present (duplicate)",
+                "Heartbeat ping {MessageId} idempotency mark already present after pong (duplicate)",
                 messageId);
         }
-
-        _logger.LogInformation(
-            "Heartbeat ping {MessageId} forwarded to {PongTopic}",
-            messageId,
-            _options.PongTopic);
+        else
+        {
+            _logger.LogDebug(
+                "Heartbeat ping {MessageId} marked in WmProcessedEvents after pong publish",
+                messageId);
+        }
     }
 
     private async Task ProcessMessageAsync(ProcessMessageEventArgs args)
