@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/BuildGenix.Data/BuildGenix.Data.csproj" />
+    <Project Path="src/BuildGenix.WebApi/BuildGenix.WebApi.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/BuildGenix.WebApi.Tests/BuildGenix.WebApi.Tests.csproj" />
+  </Folder>
+</Solution>
