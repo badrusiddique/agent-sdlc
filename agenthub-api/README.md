@@ -92,8 +92,9 @@ dotnet test
 |---------|---------|
 | `Llm:Provider` | `Fixture` \| `Ollama` \| `Gateway` |
 | `Workers:Healthy:*` | Topic/sub, MaxDeliveryCount=5, lock renewal, pause |
-| `BlobStorage:*` | Azurite / Azure Blob for D-C3 artifacts |
-| `TableStorage:*` | AH tables only |
+| `BlobStorage:*` | Azurite connection string **or** `ServiceUri` + DefaultAzureCredential; container for D-C3 artifacts |
+| `TableStorage:*` | AH tables only; ConnectionString (local) or ServiceUri (App Service MI) |
+| `ServiceBus:EmulatorHealthUrl` | Used by `/health` when `UseDevelopmentEmulator=true` |
 
 ## Design notes (D-I2-*)
 

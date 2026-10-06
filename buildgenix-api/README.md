@@ -95,9 +95,10 @@ Ping→pong path and WI lifecycle (create without lock, Implement lock, D-C5 no-
 
 | Section | Purpose |
 |---------|---------|
-| `TableStorage:ConnectionString` | Azurite / Azure Tables |
+| `TableStorage:ConnectionString` | Azurite / local Azure Tables |
+| `TableStorage:ServiceUri` | App Service: table endpoint + DefaultAzureCredential (when connection string empty) |
 | `TableStorage:StoragePrefix` | Optional shared-account table prefix |
-| `ServiceBus:*` | Emulator/cloud connection, topic names, pong marker |
+| `ServiceBus:*` | Emulator/cloud connection string, topic names, pong marker, emulator health URL |
 
 ## Out of scope (Iteration 0a)
 
