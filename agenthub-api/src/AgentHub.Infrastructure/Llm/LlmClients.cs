@@ -110,15 +110,28 @@ public sealed class GatewayLlmClient : ILlmClient
         using var httpRequest = new HttpRequestMessage(HttpMethod.Post, _options.ChatEndpoint);
         httpRequest.Headers.TryAddWithoutValidation("Ocp-Apim-Subscription-Key", key);
         httpRequest.Headers.TryAddWithoutValidation("X-AIGW-Model", model);
-        httpRequest.Content = JsonContent.Create(new
-        {
-            messages = new object[]
+        // ai-gateway.md: aliases 5.1 / 5.4 require max_completion_tokens; others may use max_tokens.
+        // Never send temperature (reasoning models reject it).
+        object body = UsesMaxCompletionTokens(model)
+            ? new
             {
-                new { role = "system", content = request.SystemPrompt },
-                new { role = "user", content = request.UserPrompt }
-            },
-            max_tokens = 256
-        });
+                messages = new object[]
+                {
+                    new { role = "system", content = request.SystemPrompt },
+                    new { role = "user", content = request.UserPrompt }
+                },
+                max_completion_tokens = 256
+            }
+            : new
+            {
+                messages = new object[]
+                {
+                    new { role = "system", content = request.SystemPrompt },
+                    new { role = "user", content = request.UserPrompt }
+                },
+                max_tokens = 256
+            };
+        httpRequest.Content = JsonContent.Create(body);
 
         using var response = await _http.SendAsync(httpRequest, cancellationToken).ConfigureAwait(false);
         var raw = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -142,6 +155,15 @@ public sealed class GatewayLlmClient : ILlmClient
         }
 
         return new LlmCompletionResult(text, model, InputTokens: 0, OutputTokens: 0);
+    }
+
+    /// <summary>Chat aliases that reject max_tokens (see docs/ai-gateway.md §3).</summary>
+    internal static bool UsesMaxCompletionTokens(string modelAlias)
+    {
+        var a = modelAlias.Trim();
+        return a is "5.1" or "5.4"
+               || a.StartsWith("5.1", StringComparison.Ordinal)
+               || a.StartsWith("5.4", StringComparison.Ordinal);
     }
 
     private static string Truncate(string value, int max) =>
