@@ -134,13 +134,34 @@ public sealed class HealthyAgentDispatcherTests
         Assert.Empty(dedup.Marked);
     }
 
+    [Fact]
+    public async Task ProcessAsync_guardrail_block_fails_without_retry_at_delivery_1()
+    {
+        var order = new List<string>();
+        var results = new FakeResults(onPublish: () => order.Add("publish"));
+        var dedup = new FakeDedup(onMark: () => order.Add("mark"));
+        var dispatcher = CreateDispatcher(results, dedup, handlerThrows: false, llmText: "# Bad heading\nnope");
+
+        var body = """
+            {"workItemId":"wi","projectId":"p","stage":"HEALTHY","taskId":"t9","correlationId":"c-g","inputVersion":1}
+            """;
+        var outcome = await dispatcher.ProcessAsync(body, "t9:1", deliveryCount: 1, maxDeliveryCount: 5);
+
+        Assert.Equal(HealthyDispatchKind.DeadLetter, outcome.Kind);
+        Assert.Equal(AgentResultStatus.Failed, outcome.Result!.Status);
+        Assert.Contains("GuardrailBlocked", outcome.Result.ErrorMessage ?? string.Empty, StringComparison.Ordinal);
+        Assert.Equal(new[] { "publish", "mark" }, order);
+        Assert.Contains("t9:1", dedup.Marked);
+    }
+
     private static HealthyAgentDispatcher CreateDispatcher(
         FakeResults results,
         FakeDedup dedup,
-        bool handlerThrows)
+        bool handlerThrows,
+        string llmText = "ok")
     {
         var handler = new HealthyAgentHandler(
-            new ThrowingOrOkLlm(handlerThrows),
+            new ThrowingOrOkLlm(handlerThrows, llmText),
             new NoopBlob(),
             new EmptyLedger(),
             new NoopActivity(),
@@ -157,8 +178,13 @@ public sealed class HealthyAgentDispatcherTests
     private sealed class ThrowingOrOkLlm : ILlmClient
     {
         private readonly bool _throw;
+        private readonly string _text;
 
-        public ThrowingOrOkLlm(bool @throw) => _throw = @throw;
+        public ThrowingOrOkLlm(bool @throw, string text = "ok")
+        {
+            _throw = @throw;
+            _text = text;
+        }
 
         public string ProviderName => "Fixture";
 
@@ -171,7 +197,7 @@ public sealed class HealthyAgentDispatcherTests
                 throw new InvalidOperationException("forced");
             }
 
-            return Task.FromResult(new LlmCompletionResult("ok", "fixture", 1, 1));
+            return Task.FromResult(new LlmCompletionResult(_text, "fixture", 1, 1));
         }
     }
 

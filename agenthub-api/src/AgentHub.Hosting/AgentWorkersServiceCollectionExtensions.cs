@@ -1,5 +1,6 @@
 using AgentHub.Agents.Healthy;
 using AgentHub.Core.Abstractions;
+using AgentHub.Core.Guardrails;
 using AgentHub.Infrastructure.Messaging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,6 +21,8 @@ public static class AgentWorkersServiceCollectionExtensions
         services.Configure<HealthyWorkerOptions>(
             configuration.GetSection(HealthyWorkerOptions.SectionName));
 
+        services.AddSingleton<IGuardrailPipeline, LocalGuardrailPipeline>();
+
         services.AddSingleton(sp =>
         {
             var pauseMs = sp.GetRequiredService<IOptions<HealthyWorkerOptions>>().Value.DeliberatePauseMs;
@@ -29,7 +32,8 @@ public static class AgentWorkersServiceCollectionExtensions
                 sp.GetRequiredService<IEffectLedger>(),
                 sp.GetRequiredService<IActivityLog>(),
                 sp.GetRequiredService<ILogger<HealthyAgentHandler>>(),
-                TimeSpan.FromMilliseconds(Math.Max(0, pauseMs)));
+                TimeSpan.FromMilliseconds(Math.Max(0, pauseMs)),
+                sp.GetRequiredService<IGuardrailPipeline>());
         });
         services.AddSingleton<HealthyAgentDispatcher>();
         services.AddHostedService<HealthyAgentWorker>();

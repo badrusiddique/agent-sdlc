@@ -1,5 +1,6 @@
 using System.Text.Json;
 using AgentHub.Core.Abstractions;
+using AgentHub.Core.Guardrails;
 using AgentHub.Core.Models;
 using Microsoft.Extensions.Logging;
 
@@ -89,6 +90,37 @@ public sealed class HealthyAgentDispatcher
         try
         {
             result = await _handler.RunAsync(message, deliveryCount, cancellationToken).ConfigureAwait(false);
+        }
+        catch (GuardrailBlockedException gex)
+        {
+            // Policy block will not succeed on retry — fail once, publish, mark, dead-letter.
+            _logger.LogWarning(
+                gex,
+                "HEALTHY guardrail blocked {MessageId} CorrelationId={CorrelationId} codes={Codes}",
+                serviceBusMessageId,
+                message.CorrelationId,
+                string.Join(',', gex.Verdict.ReasonCodes));
+
+            result = new AgentResult
+            {
+                WorkItemId = message.WorkItemId,
+                TaskId = message.TaskId,
+                Stage = HealthyAgentConstants.StageCode,
+                Status = AgentResultStatus.Failed,
+                CorrelationId = message.CorrelationId,
+                InputVersion = message.InputVersion,
+                RunId = HealthyAgentConstants.RunId(message.TaskId, message.InputVersion, deliveryCount),
+                StateContextId = message.StateContextId,
+                ErrorMessage = Truncate(
+                    $"GuardrailBlocked:{string.Join(',', gex.Verdict.ReasonCodes)}",
+                    2000)
+            };
+
+            await _results.PublishResultAsync(result, cancellationToken).ConfigureAwait(false);
+            await _dedup.TryMarkProcessedAsync(serviceBusMessageId, cancellationToken).ConfigureAwait(false);
+            return HealthyDispatchOutcome.DeadLetter(
+                result.ErrorMessage ?? "HEALTHY guardrail blocked.",
+                result);
         }
         catch (Exception ex)
         {

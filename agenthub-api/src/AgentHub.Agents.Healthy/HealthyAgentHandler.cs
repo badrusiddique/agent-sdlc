@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
 using AgentHub.Core.Abstractions;
+using AgentHub.Core.Guardrails;
 using AgentHub.Core.Models;
 using Microsoft.Extensions.Logging;
 
@@ -14,6 +15,7 @@ public sealed class HealthyAgentHandler
     private readonly IArtifactBlobStore _blobs;
     private readonly IEffectLedger _ledger;
     private readonly IActivityLog _activity;
+    private readonly IGuardrailPipeline _guardrails;
     private readonly TimeSpan _deliberatePause;
     private readonly ILogger<HealthyAgentHandler> _logger;
 
@@ -23,7 +25,8 @@ public sealed class HealthyAgentHandler
         IEffectLedger ledger,
         IActivityLog activity,
         ILogger<HealthyAgentHandler> logger,
-        TimeSpan? deliberatePause = null)
+        TimeSpan? deliberatePause = null,
+        IGuardrailPipeline? guardrails = null)
     {
         _llm = llm;
         _blobs = blobs;
@@ -31,6 +34,7 @@ public sealed class HealthyAgentHandler
         _activity = activity;
         _logger = logger;
         _deliberatePause = deliberatePause ?? TimeSpan.FromMilliseconds(250);
+        _guardrails = guardrails ?? new LocalGuardrailPipeline();
     }
 
     public async Task<AgentResult> RunAsync(
@@ -65,6 +69,12 @@ public sealed class HealthyAgentHandler
         var systemPrompt = PromptLoader.LoadSystemPrompt();
         var userPrompt =
             $"WorkItemId={message.WorkItemId}; ProjectId={message.ProjectId}; StateContextId={message.StateContextId}. Give today's joke or thought.";
+
+        await EnforceGuardrailAsync(
+                _guardrails.EvaluateInput(userPrompt, message.CorrelationId),
+                message,
+                cancellationToken)
+            .ConfigureAwait(false);
 
         await LogAsync(message, "info", "HEALTHY progress: calling LLM", cancellationToken)
             .ConfigureAwait(false);
@@ -140,7 +150,14 @@ public sealed class HealthyAgentHandler
                 cancellationToken)
             .ConfigureAwait(false);
 
-        var text = Truncate(completion.Text, 4000);
+        // Evaluate raw model text first (so OutputTooLong is meaningful), then truncate for storage.
+        await EnforceGuardrailAsync(
+                _guardrails.EvaluateOutput(completion.Text, systemPrompt, message.CorrelationId),
+                message,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var text = Truncate(completion.Text, LocalGuardrailPipeline.DefaultMaxOutputChars);
         var stored = completion with { Text = text };
         var outputJson = JsonSerializer.Serialize(stored, JsonOptions);
 
@@ -201,6 +218,13 @@ public sealed class HealthyAgentHandler
             },
             JsonOptions);
 
+        // Secrets scan on artifact body before blob write (brain-dump item 6).
+        await EnforceGuardrailAsync(
+                _guardrails.EvaluateOutput(body, systemPrompt: string.Empty, message.CorrelationId),
+                message,
+                cancellationToken)
+            .ConfigureAwait(false);
+
         await _blobs.WriteJsonAsync(blobPath, body, cancellationToken).ConfigureAwait(false);
 
         await _ledger
@@ -216,6 +240,32 @@ public sealed class HealthyAgentHandler
                         JsonOptions)),
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    private async Task EnforceGuardrailAsync(
+        GuardrailVerdict verdict,
+        TaskMessage message,
+        CancellationToken cancellationToken)
+    {
+        var codes = string.Join(',', verdict.ReasonCodes);
+        _logger.LogInformation(
+            "HEALTHY guardrail stage={Stage} decision={Decision} codes={Codes} CorrelationId={CorrelationId}",
+            verdict.Stage,
+            verdict.Decision,
+            codes,
+            verdict.CorrelationId);
+
+        await LogAsync(
+                message,
+                verdict.Decision == GuardrailDecision.Allow ? "info" : "warn",
+                $"HEALTHY guardrail {verdict.Stage}={verdict.Decision} codes={codes}",
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (verdict.Decision == GuardrailDecision.Block)
+        {
+            throw new GuardrailBlockedException(verdict);
+        }
     }
 
     private Task LogAsync(

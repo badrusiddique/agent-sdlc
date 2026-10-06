@@ -41,6 +41,41 @@ public sealed class HealthyAgentHandlerTests
         Assert.True(ledger.Has(HealthyAgentConstants.IntentLlm, 100));
         Assert.True(ledger.Has(HealthyAgentConstants.IntentArtifact, 200));
         Assert.Contains(activity.Entries, e => e.Message.Contains("HEALTHY started", StringComparison.Ordinal));
+        Assert.Contains(
+            activity.Entries,
+            e => e.Message.Contains("HEALTHY guardrail input=Allow", StringComparison.Ordinal));
+        Assert.Contains(
+            activity.Entries,
+            e => e.Message.Contains("HEALTHY guardrail output=Allow", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RunAsync_blocks_when_llm_returns_markdown_heading()
+    {
+        var llm = new FakeLlm("# Heading\nnot allowed");
+        var handler = new HealthyAgentHandler(
+            llm,
+            new FakeBlobStore(),
+            new InMemoryEffectLedger(),
+            new InMemoryActivityLog(),
+            NullLogger<HealthyAgentHandler>.Instance,
+            TimeSpan.Zero);
+
+        var message = new TaskMessage
+        {
+            WorkItemId = "wi1",
+            ProjectId = "p1",
+            TaskId = "t1",
+            CorrelationId = "c-block",
+            InputVersion = 1,
+            Stage = HealthyAgentConstants.StageCode
+        };
+
+        var ex = await Assert.ThrowsAsync<AgentHub.Core.Guardrails.GuardrailBlockedException>(
+            () => handler.RunAsync(message, 1));
+        Assert.Contains(
+            AgentHub.Core.Guardrails.GuardrailReasonCodes.OutputShapeViolation,
+            ex.Verdict.ReasonCodes);
     }
 
     [Fact]
@@ -81,6 +116,10 @@ public sealed class HealthyAgentHandlerTests
 
     private sealed class FakeLlm : ILlmClient
     {
+        private readonly string _text;
+
+        public FakeLlm(string text = "joke") => _text = text;
+
         public string ProviderName => "Fixture";
         public int Calls { get; private set; }
 
@@ -89,7 +128,7 @@ public sealed class HealthyAgentHandlerTests
             CancellationToken cancellationToken = default)
         {
             Calls++;
-            return Task.FromResult(new LlmCompletionResult("joke", "fixture", 1, 2));
+            return Task.FromResult(new LlmCompletionResult(_text, "fixture", 1, 2));
         }
     }
 

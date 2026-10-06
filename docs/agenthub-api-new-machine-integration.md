@@ -97,6 +97,8 @@ Llm__Gateway__SubscriptionKey = <from Key Vault secret apim-{consumer-id}-subscr
 AIGW_SUBSCRIPTION_KEY = <same value>
 ```
 
+**Body rule (5.x):** aliases `5.1` / `5.4` must send `max_completion_tokens` (not `max_tokens`). AgentHub `GatewayLlmClient` already branches on this — do not “simplify” the body to always `max_tokens`.
+
 Headers the Gateway client must send (see `docs/ai-gateway.md`):
 
 - `Ocp-Apim-Subscription-Key`
