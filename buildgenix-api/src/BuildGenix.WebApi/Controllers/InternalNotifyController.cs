@@ -6,7 +6,7 @@ namespace BuildGenix.WebApi.Controllers;
 
 /// <summary>
 /// Optional internal REST notify (D-CL-7 alternate). Not for browsers.
-/// Phase 0 default ingress remains Service Bus; these return 501 until isolation is designed.
+/// Typed envelopes; not implemented (Phase 0 default is Service Bus).
 /// </summary>
 [ApiController]
 [Route("api/internal")]
@@ -14,14 +14,18 @@ namespace BuildGenix.WebApi.Controllers;
 public sealed class InternalNotifyController : ControllerBase
 {
     [HttpPost("sdlc-results")]
-    public IResult SdlcResults([FromBody] object? envelope)
+    [ProducesResponseType(typeof(AcceptedResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
+    public IResult SdlcResults([FromBody] SdlcResultEnvelope envelope)
     {
         _ = envelope;
         return ApiProblems.NotReady("Internal REST notify is optional; Phase 0 default is Service Bus only.");
     }
 
     [HttpPost("sdlc-events")]
-    public IResult SdlcEvents([FromBody] object? envelope)
+    [ProducesResponseType(typeof(AcceptedResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
+    public IResult SdlcEvents([FromBody] SdlcEventEnvelope envelope)
     {
         _ = envelope;
         return ApiProblems.NotReady("Internal REST notify is optional; Phase 0 default is Service Bus only.");

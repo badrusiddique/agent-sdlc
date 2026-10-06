@@ -35,9 +35,10 @@ public sealed class ActivityController : ControllerBase
     }
 
     [HttpGet("activity/{eventId}")]
+    [ProducesResponseType(typeof(ActivityDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IResult> GetAsync(string workItemId, string eventId, CancellationToken cancellationToken)
     {
-        _ = eventId;
         if (await MissingAsync(workItemId, cancellationToken).ConfigureAwait(false) is { } problem)
         {
             return problem;
@@ -66,6 +67,8 @@ public sealed class ActivityController : ControllerBase
     }
 
     [HttpGet("activity/export")]
+    [ProducesResponseType(typeof(ActivityExportResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
     public async Task<IResult> ExportAsync(string workItemId, CancellationToken cancellationToken)
     {
         if (await MissingAsync(workItemId, cancellationToken).ConfigureAwait(false) is { } problem)

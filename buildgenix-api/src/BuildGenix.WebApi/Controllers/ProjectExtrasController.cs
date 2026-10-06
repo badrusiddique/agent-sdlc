@@ -1,4 +1,5 @@
 using BuildGenix.Data.Repositories;
+using BuildGenix.WebApi.Contracts;
 using BuildGenix.WebApi.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,6 +15,8 @@ public sealed class ProjectExtrasController : ControllerBase
     public ProjectExtrasController(IProjectRepository projects) => _projects = projects;
 
     [HttpGet("human-actions")]
+    [ProducesResponseType(typeof(ProjectHumanActionListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IResult> HumanActionsAsync(string projectId, CancellationToken cancellationToken)
     {
         if (await _projects.GetAsync(projectId, cancellationToken).ConfigureAwait(false) is null)
@@ -21,10 +24,12 @@ public sealed class ProjectExtrasController : ControllerBase
             return ApiProblems.NotFound($"Project '{projectId}' was not found.");
         }
 
-        return Results.Ok(new { items = Array.Empty<object>() });
+        return Results.Ok(new ProjectHumanActionListResponse([]));
     }
 
     [HttpGet("documents")]
+    [ProducesResponseType(typeof(ProjectDocumentListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IResult> ListDocumentsAsync(string projectId, CancellationToken cancellationToken)
     {
         if (await _projects.GetAsync(projectId, cancellationToken).ConfigureAwait(false) is null)
@@ -32,15 +37,25 @@ public sealed class ProjectExtrasController : ControllerBase
             return ApiProblems.NotFound($"Project '{projectId}' was not found.");
         }
 
-        return Results.Ok(new { items = Array.Empty<object>() });
+        return Results.Ok(new ProjectDocumentListResponse([]));
     }
 
     [HttpPost("documents")]
-    public async Task<IResult> AddDocumentAsync(string projectId, CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(ProjectDocumentDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
+    public async Task<IResult> AddDocumentAsync(
+        string projectId,
+        [FromBody] RegisterProjectDocumentRequest request,
+        CancellationToken cancellationToken)
     {
         if (await _projects.GetAsync(projectId, cancellationToken).ConfigureAwait(false) is null)
         {
             return ApiProblems.NotFound($"Project '{projectId}' was not found.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Name))
+        {
+            return ApiProblems.ValidationFailed("name is required.");
         }
 
         return ApiProblems.NotReady("Application library documents are later E2.");

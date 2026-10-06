@@ -139,6 +139,9 @@ public sealed class WorkItemsController : ControllerBase
     }
 
     [HttpPost("api/work-items/{workItemId}/answer")]
+    [ProducesResponseType(typeof(WorkItemDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
     public IResult Answer(string workItemId, [FromBody] AnswerHumanActionRequest request)
     {
         _ = workItemId;
@@ -151,6 +154,8 @@ public sealed class WorkItemsController : ControllerBase
     }
 
     [HttpPost("api/work-items/{workItemId}/pause")]
+    [ProducesResponseType(typeof(WorkItemDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
     public IResult Pause(string workItemId, [FromBody] PauseWorkItemRequest? request)
     {
         _ = workItemId;
@@ -159,6 +164,8 @@ public sealed class WorkItemsController : ControllerBase
     }
 
     [HttpPost("api/work-items/{workItemId}/stop")]
+    [ProducesResponseType(typeof(WorkItemDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
     public IResult Stop(string workItemId, [FromBody] StopWorkItemRequest? request)
     {
         _ = workItemId;
@@ -181,7 +188,12 @@ public sealed class WorkItemsController : ControllerBase
         }
 
         // StageStatuses planned B2a; Draft/pre-Implement returns empty stages (no INTAKE stage code).
-        return Results.Ok(new ProgressResponse([], null, [], [], null));
+        return Results.Ok(new ProgressResponse(
+            Stages: [],
+            SelectedStage: null,
+            WaitingOnYou: [],
+            StillToCome: [],
+            ApprovalsBrief: null));
     }
 
     [HttpGet("api/work-items/{workItemId}/telemetry")]

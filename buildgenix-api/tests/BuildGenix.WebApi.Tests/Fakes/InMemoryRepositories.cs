@@ -3,7 +3,7 @@ using BuildGenix.Data.Repositories;
 
 namespace BuildGenix.WebApi.Tests.Fakes;
 
-internal sealed class InMemoryProjectRepository : IProjectRepository
+public sealed class InMemoryProjectRepository : IProjectRepository
 {
     private readonly Dictionary<string, ProjectEntity> _items = new(StringComparer.Ordinal);
 
@@ -23,7 +23,7 @@ internal sealed class InMemoryProjectRepository : IProjectRepository
 }
 
 /// <summary>In-memory stand-in for D-C4/C4b/C5 lifecycle rules without Azurite.</summary>
-internal sealed class InMemoryWorkItemRepository : IWorkItemRepository
+public sealed class InMemoryWorkItemRepository : IWorkItemRepository
 {
     private readonly Dictionary<string, WorkItemEntity> _byId = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _activeByProject = new(StringComparer.Ordinal);

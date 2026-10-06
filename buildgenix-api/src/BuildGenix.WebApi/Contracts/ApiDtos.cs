@@ -1,5 +1,8 @@
+using System.Text.Json;
+
 namespace BuildGenix.WebApi.Contracts;
 
+// --- Projects ---
 public sealed record ProjectSummaryDto(
     string ProjectId,
     string Name,
@@ -23,8 +26,9 @@ public sealed record CreateProjectRequest(string Name, string? Description);
 
 public sealed record CreateProjectResponse(string ProjectId, string Name, DateTimeOffset CreatedAt);
 
-public sealed record PatchProjectRequest(string? Description, object? Settings);
+public sealed record PatchProjectRequest(string? Description, JsonElement? Settings);
 
+// --- Home ---
 public sealed record PendingActionDto(
     string Kind,
     string WorkItemId,
@@ -50,6 +54,7 @@ public sealed record HomeActivityItemDto(
 
 public sealed record HomeActivityResponse(IReadOnlyList<HomeActivityItemDto> Items);
 
+// --- Work items ---
 public sealed record WorkItemListItemDto(
     string WorkItemId,
     int DisplayNumber,
@@ -58,9 +63,13 @@ public sealed record WorkItemListItemDto(
     string CurrentStage,
     int? FeatureCount,
     DateTimeOffset? WaitingSince,
-    object? LifecycleSummary);
+    IReadOnlyList<StageProgressDto>? LifecycleSummary);
 
 public sealed record WorkItemListResponse(IReadOnlyList<WorkItemListItemDto> Items, string? ContinuationToken = null);
+
+public sealed record WorkItemTabCountsDto(int Artifacts, int Activity, int ApprovalsPending, int SteeringProposals);
+
+public sealed record WorkItemTelemetryBriefDto(long? TotalTokens, long? TotalDurationSec, int? RunCount);
 
 public sealed record WorkItemDetailDto(
     string WorkItemId,
@@ -74,8 +83,8 @@ public sealed record WorkItemDetailDto(
     DateTimeOffset UpdatedAt,
     string? HumanMessage,
     string? BlobPrefix,
-    object? TabCounts = null,
-    object? TelemetryBrief = null,
+    WorkItemTabCountsDto? TabCounts = null,
+    WorkItemTelemetryBriefDto? TelemetryBrief = null,
     int? LoopCount = null);
 
 public sealed record CreateWorkItemRequest(string? Title, string? IdempotencyKey);
@@ -102,21 +111,41 @@ public sealed record PauseWorkItemRequest(string? Reason);
 
 public sealed record StopWorkItemRequest(string? Reason);
 
+public sealed record FeatureProgressDto(string FeatureId, string Name, string Status);
+
+public sealed record StageProgressDto(
+    string StageCode,
+    string UiLabel,
+    string Status,
+    int? LoopCount,
+    IReadOnlyList<string>? SubSteps,
+    IReadOnlyList<FeatureProgressDto>? Features);
+
+public sealed record StillToComeItemDto(string StageCode, string UiLabel, string? Note);
+
 public sealed record ProgressResponse(
-    IReadOnlyList<object> Stages,
-    object? SelectedStage,
+    IReadOnlyList<StageProgressDto> Stages,
+    StageProgressDto? SelectedStage,
     IReadOnlyList<PendingActionDto> WaitingOnYou,
-    IReadOnlyList<object> StillToCome,
+    IReadOnlyList<StillToComeItemDto> StillToCome,
     object? ApprovalsBrief);
 
+public sealed record RunTelemetryDto(
+    string RunId,
+    long InputTokens,
+    long OutputTokens,
+    double CostUsd,
+    long DurationMs);
+
 public sealed record WorkItemTelemetryResponse(
-    IReadOnlyList<object> Runs,
+    IReadOnlyList<RunTelemetryDto> Runs,
     long TotalInputTokens,
     long TotalOutputTokens,
     double TotalCostUsd,
     long TotalDurationMs,
     int RunCount);
 
+// --- Conversations ---
 public sealed record ConversationThreadSummaryDto(
     string ThreadId,
     string Kind,
@@ -156,6 +185,13 @@ public sealed record PostConversationMessageResponse(
     IReadOnlyList<ConversationMessageDto> AssistantMessages,
     int? ContextVersion);
 
+public sealed record IntakeContextDto(
+    IReadOnlyList<object> Fields,
+    IReadOnlyList<object> Features,
+    IReadOnlyList<object> Assumptions,
+    IReadOnlyList<AttachmentDto> Attachments,
+    IReadOnlyList<object> Impacts);
+
 public sealed record ProduceIntakeSummaryRequest(bool? Force);
 
 public sealed record IntakeSummaryRefDto(
@@ -171,6 +207,7 @@ public sealed record IntakeSummaryDetailDto(
     string? ContentUrl,
     DateTimeOffset ProducedAt);
 
+// --- Artifacts ---
 public sealed record ArtifactListItemDto(
     string ArtifactId,
     string ArtifactKey,
@@ -186,6 +223,10 @@ public sealed record ArtifactListItemDto(
 
 public sealed record ArtifactListResponse(IReadOnlyList<ArtifactListItemDto> Items);
 
+public sealed record ProjectArtifactListResponse(
+    IReadOnlyList<ArtifactListItemDto> Items,
+    string? ContinuationToken = null);
+
 public sealed record ArtifactDetailDto(
     string ArtifactId,
     string ArtifactKey,
@@ -200,11 +241,12 @@ public sealed record ArtifactDetailDto(
     string ContentType,
     long? SizeBytes,
     DateTimeOffset CreatedAt,
-    object? SupportingArtifacts,
+    IReadOnlyList<ArtifactListItemDto>? SupportingArtifacts,
     string? LinkedGateId);
 
 public sealed record ArtifactContentResponse(string Url, DateTimeOffset ExpiresAt);
 
+// --- Gates / approvals / assumptions / findings ---
 public sealed record GateDto(
     string GateId,
     int PipelineVersion,
@@ -215,7 +257,7 @@ public sealed record GateDto(
     DateTimeOffset RequestedAt,
     string? ArtifactIdShown,
     int? ArtifactRevisionShown,
-    object? SupportingArtifacts,
+    IReadOnlyList<ArtifactListItemDto>? SupportingArtifacts,
     DateTimeOffset? ResolvedAt,
     string? Feedback);
 
@@ -259,6 +301,7 @@ public sealed record FindingStateDto(
     string Disposition,
     string? Note);
 
+// --- Activity ---
 public sealed record ActivityItemDto(
     string EventId,
     DateTimeOffset OccurredAt,
@@ -289,6 +332,30 @@ public sealed record RunLogLineDto(long OffsetMs, int Seq, string? Level, string
 
 public sealed record RunLogResponse(string RunId, IReadOnlyList<RunLogLineDto> Lines);
 
+public sealed record ActivityExportResponse(string Format, string DownloadUrl);
+
+// --- Project extras ---
+public sealed record ProjectHumanActionDto(
+    string EventId,
+    DateTimeOffset OccurredAt,
+    string Kind,
+    string Summary,
+    string? WorkItemId);
+
+public sealed record ProjectHumanActionListResponse(IReadOnlyList<ProjectHumanActionDto> Items);
+
+public sealed record ProjectDocumentDto(
+    string DocumentId,
+    string Name,
+    string ContentType,
+    string BlobPath,
+    DateTimeOffset CreatedAt);
+
+public sealed record ProjectDocumentListResponse(IReadOnlyList<ProjectDocumentDto> Items);
+
+public sealed record RegisterProjectDocumentRequest(string Name, string? ContentType, string? BlobPath);
+
+// --- Steering / sign-off ---
 public sealed record ProposalDto(
     string ProposalId,
     string Kind,
@@ -331,5 +398,10 @@ public sealed record SignOffDto(
     bool Accepted,
     string DecisionBy,
     DateTimeOffset DecisionAt);
+
+// --- Internal ---
+public sealed record SdlcResultEnvelope(string MessageId, string? PayloadJson);
+
+public sealed record SdlcEventEnvelope(string MessageId, string? PayloadJson);
 
 public sealed record AcceptedResponse(bool Processed);

@@ -1,15 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using BuildGenix.Data.Entities;
-using BuildGenix.Data.Repositories;
 using BuildGenix.WebApi.Contracts;
-using BuildGenix.WebApi.Tests.Fakes;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using Microsoft.Extensions.Hosting;
 
 namespace BuildGenix.WebApi.Tests;
 
@@ -64,49 +56,34 @@ public sealed class ControllersContractSmokeTests : IClassFixture<BuildGenixApiF
             $"/api/work-items/{created2!.WorkItemId}/execute",
             new ExecuteWorkItemRequest(1, null));
         Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
-
-        var pending = await _client.GetAsync("/api/pending-actions");
-        Assert.Equal(HttpStatusCode.OK, pending.StatusCode);
-
-        var activity = await _client.GetAsync("/api/home/activity");
-        Assert.Equal(HttpStatusCode.OK, activity.StatusCode);
     }
 
-    [Theory]
-    [InlineData("/api/projects")]
-    [InlineData("/api/pending-actions")]
-    [InlineData("/api/home/activity")]
-    public async Task Catalog_get_routes_respond(string path)
+    [Fact]
+    public async Task Stub_mutations_return_501_with_problem_json()
     {
-        var response = await _client.GetAsync(path);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-    }
-}
+        _client.DefaultRequestHeaders.Add("X-User-Id", "tester");
+        var project = (await (await _client.PostAsJsonAsync(
+            "/api/projects",
+            new CreateProjectRequest("Stubs", null))).Content.ReadFromJsonAsync<CreateProjectResponse>())!;
+        var wi = (await (await _client.PostAsJsonAsync(
+            $"/api/projects/{project.ProjectId}/work-items",
+            new CreateWorkItemRequest(null, null))).Content.ReadFromJsonAsync<CreateWorkItemResponse>())!;
 
-public sealed class BuildGenixApiFactory : WebApplicationFactory<Program>
-{
-    private readonly InMemoryProjectRepository _projects = new();
-    private readonly InMemoryWorkItemRepository _workItems = new();
+        var answer = await _client.PostAsJsonAsync(
+            $"/api/work-items/{wi.WorkItemId}/answer",
+            new AnswerHumanActionRequest("hi"));
+        Assert.Equal(HttpStatusCode.NotImplemented, answer.StatusCode);
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        builder.UseEnvironment("Development");
-        builder.ConfigureTestServices(services =>
-        {
-            RemoveHostedServices(services);
-            services.RemoveAll<IProjectRepository>();
-            services.RemoveAll<IWorkItemRepository>();
-            services.AddSingleton<IProjectRepository>(_projects);
-            services.AddSingleton<IWorkItemRepository>(_workItems);
-        });
-    }
+        var docs = await _client.PostAsJsonAsync(
+            $"/api/projects/{project.ProjectId}/documents",
+            new RegisterProjectDocumentRequest("a.md", "text/markdown", null));
+        Assert.Equal(HttpStatusCode.NotImplemented, docs.StatusCode);
 
-    private static void RemoveHostedServices(IServiceCollection services)
-    {
-        var hosted = services.Where(d => d.ServiceType == typeof(IHostedService)).ToList();
-        foreach (var descriptor in hosted)
-        {
-            services.Remove(descriptor);
-        }
+        var intakeContext = await _client.GetAsync(
+            $"/api/work-items/{wi.WorkItemId}/conversations/I01/context");
+        Assert.Equal(HttpStatusCode.OK, intakeContext.StatusCode);
+        var ctx = await intakeContext.Content.ReadFromJsonAsync<IntakeContextDto>();
+        Assert.NotNull(ctx);
+        Assert.Empty(ctx!.Fields);
     }
 }

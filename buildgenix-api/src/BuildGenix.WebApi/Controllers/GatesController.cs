@@ -39,6 +39,9 @@ public sealed class GatesController : ControllerBase
     }
 
     [HttpPost("gates/{gateId}/decisions")]
+    [ProducesResponseType(typeof(GateDecisionResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
     public async Task<IResult> DecideAsync(
         string workItemId,
         string gateId,
@@ -74,6 +77,8 @@ public sealed class GatesController : ControllerBase
     }
 
     [HttpPatch("findings/{findingId}")]
+    [ProducesResponseType(typeof(FindingStateDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
     public async Task<IResult> UpdateFindingAsync(
         string workItemId,
         string findingId,

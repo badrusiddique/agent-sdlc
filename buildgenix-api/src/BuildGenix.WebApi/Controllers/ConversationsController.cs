@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace BuildGenix.WebApi.Controllers;
 
-/// <summary>Conversation routes (planned B1). Returns empty shells until Conversations table lands.</summary>
+/// <summary>Conversation routes (planned B1). Typed DTOs only; persistence not implemented.</summary>
 [ApiController]
 [Route("api/work-items/{workItemId}/conversations")]
 [Tags("Conversations")]
@@ -17,6 +17,7 @@ public sealed class ConversationsController : ControllerBase
 
     [HttpGet]
     [ProducesResponseType(typeof(ConversationThreadListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IResult> ListThreadsAsync(string workItemId, CancellationToken cancellationToken)
     {
         if (await MissingAsync(workItemId, cancellationToken).ConfigureAwait(false) is { } problem)
@@ -35,6 +36,7 @@ public sealed class ConversationsController : ControllerBase
 
     [HttpGet("{threadId}")]
     [ProducesResponseType(typeof(ConversationDetailResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IResult> GetThreadAsync(string workItemId, string threadId, CancellationToken cancellationToken)
     {
         if (await MissingAsync(workItemId, cancellationToken).ConfigureAwait(false) is { } problem)
@@ -46,6 +48,9 @@ public sealed class ConversationsController : ControllerBase
     }
 
     [HttpPost("{threadId}/messages")]
+    [ProducesResponseType(typeof(PostConversationMessageResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
     public async Task<IResult> PostMessageAsync(
         string workItemId,
         string threadId,
@@ -67,6 +72,8 @@ public sealed class ConversationsController : ControllerBase
     }
 
     [HttpPost("{threadId}/attachments")]
+    [ProducesResponseType(typeof(AttachmentDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
     public async Task<IResult> PostAttachmentAsync(
         string workItemId,
         string threadId,
@@ -82,6 +89,8 @@ public sealed class ConversationsController : ControllerBase
     }
 
     [HttpGet("{threadId}/context")]
+    [ProducesResponseType(typeof(IntakeContextDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IResult> GetContextAsync(string workItemId, string threadId, CancellationToken cancellationToken)
     {
         _ = threadId;
@@ -90,10 +99,12 @@ public sealed class ConversationsController : ControllerBase
             return problem;
         }
 
-        return Results.Ok(new { fields = Array.Empty<object>(), features = Array.Empty<object>(), assumptions = Array.Empty<object>(), attachments = Array.Empty<object>(), impacts = Array.Empty<object>() });
+        return Results.Ok(new IntakeContextDto([], [], [], [], []));
     }
 
     [HttpPost("{threadId}/summaries")]
+    [ProducesResponseType(typeof(IntakeSummaryRefDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status501NotImplemented)]
     public async Task<IResult> ProduceSummaryAsync(
         string workItemId,
         string threadId,
@@ -111,6 +122,8 @@ public sealed class ConversationsController : ControllerBase
     }
 
     [HttpGet("{threadId}/summaries/{revision:int}")]
+    [ProducesResponseType(typeof(IntakeSummaryDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IResult> GetSummaryAsync(
         string workItemId,
         string threadId,

@@ -4,20 +4,18 @@ using BuildGenix.WebApi.Heartbeat;
 using BuildGenix.WebApi.Options;
 using Serilog;
 
-Log.Logger = new LoggerConfiguration()
-    .WriteTo.Console()
-    .CreateBootstrapLogger();
-
 try
 {
     var builder = WebApplication.CreateBuilder(args);
 
+    // preserveStaticLogger: safe for WebApplicationFactory / parallel test hosts
     builder.Host.UseSerilog((context, services, configuration) => configuration
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
         .Enrich.FromLogContext()
         .Enrich.WithProperty("Application", "BuildGenix.WebApi")
-        .WriteTo.Console());
+        .WriteTo.Console(),
+        preserveStaticLogger: true);
 
     builder.Services.Configure<ServiceBusOptions>(
         builder.Configuration.GetSection(ServiceBusOptions.SectionName));

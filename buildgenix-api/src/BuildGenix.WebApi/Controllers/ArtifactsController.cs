@@ -33,14 +33,14 @@ public sealed class ArtifactsController : ControllerBase
             return ApiProblems.NotFound($"Work item '{workItemId}' was not found.");
         }
 
-        // Artifact repository not wired in this slice; return empty list.
         return Results.Ok(new ArtifactListResponse([]));
     }
 
     [HttpGet("api/work-items/{workItemId}/artifacts/{artifactId}")]
+    [ProducesResponseType(typeof(ArtifactDetailDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IResult> GetAsync(string workItemId, string artifactId, CancellationToken cancellationToken)
     {
-        _ = artifactId;
         if (await _workItems.GetByIdAsync(workItemId, cancellationToken).ConfigureAwait(false) is null)
         {
             return ApiProblems.NotFound($"Work item '{workItemId}' was not found.");
@@ -50,9 +50,10 @@ public sealed class ArtifactsController : ControllerBase
     }
 
     [HttpGet("api/work-items/{workItemId}/artifacts/{artifactId}/content")]
+    [ProducesResponseType(typeof(ArtifactContentResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IResult> ContentAsync(string workItemId, string artifactId, CancellationToken cancellationToken)
     {
-        _ = artifactId;
         if (await _workItems.GetByIdAsync(workItemId, cancellationToken).ConfigureAwait(false) is null)
         {
             return ApiProblems.NotFound($"Work item '{workItemId}' was not found.");
@@ -62,7 +63,7 @@ public sealed class ArtifactsController : ControllerBase
     }
 
     [HttpGet("api/projects/{projectId}/artifacts")]
-    [ProducesResponseType(typeof(ArtifactListResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProjectArtifactListResponse), StatusCodes.Status200OK)]
     public async Task<IResult> ListForProjectAsync(
         string projectId,
         [FromQuery] int? take,
@@ -76,6 +77,6 @@ public sealed class ArtifactsController : ControllerBase
             return ApiProblems.NotFound($"Project '{projectId}' was not found.");
         }
 
-        return Results.Ok(new ArtifactListResponse([]));
+        return Results.Ok(new ProjectArtifactListResponse([]));
     }
 }
