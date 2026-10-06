@@ -1,9 +1,11 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/AgentHub.Data/AgentHub.Data.csproj" />
+    <Project Path="src/AgentHub.Agents.Healthy/AgentHub.Agents.Healthy.csproj" />
     <Project Path="src/AgentHub.WebApi/AgentHub.WebApi.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AgentHub.WebApi.Tests/AgentHub.WebApi.Tests.csproj" />
+    <Project Path="tests/AgentHub.Agents.Healthy.Tests/AgentHub.Agents.Healthy.Tests.csproj" />
   </Folder>
 </Solution>
