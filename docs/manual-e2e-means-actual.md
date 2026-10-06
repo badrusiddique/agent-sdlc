@@ -1,7 +1,8 @@
 # Manual QA E2E — what Badru means (durable)
 
-**Status:** Binding for this Project when Badru says "manual QA E2E" / "manual e2e" / "verify like a QA".  
-**Date locked:** 2026-10-06 (Badru correction after Fixture-only run).
+**Status:** Binding for this Project when Badru says "manual QA E2E" / "manual e2e" / "E2E manual verification" / "verify like a QA".  
+**Date locked:** 2026-10-06 (Badru correction after Fixture-only run; reinforced into 5-persona + preferences).  
+**Also enforced by:** [`preferences.md`](../../preferences.md), [`prompts/five-persona-review-gate.md`](../prompts/five-persona-review-gate.md) (Senior QA), [`prompts/qa-runbook-manual-e2e.md`](../prompts/qa-runbook-manual-e2e.md), decision-log **P-MANUAL-E2E-ACTUAL**.
 
 ## Definition (no guessing)
 
@@ -52,3 +53,14 @@ HEALTHY is a **single** harness agent (handler + dispatcher), not a fan-out of p
 ## AI Gateway
 
 Review code + `docs/ai-gateway.md` on this machine; **live** Gateway E2E is on the isolated machine (no Ollama there).
+
+## 5-persona enforcement
+
+| Persona | Duty re: this doc |
+|---|---|
+| Senior QA | Must BLOCK (or refuse APPROVE) any Manual QA claim that used Fixture-only / mocked storage / fake SB |
+| Principal Engineer | Confirm fault isolation + host survival paths exist in code under review |
+| DevOps | Confirm compose/emulator/Ollama (or Gateway) runbooks are executable by a newcomer |
+| Architect / DBA | Confirm table ownership + blob/path checks are part of the Manual QA evidence, not assumed |
+
+Agents: do **not** ask Badru to restate this definition. Load this file and run it.
