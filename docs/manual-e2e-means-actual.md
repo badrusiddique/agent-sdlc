@@ -37,6 +37,7 @@
 9. Republish same MessageId → dedup no-op; host still live.
 10. Fault path: force a bad task / handler error path; host not killed.
 11. CorrelationId / MessageId (`{TaskId}:{InputVersion}`) consistent across REST → logs → result.
+12. Guardrails (Phase 0): logs show `HEALTHY guardrail stage=input/output decision=Allow` with CorrelationId; Block path (if exercised) → Failed without killing host.
 
 ## Minimum BuildGenix checklist (local)
 

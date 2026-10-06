@@ -1,8 +1,9 @@
-# Spoon-feed: integrate agenthub-api (HEALTHY template + AI Gateway) on the new machine
+# Spoon-feed: integrate agenthub-api (HEALTHY template + AI Gateway + guardrails) on the new machine
 
 **Purpose:** Paste into VS Code Copilot Chat on the isolated / new machine that already has `inno-tech-aisdlc-agenthub-api` boilerplate (Data, heartbeat, Service Bus).  
-**Source:** `https://github.com/badrusiddique/agent-sdlc` `main` ≥ `39673c4`.  
+**Source:** `https://github.com/badrusiddique/agent-sdlc` `main` ≥ `fbb71b1`.  
 **LLM on new machine:** AI Gateway only (`Llm:Provider=Gateway`). Discard Ollama there.  
+**Manual QA on new machine:** actual Azure/emulator + **Gateway** (never Fixture as Manual QA proof). See `docs/manual-e2e-means-actual.md`.  
 **Do not guess.** Verification is mandatory.
 
 ---
@@ -12,10 +13,11 @@
 | Include | Exclude |
 |---|---|
 | AgentHub.Core / Hosting / Infrastructure / Agents.Healthy seams | Production PRD/SystemDesign agents (I3) |
-| HEALTHY harness (REST → topic → worker → LLM → blob → sdlc-results) | BuildGenix controllers |
+| HEALTHY harness (REST → topic → worker → **guardrails** → LLM → blob → sdlc-results) | BuildGenix controllers |
+| `IGuardrailPipeline` / `LocalGuardrailPipeline` (Phase 0 always-on) | GuardrailsAI Python runtime |
 | AH tables only: ActivityLog, EffectLedger, AgProcessedEvents | BG tables |
 | D-C1 / D-C2 / D-C3 / D-I2-* HEALTHY rules | Docker as deploy target |
-| Gateway LLM client + config swap | Hard-coded secrets |
+| Gateway LLM client + config swap (`max_completion_tokens` for 5.1/5.4) | Hard-coded secrets |
 
 Agent template items that HEALTHY proves (must remain true after merge):
 
@@ -28,6 +30,7 @@ Agent template items that HEALTHY proves (must remain true after merge):
 7. MessageId = `{TaskId}:{InputVersion}` (never invent GUID)
 8. `Llm:Provider` swap: Fixture / Ollama / Gateway
 9. Per-service heartbeat (D-C8) separate from HEALTHY topics
+10. **Guardrails Phase 0:** input/output/artifact checks; Block → Failed **without retry**; verdict + CorrelationId in logs (`docs/plans/agent-guardrails-design.md`)
 
 ---
 
@@ -41,7 +44,9 @@ Agent template items that HEALTHY proves (must remain true after merge):
 4. Use `DefaultAzureCredential` + ServiceUri for Table/Blob on App Service; connection strings only for local/Azurite.
 5. Port emulator-aware `/health` (HTTP emulator health when `UseDevelopmentEmulator=true`).
 6. Dead-letter messages with missing MessageId (no random GUID).
-7. Run Verification with Fixture first, then Gateway.
+7. Port `AgentHub.Core/Guardrails/**` and register `IGuardrailPipeline` → `LocalGuardrailPipeline` in `AddAgentWorkers`.
+8. Run Verification: Fixture plumbing first, then **Gateway Manual QA** (actual stack).
+9. Keep Gateway body branch: aliases `5.1` / `5.4` → `max_completion_tokens` (never “simplify” to always `max_tokens`).
 
 ### DON'T
 
@@ -51,6 +56,8 @@ Agent template items that HEALTHY proves (must remain true after merge):
 4. Do **not** share BuildGenix heartbeat topics (`bg-*`). AH uses `ah-*`.
 5. Do **not** mark processed before publishing AgentResult.
 6. Do **not** skip Gateway verification headers (`Ocp-Apim-Subscription-Key`, `X-AIGW-Model`).
+7. Do **not** add GuardrailsAI / Python sidecars. Stack = .NET 10 + Azure. Azure Content Safety Prompt Shields is the later cloud plug-in behind `IGuardrailPipeline` (optional; not required for Phase 0 green).
+8. Do **not** claim Manual QA PASS on Fixture-only runs.
 
 ---
 
@@ -58,17 +65,17 @@ Agent template items that HEALTHY proves (must remain true after merge):
 
 | Source | Notes |
 |---|---|
-| `src/AgentHub.Core/**` | Models + ports |
-| `src/AgentHub.Agents.Healthy/**` | Handler, dispatcher, prompt, validation |
-| `src/AgentHub.Hosting/**` | `HealthyAgentWorker`, `AddAgentWorkers` |
+| `src/AgentHub.Core/**` | Models + ports + **`Guardrails/`** |
+| `src/AgentHub.Agents.Healthy/**` | Handler (guardrail enforce), dispatcher (Block → Failed no retry), prompt, validation |
+| `src/AgentHub.Hosting/**` | `HealthyAgentWorker`, `AddAgentWorkers` (+ `IGuardrailPipeline` DI) |
 | `src/AgentHub.Infrastructure/**` | LLM (Fixture/Ollama/Gateway), Blob, SB publishers, adapters |
 | `src/AgentHub.Data/**` | AH tables only + TableClientFactory credential branch |
 | `src/AgentHub.WebApi/Healthy/**`, `Health/**`, `Infrastructure/ApiProblems.cs` | REST + problems with `code` |
 | Heartbeat pieces | Merge with existing; keep D-C1 + no throw on missing CS |
 | `docker/servicebus-config.json` topics | Ensure `sdlc-tasks-healthy`, `sdlc-results`, `sdlc-events`, `ah-heartbeat-*` exist locally; Azure topics must already/be created to match |
-| Tests under `tests/**` | Core goldens, Healthy dispatcher, MessageId resolution, heartbeat |
+| Tests under `tests/**` | Core goldens, **Guardrails**, Healthy dispatcher (incl. guardrail block), MessageId, heartbeat |
 
-Read: Context `docs/agent-structure-template.md`, `docs/plans/healthy-agent-design.md`, `docs/ai-gateway.md`.
+Read: Context `docs/agent-structure-template.md`, `docs/plans/healthy-agent-design.md`, `docs/plans/agent-guardrails-design.md`, `docs/ai-gateway.md`, `docs/manual-e2e-means-actual.md`.
 
 ---
 
@@ -106,6 +113,8 @@ Headers the Gateway client must send (see `docs/ai-gateway.md`):
 
 If Consumer ID header is later required by platform (OPEN-I2-6), add it only when issued. Do not invent.
 
+**Optional later:** Azure AI Content Safety endpoint for Prompt Shields behind `IGuardrailPipeline` (DefaultAzureCredential). Phase 0 ships with local C# validators only; do not block merge on Content Safety if ACS resource is not ready — document as deferred.
+
 ---
 
 ## 4. Paste-ready Copilot prompt
@@ -113,9 +122,9 @@ If Consumer ID header is later required by platform (OPEN-I2-6), add it only whe
 ```text
 ROLE: Senior .NET + Azure engineer. Zero assumptions.
 
-GOAL: Integrate agent-sdlc agenthub-api HEALTHY agent template seams + heartbeat hardening + AI Gateway provider into THIS inno-tech agenthub-api boilerplate (already has Data + heartbeat + SB).
+GOAL: Integrate agent-sdlc agenthub-api HEALTHY agent template seams + heartbeat hardening + AI Gateway provider + Phase 0 guardrails into THIS inno-tech agenthub-api boilerplate (already has Data + heartbeat + SB).
 
-SOURCE: github.com/badrusiddique/agent-sdlc main ≥ 39673c4 folders agenthub-api/src/AgentHub.{Core,Hosting,Infrastructure,Agents.Healthy,Data,WebApi} and tests.
+SOURCE: github.com/badrusiddique/agent-sdlc main ≥ fbb71b1 folders agenthub-api/src/AgentHub.{Core,Hosting,Infrastructure,Agents.Healthy,Data,WebApi} and tests. Also read docs/plans/agent-guardrails-design.md, docs/ai-gateway.md, docs/manual-e2e-means-actual.md.
 
 HARD RULES:
 1) Project graph: Core (no SB/ASP.NET) ← Agents.Healthy; Hosting workers; Infrastructure adapters; WebApi thin host.
@@ -127,29 +136,34 @@ HARD RULES:
 7) Worker faults must not kill the host. Missing ServiceBus CS → log + return (do not throw).
 8) /health emulator path when UseDevelopmentEmulator=true; JSON ResponseWriter.
 9) ApiProblems with code=ValidationFailed / ServiceUnavailable on HEALTHY + heartbeat REST.
-10) Llm:Provider Gateway on this machine (no Ollama). Fixture for local unit tests OK.
+10) Llm:Provider Gateway on this machine (no Ollama). Fixture for unit tests OK — Fixture is NOT Manual QA.
 11) DefaultAzureCredential + ServiceUri for Table/Blob when ConnectionString absent.
-12) Do not implement I3 System Design agent. Do not write BG tables.
+12) Port IGuardrailPipeline + LocalGuardrailPipeline. HEALTHY: EvaluateInput before LLM; EvaluateOutput before ledger; artifact secret scan before blob. GuardrailBlockedException → Failed + mark + dead-letter WITHOUT abandon/retry. Log every verdict with CorrelationId.
+13) Gateway aliases 5.1/5.4 must use max_completion_tokens (not max_tokens). No temperature.
+14) Do not implement I3 System Design agent. Do not write BG tables. Do not add GuardrailsAI Python.
 
 WORK STEPS:
 A) Port/merge projects into this solution; fix package versions to compile on .NET 10.
 B) Ensure docker/servicebus-config (local) and Azure topics include sdlc-tasks-healthy, healthy-tasks sub, sdlc-results, sdlc-events, ah-heartbeat-ping/pong.
 C) Wire Gateway options from configuration/env.
-D) Port tests; dotnet test must be green with 0 skips.
-E) Run VERIFICATION.
+D) Port Core/Guardrails + DI in AddAgentWorkers; port guardrail unit tests.
+E) Port tests; dotnet test must be green with 0 skips.
+F) Run VERIFICATION (Fixture plumbing then Gateway Manual QA).
 
 VERIFICATION:
-V1) dotnet test — 0 failed, 0 skipped.
+V1) dotnet test — 0 failed, 0 skipped (includes LocalGuardrailPipelineTests + guardrail dispatcher block test).
 V2) Local Docker: compose down -v && up -d; wait for http://127.0.0.1:5300/health "status":"healthy".
 V3) Run API; GET /health → Healthy JSON; GET /health/live → 200.
 V4) POST /api/connectivity/heartbeat → 202; logs pong before mark.
-V5) With Llm:Provider=Fixture: POST /api/connectivity/healthy with fixed projectId/workItemId/taskId/inputVersion → 202.
-V6) Worker log DeliveryCount=1; D-C1 order complete; blob exists at D-C3 path; EffectLedger two Committed rows (llm.healthy, artifact.healthy); AgProcessedEvents has MessageId; AH tables only.
-V7) Republish same taskId:inputVersion → already processed complete no-op; host still live.
-V8) Switch Llm:Provider=Gateway with Key Vault/env subscription key; POST healthy again with new taskId; expect Completed result OR stop with exact Gateway HTTP error body (do not hide). Target: Gateway path works; if Consumer ID missing, report OPEN blocker with response evidence — do not invent headers.
-V9) Confirm problem+json on invalid healthy body includes code=ValidationFailed.
+V5) Fixture plumbing: POST /api/connectivity/healthy → 202; D-C1; blob; ledger (not Manual QA proof).
+V6) Guardrail logs on happy path: stage=input/output decision=Allow + CorrelationId.
+V7) Dedup republish same MessageId → no-op; host live.
+V8) Manual QA Gateway: Llm:Provider=Gateway + AIGW_SUBSCRIPTION_KEY; new taskId; Completed with Gateway model thought OR stop with exact Gateway HTTP body (do not hide). Try alias openai; also smoke 5.1 or 5.4 if platform allows (max_completion_tokens path).
+V9) Fault: bad modelId or forced handler fault → host /health/live still 200.
+V10) problem+json on invalid healthy body includes code=ValidationFailed.
+V11) AH tables only; EffectLedger Committed; AgProcessedEvents MessageId; blob D-C3 path downloadable.
 
-OUTPUT: files changed + verification PASS/FAIL table + Gateway evidence + STOP questions.
+OUTPUT: files changed + verification PASS/FAIL table + Gateway evidence + guardrail log excerpts + STOP questions.
 ```
 
 ---
@@ -160,12 +174,14 @@ OUTPUT: files changed + verification PASS/FAIL table + Gateway evidence + STOP q
 |---|---|---|---|
 | V1 | `dotnet test` | 0 failed / 0 skipped | |
 | V2 | Emulator healthy | `"status":"healthy"` | |
-| V3 | `/health` | Healthy JSON | |
+| V3 | `/health` + `/health/live` | Healthy / 200 | |
 | V4 | Heartbeat D-C1 | publish then mark | |
-| V5 | HEALTHY Fixture publish | 202 | |
-| V6 | Blob + ledger + AH tables only | as above | |
+| V5 | HEALTHY Fixture plumbing | 202 + blob/ledger (not Manual QA) | |
+| V6 | Guardrail Allow logs | input/output Allow + CorrelationId | |
 | V7 | Dedup republish | no-op; live 200 | |
-| V8 | Gateway run | Completed or documented blocker with HTTP body | |
-| V9 | Validation problem `code` | `ValidationFailed` | |
+| V8 | **Gateway Manual QA** | Completed or documented blocker with HTTP body | |
+| V9 | Fault → host lives | `/health/live` 200 | |
+| V10 | Validation problem `code` | `ValidationFailed` | |
+| V11 | Storage ownership | AH tables only; D-C3 blob | |
 
-Reference: Context `internal/migration-prep-e2e/agenthub/` (Fixture path PASS on `39673c4`).
+Reference (this cloud machine Ollama Manual QA + guardrails): Context `internal/manual-e2e-ollama/agenthub/`.
