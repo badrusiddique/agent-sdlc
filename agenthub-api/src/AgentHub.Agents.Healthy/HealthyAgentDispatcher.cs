@@ -8,7 +8,9 @@ namespace AgentHub.Agents.Healthy;
 
 /// <summary>
 /// Host-neutral dispatcher: dedup check → handler → publish result → mark (D-C1).
-/// Host completes the Service Bus message after this returns successfully.
+/// Host completes the Service Bus message after this returns Handled / AlreadyProcessed.
+/// Retriable handler faults return Abandon until MaxDeliveryCount (D-I2-3); last delivery
+/// publishes Failed, marks, and returns DeadLetter.
 /// </summary>
 public sealed class HealthyAgentDispatcher
 {
@@ -38,8 +40,14 @@ public sealed class HealthyAgentDispatcher
         string body,
         string serviceBusMessageId,
         int deliveryCount,
+        int maxDeliveryCount = HealthyAgentConstants.DefaultMaxDeliveryCount,
         CancellationToken cancellationToken = default)
     {
+        if (maxDeliveryCount < 1)
+        {
+            maxDeliveryCount = HealthyAgentConstants.DefaultMaxDeliveryCount;
+        }
+
         TaskMessage? message;
         try
         {
@@ -87,7 +95,20 @@ public sealed class HealthyAgentDispatcher
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "HEALTHY handler failed for {MessageId}", serviceBusMessageId);
+            _logger.LogError(
+                ex,
+                "HEALTHY handler failed for {MessageId} DeliveryCount={DeliveryCount}/{MaxDelivery}",
+                serviceBusMessageId,
+                deliveryCount,
+                maxDeliveryCount);
+
+            if (deliveryCount < maxDeliveryCount)
+            {
+                // Template §7 / D-I2-3: abandon for redelivery; do not mark.
+                return HealthyDispatchOutcome.Abandon(
+                    $"Handler fault (delivery {deliveryCount}/{maxDeliveryCount}): {ex.GetType().Name}");
+            }
+
             result = new AgentResult
             {
                 WorkItemId = message.WorkItemId,
@@ -98,11 +119,20 @@ public sealed class HealthyAgentDispatcher
                 InputVersion = message.InputVersion,
                 RunId = HealthyAgentConstants.RunId(message.TaskId, message.InputVersion, deliveryCount),
                 StateContextId = message.StateContextId,
-                ErrorMessage = Truncate($"HEALTHY failed: {ex.GetType().Name}: {ex.Message}", 2000)
+                ErrorMessage = Truncate(
+                    $"HEALTHY failed after {deliveryCount} deliveries: {ex.GetType().Name}: {ex.Message}",
+                    2000)
             };
+
+            // Last delivery: publish Failed → mark → dead-letter (D-C1 + D-I2-3).
+            await _results.PublishResultAsync(result, cancellationToken).ConfigureAwait(false);
+            await _dedup.TryMarkProcessedAsync(serviceBusMessageId, cancellationToken).ConfigureAwait(false);
+            return HealthyDispatchOutcome.DeadLetter(
+                result.ErrorMessage ?? "HEALTHY failed on last delivery.",
+                result);
         }
 
-        // D-C1: publish result → mark → (host completes)
+        // D-C1: publish result → mark → (host completes). If publish throws, do not mark.
         await _results.PublishResultAsync(result, cancellationToken).ConfigureAwait(false);
         await _dedup.TryMarkProcessedAsync(serviceBusMessageId, cancellationToken).ConfigureAwait(false);
 
@@ -135,13 +165,17 @@ public sealed class HealthyDispatchOutcome
     public static HealthyDispatchOutcome AlreadyProcessed() =>
         new(HealthyDispatchKind.AlreadyProcessed, null, null);
 
-    public static HealthyDispatchOutcome DeadLetter(string reason) =>
-        new(HealthyDispatchKind.DeadLetter, null, reason);
+    public static HealthyDispatchOutcome Abandon(string reason) =>
+        new(HealthyDispatchKind.Abandon, null, reason);
+
+    public static HealthyDispatchOutcome DeadLetter(string reason, AgentResult? result = null) =>
+        new(HealthyDispatchKind.DeadLetter, result, reason);
 }
 
 public enum HealthyDispatchKind
 {
     Handled,
     AlreadyProcessed,
+    Abandon,
     DeadLetter
 }

@@ -136,7 +136,12 @@ public sealed class HealthyAgentWorker : BackgroundService
         try
         {
             var outcome = await _dispatcher
-                .ProcessAsync(body, messageId, deliveryCount, args.CancellationToken)
+                .ProcessAsync(
+                    body,
+                    messageId,
+                    deliveryCount,
+                    _worker.MaxDeliveryCount,
+                    args.CancellationToken)
                 .ConfigureAwait(false);
 
             switch (outcome.Kind)
@@ -149,14 +154,24 @@ public sealed class HealthyAgentWorker : BackgroundService
                     await args
                         .DeadLetterMessageAsync(
                             args.Message,
-                            deadLetterReason: "HealthyValidation",
-                            deadLetterErrorDescription: outcome.DeadLetterReason,
+                            deadLetterReason: "HealthyDeadLetter",
+                            deadLetterErrorDescription: Truncate(outcome.DeadLetterReason, 4096),
                             cancellationToken: args.CancellationToken)
+                        .ConfigureAwait(false);
+                    break;
+
+                case HealthyDispatchKind.Abandon:
+                    _logger.LogWarning(
+                        "HEALTHY abandon {MessageId}: {Reason}",
+                        messageId,
+                        outcome.DeadLetterReason);
+                    await args.AbandonMessageAsync(args.Message, cancellationToken: args.CancellationToken)
                         .ConfigureAwait(false);
                     break;
 
                 case HealthyDispatchKind.AlreadyProcessed:
                 case HealthyDispatchKind.Handled:
+                    // D-C1: complete only after publish + mark succeeded inside dispatcher.
                     await args.CompleteMessageAsync(args.Message, args.CancellationToken)
                         .ConfigureAwait(false);
                     break;
@@ -164,6 +179,7 @@ public sealed class HealthyAgentWorker : BackgroundService
         }
         catch (Exception ex)
         {
+            // Publish failure or unexpected fault: do not mark; abandon for redelivery.
             _logger.LogError(ex, "HEALTHY processing fault for {MessageId}; abandoning", messageId);
             try
             {
@@ -191,5 +207,15 @@ public sealed class HealthyAgentWorker : BackgroundService
     {
         await DisposeProcessorAsync().ConfigureAwait(false);
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private static string? Truncate(string? value, int max)
+    {
+        if (string.IsNullOrEmpty(value) || value.Length <= max)
+        {
+            return value;
+        }
+
+        return value[..max];
     }
 }

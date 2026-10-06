@@ -58,7 +58,24 @@ public sealed class HealthyAgentDispatcherTests
     }
 
     [Fact]
-    public async Task ProcessAsync_handler_failure_still_publishes_Failed_then_marks()
+    public async Task ProcessAsync_handler_failure_before_max_delivery_abandons_without_mark()
+    {
+        var results = new FakeResults();
+        var dedup = new FakeDedup();
+        var dispatcher = CreateDispatcher(results, dedup, handlerThrows: true);
+
+        var body = """
+            {"workItemId":"wi","projectId":"p","stage":"HEALTHY","taskId":"t1","correlationId":"c","inputVersion":1}
+            """;
+        var outcome = await dispatcher.ProcessAsync(body, "t1:1", deliveryCount: 1, maxDeliveryCount: 5);
+
+        Assert.Equal(HealthyDispatchKind.Abandon, outcome.Kind);
+        Assert.Empty(results.Published);
+        Assert.Empty(dedup.Marked);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_handler_failure_on_last_delivery_publishes_Failed_marks_dead_letters()
     {
         var order = new List<string>();
         var results = new FakeResults(onPublish: () => order.Add("publish"));
@@ -68,11 +85,27 @@ public sealed class HealthyAgentDispatcherTests
         var body = """
             {"workItemId":"wi","projectId":"p","stage":"HEALTHY","taskId":"t1","correlationId":"c","inputVersion":1}
             """;
-        var outcome = await dispatcher.ProcessAsync(body, "t1:1", 1);
+        var outcome = await dispatcher.ProcessAsync(body, "t1:1", deliveryCount: 5, maxDeliveryCount: 5);
 
-        Assert.Equal(HealthyDispatchKind.Handled, outcome.Kind);
+        Assert.Equal(HealthyDispatchKind.DeadLetter, outcome.Kind);
         Assert.Equal(AgentResultStatus.Failed, outcome.Result!.Status);
         Assert.Equal(new[] { "publish", "mark" }, order);
+    }
+
+    [Fact]
+    public async Task ProcessAsync_publish_failure_does_not_mark()
+    {
+        var dedup = new FakeDedup();
+        var results = new FakeResults(onPublish: () => throw new InvalidOperationException("sb down"));
+        var dispatcher = CreateDispatcher(results, dedup, handlerThrows: false);
+
+        var body = """
+            {"workItemId":"wi","projectId":"p","stage":"HEALTHY","taskId":"t1","correlationId":"c","inputVersion":1}
+            """;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            dispatcher.ProcessAsync(body, "t1:1", deliveryCount: 1, maxDeliveryCount: 5));
+        Assert.Empty(dedup.Marked);
     }
 
     [Fact]
