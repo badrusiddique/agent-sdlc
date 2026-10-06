@@ -7,22 +7,21 @@ namespace BuildGenix.Data.Repositories;
 
 public sealed class WmProcessedEventsRepository : IWmProcessedEventsRepository
 {
-    private readonly ITableClientFactory _factory;
+    private readonly ITableEntityWriter _writer;
     private readonly ILogger<WmProcessedEventsRepository> _logger;
 
     public WmProcessedEventsRepository(
-        ITableClientFactory factory,
+        ITableEntityWriter writer,
         ILogger<WmProcessedEventsRepository> logger)
     {
-        _factory = factory;
+        _writer = writer;
         _logger = logger;
     }
 
     public async Task EnsureTableAsync(CancellationToken cancellationToken = default)
     {
-        var client = _factory.GetClient(TableNames.WmProcessedEvents);
-        await client.CreateIfNotExistsAsync(cancellationToken).ConfigureAwait(false);
-        _logger.LogDebug("Ensured table {Table}", _factory.ResolveTableName(TableNames.WmProcessedEvents));
+        await _writer.EnsureTableAsync(TableNames.WmProcessedEvents, cancellationToken).ConfigureAwait(false);
+        _logger.LogDebug("Ensured table {Table}", TableNames.WmProcessedEvents);
     }
 
     public async Task<bool> TryMarkProcessedAsync(
@@ -37,14 +36,21 @@ public sealed class WmProcessedEventsRepository : IWmProcessedEventsRepository
         {
             PartitionKey = WmProcessedEventEntity.PartitionKeyFor(enqueuedAtUtc),
             RowKey = messageId,
-            ProcessedAt = DateTimeOffset.UtcNow,
-            Source = source
+            ServiceBusMessageId = messageId,
+            EnqueuedAt = enqueuedAtUtc,
+            ProcessedAt = DateTimeOffset.UtcNow
         };
 
-        var client = _factory.GetClient(TableNames.WmProcessedEvents);
         try
         {
-            await client.AddEntityAsync(entity, cancellationToken).ConfigureAwait(false);
+            await _writer
+                .AddEntityAsync(TableNames.WmProcessedEvents, entity, cancellationToken)
+                .ConfigureAwait(false);
+            _logger.LogDebug(
+                "Marked WM message {MessageId} from {Source} in {Partition}",
+                messageId,
+                source,
+                entity.PartitionKey);
             return true;
         }
         catch (RequestFailedException ex) when (ex.Status == 409)

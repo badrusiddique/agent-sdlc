@@ -14,6 +14,7 @@ public static class DependencyInjection
     {
         services.Configure<TableStorageOptions>(configuration.GetSection(TableStorageOptions.SectionName));
         services.AddSingleton<ITableClientFactory, TableClientFactory>();
+        services.AddSingleton<ITableEntityWriter, TableEntityWriter>();
         services.AddSingleton<IProjectRepository, ProjectRepository>();
         services.AddSingleton<IWmProcessedEventsRepository, WmProcessedEventsRepository>();
         services.AddHostedService<TableStorageInitializer>();

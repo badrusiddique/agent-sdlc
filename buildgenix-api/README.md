@@ -60,7 +60,8 @@ Flow (self-contained in this API):
 1. Endpoint publishes to Service Bus topic `bg-heartbeat-ping`
 2. Hosted `HeartbeatPingConsumer` on subscription `bg-api` receives the message
 3. Consumer appends `|pong-by=buildgenix-api` and publishes to `bg-heartbeat-pong`
-4. `WmProcessedEvents` records the message id for idempotency
+4. `WmProcessedEvents` records the message id (**after** pong publish — D-C1)
+5. Consumer completes the Service Bus message
 
 ## Tests
 

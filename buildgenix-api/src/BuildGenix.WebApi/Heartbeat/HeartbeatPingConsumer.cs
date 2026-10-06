@@ -7,14 +7,15 @@ namespace BuildGenix.WebApi.Heartbeat;
 
 /// <summary>
 /// Same-API hosted consumer: reads <c>bg-heartbeat-ping</c>, appends marker, publishes <c>bg-heartbeat-pong</c>.
+/// D-C1: publish pong → mark WmProcessedEvents → complete SB message.
 /// </summary>
 public sealed class HeartbeatPingConsumer : BackgroundService
 {
-    private readonly ServiceBusClient _client;
     private readonly IHeartbeatPublisher _publisher;
     private readonly IWmProcessedEventsRepository _idempotency;
     private readonly ServiceBusOptions _options;
     private readonly ILogger<HeartbeatPingConsumer> _logger;
+    private ServiceBusClient? _client;
     private ServiceBusProcessor? _processor;
 
     public HeartbeatPingConsumer(
@@ -27,13 +28,6 @@ public sealed class HeartbeatPingConsumer : BackgroundService
         _publisher = publisher;
         _idempotency = idempotency;
         _logger = logger;
-
-        if (string.IsNullOrWhiteSpace(_options.ConnectionString))
-        {
-            throw new InvalidOperationException("ServiceBus:ConnectionString is required.");
-        }
-
-        _client = new ServiceBusClient(_options.ConnectionString);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -44,6 +38,12 @@ public sealed class HeartbeatPingConsumer : BackgroundService
             return;
         }
 
+        if (string.IsNullOrWhiteSpace(_options.ConnectionString))
+        {
+            throw new InvalidOperationException("ServiceBus:ConnectionString is required when EnableConsumer is true.");
+        }
+
+        _client = new ServiceBusClient(_options.ConnectionString);
         _processor = _client.CreateProcessor(
             _options.PingTopic,
             _options.PingSubscription,
@@ -80,20 +80,21 @@ public sealed class HeartbeatPingConsumer : BackgroundService
         DateTimeOffset enqueuedAt,
         CancellationToken cancellationToken)
     {
+        var pongBody = HeartbeatMessageTransformer.AppendPongMarker(body, _options.PongMarker);
+        await _publisher
+            .PublishPongAsync(pongBody, correlationId ?? messageId, cancellationToken)
+            .ConfigureAwait(false);
+
         var firstSeen = await _idempotency
             .TryMarkProcessedAsync(messageId, enqueuedAt, "bg-heartbeat-ping", cancellationToken)
             .ConfigureAwait(false);
 
         if (!firstSeen)
         {
-            _logger.LogInformation("Skipping duplicate heartbeat ping {MessageId}", messageId);
-            return;
+            _logger.LogInformation(
+                "Heartbeat ping {MessageId} pong published; idempotency mark already present (duplicate)",
+                messageId);
         }
-
-        var pongBody = HeartbeatMessageTransformer.AppendPongMarker(body, _options.PongMarker);
-        await _publisher
-            .PublishPongAsync(pongBody, correlationId ?? messageId, cancellationToken)
-            .ConfigureAwait(false);
 
         _logger.LogInformation(
             "Heartbeat ping {MessageId} forwarded to {PongTopic}",
@@ -147,7 +148,11 @@ public sealed class HeartbeatPingConsumer : BackgroundService
             await _processor.DisposeAsync().ConfigureAwait(false);
         }
 
-        await _client.DisposeAsync().ConfigureAwait(false);
+        if (_client is not null)
+        {
+            await _client.DisposeAsync().ConfigureAwait(false);
+        }
+
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
     }
 }
