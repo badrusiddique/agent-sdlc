@@ -26,9 +26,11 @@ public sealed class TableStorageInitializer : IHostedService
     {
         await using var scope = _scopeFactory.CreateAsyncScope();
         var projects = scope.ServiceProvider.GetRequiredService<IProjectRepository>();
+        var workItems = scope.ServiceProvider.GetRequiredService<IWorkItemRepository>();
         var wm = scope.ServiceProvider.GetRequiredService<IWmProcessedEventsRepository>();
 
         await projects.EnsureTableAsync(cancellationToken).ConfigureAwait(false);
+        await workItems.EnsureTablesAsync(cancellationToken).ConfigureAwait(false);
         await wm.EnsureTableAsync(cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation(

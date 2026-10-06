@@ -1,4 +1,5 @@
 using BuildGenix.Data;
+using BuildGenix.WebApi.Auth;
 using BuildGenix.WebApi.Heartbeat;
 using BuildGenix.WebApi.Options;
 using Serilog;
@@ -26,6 +27,9 @@ try
     builder.Services.AddSingleton<IHeartbeatPublisher, ServiceBusHeartbeatPublisher>();
     builder.Services.AddHostedService<HeartbeatPingConsumer>();
 
+    builder.Services.AddControllers();
+    builder.Services.AddProblemDetails();
+
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(options =>
     {
@@ -33,7 +37,9 @@ try
         {
             Title = "BuildGenix API",
             Version = "v1",
-            Description = "BuildGenix orchestration Web API (Iteration 0a foundation)."
+            Description =
+                "BuildGenix orchestration Web API. Controllers follow docs/buildgenix-api-contracts.md (D-C6). " +
+                "Phase 0: dummy X-User-Id auth (D-CL-9). Create WI does not take ~ACTIVE; Implement now does (D-C4b)."
         });
     });
 
@@ -54,6 +60,9 @@ try
     var app = builder.Build();
 
     app.UseSerilogRequestLogging();
+    app.UseDummyUserId();
+    app.UseExceptionHandler();
+    app.UseStatusCodePages();
 
     if (app.Environment.IsDevelopment())
     {
@@ -71,6 +80,7 @@ try
         Predicate = _ => false
     });
     app.MapHeartbeatEndpoints();
+    app.MapControllers();
 
     app.MapGet("/", () => Results.Ok(new
     {

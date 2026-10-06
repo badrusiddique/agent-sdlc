@@ -6,7 +6,7 @@ Independent .NET 10 solution for the BuildGenix orchestration Web API (Iteration
 
 | Path | Role |
 |------|------|
-| `src/BuildGenix.WebApi` | ASP.NET Core Web API: Serilog, OpenAPI/Swagger, health, heartbeat connectivity |
+| `src/BuildGenix.WebApi` | ASP.NET Core Web API: controllers (I1 contract routes), Serilog, OpenAPI/Swagger, health, heartbeat |
 | `src/BuildGenix.Data` | BuildGenix Azure Table repositories only (no AgentHub tables) |
 | `tests/BuildGenix.WebApi.Tests` | Unit tests including ping→pong path |
 | `docker-compose.yml` | Azurite + Azure Service Bus emulator (+ SQL Edge dependency) |
@@ -63,13 +63,25 @@ Flow (self-contained in this API):
 4. `WmProcessedEvents` records the message id (**after** pong publish — D-C1)
 5. Consumer completes the Service Bus message
 
+## API controllers (contract catalog)
+
+HTTP surface follows Project Context `docs/buildgenix-api-contracts.md` (D-C6). Dummy auth: send `X-User-Id` (D-CL-9).
+
+| Area | Status in this slice |
+|------|----------------------|
+| Projects CRUD-ish | Wired to Azure Tables |
+| Work items create / get / list | Wired; **create does not take `~ACTIVE`** (D-C4b) |
+| Implement now `POST …/execute` | Wired; lock + D-C5 same-revision no-op |
+| pending-actions, home/activity, progress, artifacts, gates, activity, steering, … | Routes present; empty or `501` until B1/B2a/E* persistence |
+| Heartbeat | Unchanged (`/api/connectivity/heartbeat`) |
+
 ## Tests
 
 ```bash
 dotnet test
 ```
 
-Ping→pong path is covered without Docker via fakes that assert marker append + pong publish + duplicate skip.
+Ping→pong path and WI lifecycle (create without lock, Implement lock, D-C5 no-op) are covered with fakes (no Docker required for those tests).
 
 ## Configuration
 

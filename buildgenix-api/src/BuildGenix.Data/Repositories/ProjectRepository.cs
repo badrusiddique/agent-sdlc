@@ -39,6 +39,25 @@ public sealed class ProjectRepository : IProjectRepository
         }
     }
 
+    public async Task<IReadOnlyList<ProjectEntity>> ListAsync(CancellationToken cancellationToken = default)
+    {
+        var client = _factory.GetClient(TableNames.Projects);
+        var items = new List<ProjectEntity>();
+        await foreach (var entity in client.QueryAsync<ProjectEntity>(
+                           e => e.PartitionKey == ProjectEntity.DefaultPartitionKey,
+                           cancellationToken: cancellationToken).ConfigureAwait(false))
+        {
+            if (entity.RowKey.StartsWith("~", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            items.Add(entity);
+        }
+
+        return items.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
     public async Task UpsertAsync(ProjectEntity project, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(project);

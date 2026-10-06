@@ -8,5 +8,7 @@ public interface IProjectRepository
 
     Task<ProjectEntity?> GetAsync(string projectId, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<ProjectEntity>> ListAsync(CancellationToken cancellationToken = default);
+
     Task UpsertAsync(ProjectEntity project, CancellationToken cancellationToken = default);
 }

@@ -16,6 +16,7 @@ public static class DependencyInjection
         services.AddSingleton<ITableClientFactory, TableClientFactory>();
         services.AddSingleton<ITableEntityWriter, TableEntityWriter>();
         services.AddSingleton<IProjectRepository, ProjectRepository>();
+        services.AddSingleton<IWorkItemRepository, WorkItemRepository>();
         services.AddSingleton<IWmProcessedEventsRepository, WmProcessedEventsRepository>();
         services.AddHostedService<TableStorageInitializer>();
         return services;
