@@ -1,4 +1,6 @@
+using System.Text.Json;
 using AgentHub.Agents.Healthy;
+using AgentHub.Core.Models;
 using AgentHub.Infrastructure.Messaging;
 using AgentHub.Infrastructure.Options;
 using Azure.Messaging.ServiceBus;
@@ -132,9 +134,23 @@ public sealed class HealthyAgentWorker : BackgroundService
 
     private async Task ProcessMessageAsync(ProcessMessageEventArgs args)
     {
-        var messageId = args.Message.MessageId ?? Guid.NewGuid().ToString("N");
-        var deliveryCount = (int)args.Message.DeliveryCount;
         var body = args.Message.Body.ToString();
+        if (!TryResolveMessageId(args.Message, body, out var messageId, out var missingReason))
+        {
+            _logger.LogWarning(
+                "HEALTHY message missing MessageId and LogicalMessageId; dead-lettering: {Reason}",
+                missingReason);
+            await args
+                .DeadLetterMessageAsync(
+                    args.Message,
+                    deadLetterReason: "MissingMessageId",
+                    deadLetterErrorDescription: Truncate(missingReason, 4096),
+                    cancellationToken: args.CancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var deliveryCount = (int)args.Message.DeliveryCount;
 
         try
         {
@@ -208,6 +224,46 @@ public sealed class HealthyAgentWorker : BackgroundService
     {
         await DisposeProcessorAsync().ConfigureAwait(false);
         await base.StopAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Dedup key must be stable across redeliveries: SB MessageId, else body LogicalMessageId.
+    /// Never invent a fresh GUID (that breaks D-C1 on redelivery).
+    /// </summary>
+    internal static bool TryResolveMessageId(
+        ServiceBusReceivedMessage message,
+        string body,
+        out string messageId,
+        out string? reason)
+    {
+        if (!string.IsNullOrWhiteSpace(message.MessageId))
+        {
+            messageId = message.MessageId;
+            reason = null;
+            return true;
+        }
+
+        try
+        {
+            var task = JsonSerializer.Deserialize<TaskMessage>(
+                body,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+            if (task is not null && !string.IsNullOrWhiteSpace(task.TaskId))
+            {
+                task.EnsureDefaults();
+                messageId = task.LogicalMessageId;
+                reason = null;
+                return true;
+            }
+        }
+        catch (JsonException)
+        {
+            // fall through
+        }
+
+        messageId = string.Empty;
+        reason = "Service Bus MessageId empty and body has no TaskId/InputVersion for LogicalMessageId.";
+        return false;
     }
 
     private static string? Truncate(string? value, int max)

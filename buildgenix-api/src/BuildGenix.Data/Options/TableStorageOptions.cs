@@ -10,6 +10,12 @@ public sealed class TableStorageOptions
     public string? ConnectionString { get; set; }
 
     /// <summary>
+    /// Table service URI for non-Development (App Service) with DefaultAzureCredential.
+    /// Example: https://{account}.table.core.windows.net
+    /// </summary>
+    public string? ServiceUri { get; set; }
+
+    /// <summary>
     /// Optional prefix applied to every table name (for shared-account isolation).
     /// </summary>
     public string StoragePrefix { get; set; } = string.Empty;

@@ -40,7 +40,9 @@ public sealed class HeartbeatPingConsumer : BackgroundService
 
         if (string.IsNullOrWhiteSpace(_options.ConnectionString))
         {
-            throw new InvalidOperationException("ServiceBus:ConnectionString is required when EnableConsumer is true.");
+            _logger.LogError(
+                "Heartbeat ping consumer cannot start: ServiceBus:ConnectionString missing while EnableConsumer=true. Host stays up.");
+            return;
         }
 
         _client = new ServiceBusClient(_options.ConnectionString);
@@ -83,6 +85,10 @@ public sealed class HeartbeatPingConsumer : BackgroundService
         await _publisher
             .PublishPongAsync(pongBody, correlationId ?? messageId, cancellationToken)
             .ConfigureAwait(false);
+        _logger.LogInformation(
+            "Heartbeat ping {MessageId} pong published to {PongTopic} (D-C1 before mark)",
+            messageId,
+            _options.PongTopic);
 
         var firstSeen = await _idempotency
             .TryMarkProcessedAsync(messageId, cancellationToken)
@@ -91,20 +97,34 @@ public sealed class HeartbeatPingConsumer : BackgroundService
         if (!firstSeen)
         {
             _logger.LogInformation(
-                "Heartbeat ping {MessageId} pong published; idempotency mark already present (duplicate)",
+                "Heartbeat ping {MessageId} idempotency mark already present after pong (duplicate)",
                 messageId);
         }
-
-        _logger.LogInformation(
-            "Heartbeat ping {MessageId} forwarded to {PongTopic}",
-            messageId,
-            _options.PongTopic);
+        else
+        {
+            _logger.LogDebug(
+                "Heartbeat ping {MessageId} marked in AgProcessedEvents after pong publish",
+                messageId);
+        }
     }
 
     private async Task ProcessMessageAsync(ProcessMessageEventArgs args)
     {
         var body = args.Message.Body.ToString();
-        var messageId = args.Message.MessageId ?? Guid.NewGuid().ToString("N");
+        if (string.IsNullOrWhiteSpace(args.Message.MessageId))
+        {
+            _logger.LogWarning("Heartbeat ping missing MessageId; dead-lettering (never invent GUID for dedup)");
+            await args
+                .DeadLetterMessageAsync(
+                    args.Message,
+                    deadLetterReason: "MissingMessageId",
+                    deadLetterErrorDescription: "Service Bus MessageId is required for D-C1 dedup.",
+                    cancellationToken: args.CancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var messageId = args.Message.MessageId;
 
         try
         {

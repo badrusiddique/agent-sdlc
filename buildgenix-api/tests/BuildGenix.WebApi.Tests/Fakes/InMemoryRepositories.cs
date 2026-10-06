@@ -167,6 +167,28 @@ public sealed class InMemoryWorkItemRepository : IWorkItemRepository
             new IntakeSummaryCommitResult(true, revision, artifactId, blobPath, item.UpdatedAt));
     }
 
+    public Task<bool> TryMarkTerminalAsync(
+        string workItemId,
+        string terminalStatus,
+        CancellationToken cancellationToken = default)
+    {
+        if (!WorkItemStatuses.ReleasesActiveMarker(terminalStatus)
+            || !_byId.TryGetValue(workItemId, out var item))
+        {
+            return Task.FromResult(false);
+        }
+
+        item.Status = terminalStatus;
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+        if (_activeByProject.TryGetValue(item.ProjectId, out var holder)
+            && holder == item.WorkItemId)
+        {
+            _activeByProject.Remove(item.ProjectId);
+        }
+
+        return Task.FromResult(true);
+    }
+
     private static WorkItemEntity Clone(WorkItemEntity e) => new()
     {
         PartitionKey = e.PartitionKey,

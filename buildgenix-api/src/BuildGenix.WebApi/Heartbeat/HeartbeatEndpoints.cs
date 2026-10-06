@@ -1,3 +1,5 @@
+using BuildGenix.WebApi.Infrastructure;
+
 namespace BuildGenix.WebApi.Heartbeat;
 
 public static class HeartbeatEndpoints
@@ -32,10 +34,7 @@ public static class HeartbeatEndpoints
         }
         catch (Exception ex)
         {
-            return Results.Problem(
-                detail: ex.Message,
-                statusCode: StatusCodes.Status503ServiceUnavailable,
-                title: "Failed to publish heartbeat ping");
+            return ApiProblems.ServiceUnavailable($"Failed to publish heartbeat ping: {ex.Message}");
         }
 
         return Results.Accepted(

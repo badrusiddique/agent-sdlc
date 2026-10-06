@@ -69,4 +69,13 @@ public interface IWorkItemRepository
         string workItemId,
         int revision,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Marks WI Completed/Failed and releases ~ACTIVE when this WI holds the lock (D-C4b / D-7).
+    /// Called by the results consumer when that path lands; available now for tests and wiring.
+    /// </summary>
+    Task<bool> TryMarkTerminalAsync(
+        string workItemId,
+        string terminalStatus,
+        CancellationToken cancellationToken = default);
 }

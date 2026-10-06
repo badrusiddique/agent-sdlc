@@ -1,6 +1,7 @@
 using System.Text;
 using AgentHub.Core.Abstractions;
 using AgentHub.Infrastructure.Options;
+using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging;
@@ -19,7 +20,7 @@ public sealed class AzureArtifactBlobStore : IArtifactBlobStore
     {
         _logger = logger;
         var opts = options.Value;
-        var service = new BlobServiceClient(opts.ConnectionString);
+        var service = CreateServiceClient(opts);
         _container = service.GetBlobContainerClient(opts.ContainerName);
     }
 
@@ -45,5 +46,21 @@ public sealed class AzureArtifactBlobStore : IArtifactBlobStore
             "Wrote artifact blob {BlobPath} ({Bytes} bytes)",
             blobPath,
             Encoding.UTF8.GetByteCount(jsonBody));
+    }
+
+    private static BlobServiceClient CreateServiceClient(BlobStorageOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.ConnectionString))
+        {
+            return new BlobServiceClient(options.ConnectionString);
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.ServiceUri))
+        {
+            return new BlobServiceClient(new Uri(options.ServiceUri), new DefaultAzureCredential());
+        }
+
+        throw new InvalidOperationException(
+            "BlobStorage:ConnectionString (local/Azurite) or BlobStorage:ServiceUri (DefaultAzureCredential) is required.");
     }
 }

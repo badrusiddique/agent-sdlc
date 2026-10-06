@@ -1,4 +1,5 @@
 using Azure.Data.Tables;
+using Azure.Identity;
 using AgentHub.Data.Options;
 using Microsoft.Extensions.Options;
 
@@ -12,13 +13,7 @@ public sealed class TableClientFactory : ITableClientFactory
     public TableClientFactory(IOptions<TableStorageOptions> options)
     {
         _options = options.Value;
-        if (string.IsNullOrWhiteSpace(_options.ConnectionString))
-        {
-            throw new InvalidOperationException(
-                "TableStorage:ConnectionString is required. Use the Azurite connection string for local Development.");
-        }
-
-        _serviceClient = new TableServiceClient(_options.ConnectionString);
+        _serviceClient = CreateServiceClient(_options);
     }
 
     public TableClient GetClient(string logicalTableName) =>
@@ -35,5 +30,21 @@ public sealed class TableClientFactory : ITableClientFactory
         return string.IsNullOrEmpty(_options.StoragePrefix)
             ? logicalTableName
             : $"{_options.StoragePrefix}{logicalTableName}";
+    }
+
+    private static TableServiceClient CreateServiceClient(TableStorageOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.ConnectionString))
+        {
+            return new TableServiceClient(options.ConnectionString);
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.ServiceUri))
+        {
+            return new TableServiceClient(new Uri(options.ServiceUri), new DefaultAzureCredential());
+        }
+
+        throw new InvalidOperationException(
+            "TableStorage:ConnectionString (local/Azurite) or TableStorage:ServiceUri (DefaultAzureCredential) is required.");
     }
 }

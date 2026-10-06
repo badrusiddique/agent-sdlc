@@ -82,7 +82,13 @@ public sealed class EffectLedgerRepository : IEffectLedgerRepository
             var response = await client
                 .GetEntityAsync<EffectLedgerEntity>(workItemId, rowKey, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
-            return response.Value;
+            // D-C2: only Committed rows count as ledger hits.
+            return string.Equals(
+                response.Value.Status,
+                EffectLedgerEntity.CommittedStatus,
+                StringComparison.Ordinal)
+                ? response.Value
+                : null;
         }
         catch (RequestFailedException ex) when (ex.Status == 404)
         {

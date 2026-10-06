@@ -1,3 +1,4 @@
+using BuildGenix.Data.Entities;
 using BuildGenix.Data.Repositories;
 using BuildGenix.WebApi.Tests.Fakes;
 
@@ -82,5 +83,37 @@ public sealed class WorkItemLifecycleTests
         await repo.TryImplementAsync(a.WorkItemId, 1);
         var open = await repo.TryImplementAsync(a.WorkItemId, 2);
         Assert.Equal(WorkItemImplementOutcome.SameWiDifferentRevisionOpen, open.Outcome);
+    }
+
+    [Fact]
+    public async Task TryMarkTerminal_releases_active_so_second_wi_can_implement()
+    {
+        var repo = new InMemoryWorkItemRepository();
+        var a = (await repo.TryCreateAsync("p1", "Demo", "user-a", null)).Item!;
+        var b = (await repo.TryCreateAsync("p1", "Demo", "user-a", null)).Item!;
+        await repo.TryCommitIntakeSummaryAsync(a.WorkItemId);
+        await repo.TryCommitIntakeSummaryAsync(b.WorkItemId);
+
+        Assert.Equal(WorkItemImplementOutcome.Started, (await repo.TryImplementAsync(a.WorkItemId, 1)).Outcome);
+        Assert.True(repo.HasActiveLock("p1"));
+
+        Assert.True(await repo.TryMarkTerminalAsync(a.WorkItemId, WorkItemStatuses.Completed));
+        Assert.False(repo.HasActiveLock("p1"));
+
+        var second = await repo.TryImplementAsync(b.WorkItemId, 1);
+        Assert.Equal(WorkItemImplementOutcome.Started, second.Outcome);
+        Assert.True(repo.HasActiveLock("p1"));
+    }
+
+    [Fact]
+    public async Task TryMarkTerminal_rejects_non_terminal_status()
+    {
+        var repo = new InMemoryWorkItemRepository();
+        var a = (await repo.TryCreateAsync("p1", "Demo", "user-a", null)).Item!;
+        await repo.TryCommitIntakeSummaryAsync(a.WorkItemId);
+        await repo.TryImplementAsync(a.WorkItemId, 1);
+
+        Assert.False(await repo.TryMarkTerminalAsync(a.WorkItemId, WorkItemStatuses.Queued));
+        Assert.True(repo.HasActiveLock("p1"));
     }
 }

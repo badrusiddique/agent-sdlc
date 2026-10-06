@@ -131,7 +131,8 @@ public sealed class ConversationsController : ControllerBase
             committed.Revision,
             committed.ArtifactId,
             committed.BlobPath,
-            committed.ProducedAt));
+            committed.ProducedAt,
+            MarkerOnly: true));
     }
 
     [HttpGet("{threadId}/summaries/{revision:int}")]
@@ -161,12 +162,14 @@ public sealed class ConversationsController : ControllerBase
             return ApiProblems.NotFound($"Summary revision {revision} is not available.");
         }
 
+        // Marker-only until B1 writes the D-C3 blob: do not advertise ContentUrl to a missing object.
         return Results.Ok(new IntakeSummaryDetailDto(
             summary.Revision,
             summary.ArtifactId,
             Content: null,
-            ContentUrl: summary.BlobPath,
-            ProducedAt: summary.ProducedAt));
+            ContentUrl: null,
+            ProducedAt: summary.ProducedAt,
+            MarkerOnly: true));
     }
 
     private async Task<IResult?> MissingAsync(string workItemId, CancellationToken cancellationToken)

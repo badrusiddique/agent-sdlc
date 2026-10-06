@@ -195,6 +195,7 @@ public sealed class WorkItemRepository : IWorkItemRepository
 
         var client = _factory.GetClient(TableNames.WorkItems);
         var now = DateTimeOffset.UtcNow;
+        var lockAddedThisCall = false;
 
         try
         {
@@ -207,13 +208,31 @@ public sealed class WorkItemRepository : IWorkItemRepository
                 AcquiredAt = now
             };
             await client.AddEntityAsync(active, cancellationToken).ConfigureAwait(false);
+            lockAddedThisCall = true;
         }
         catch (RequestFailedException ex) when (ex.Status == 409)
         {
             var holder = await GetActiveHolderAsync(client, item.ProjectId, cancellationToken).ConfigureAwait(false);
             if (holder is not null && holder.WorkItemId == item.WorkItemId)
             {
-                // Same WI already holds lock; fall through to bind revision if needed.
+                // Same WI holds lock: re-read and re-apply D-C5 / open-revision before bind.
+                item = await GetByIdAsync(workItemId, cancellationToken).ConfigureAwait(false);
+                if (item is null)
+                {
+                    return new WorkItemImplementResult(WorkItemImplementOutcome.NotFound, null);
+                }
+
+                if (item.PipelineStarted && item.BoundSummaryRevision == summaryRevision)
+                {
+                    return new WorkItemImplementResult(WorkItemImplementOutcome.AlreadyStarted, item);
+                }
+
+                if (item.PipelineStarted
+                    && item.BoundSummaryRevision != summaryRevision
+                    && !WorkItemStatuses.IsTerminal(item.Status))
+                {
+                    return new WorkItemImplementResult(WorkItemImplementOutcome.SameWiDifferentRevisionOpen, item);
+                }
             }
             else if (holder is not null)
             {
@@ -231,17 +250,108 @@ public sealed class WorkItemRepository : IWorkItemRepository
             }
         }
 
-        item.BoundSummaryRevision = summaryRevision;
-        item.PipelineStarted = true;
-        item.Status = WorkItemStatuses.Queued;
-        item.CurrentStage = "PRD";
-        item.UpdatedAt = now;
-        item.CurrentInputVersion = Math.Max(item.CurrentInputVersion, 1);
+        const int maxBindAttempts = 3;
+        for (var attempt = 1; attempt <= maxBindAttempts; attempt++)
+        {
+            try
+            {
+                var fresh = await GetInProjectAsync(item.ProjectId, item.WorkItemId, cancellationToken)
+                    .ConfigureAwait(false);
+                if (fresh is null)
+                {
+                    if (lockAddedThisCall)
+                    {
+                        await TryDeleteActiveAsync(client, item.ProjectId, cancellationToken).ConfigureAwait(false);
+                    }
 
+                    return new WorkItemImplementResult(WorkItemImplementOutcome.NotFound, null);
+                }
+
+                if (fresh.PipelineStarted && fresh.BoundSummaryRevision == summaryRevision)
+                {
+                    return new WorkItemImplementResult(WorkItemImplementOutcome.AlreadyStarted, fresh);
+                }
+
+                if (fresh.PipelineStarted
+                    && fresh.BoundSummaryRevision != summaryRevision
+                    && !WorkItemStatuses.IsTerminal(fresh.Status))
+                {
+                    return new WorkItemImplementResult(WorkItemImplementOutcome.SameWiDifferentRevisionOpen, fresh);
+                }
+
+                fresh.BoundSummaryRevision = summaryRevision;
+                fresh.PipelineStarted = true;
+                fresh.Status = WorkItemStatuses.Queued;
+                fresh.CurrentStage = "PRD";
+                fresh.UpdatedAt = DateTimeOffset.UtcNow;
+                fresh.CurrentInputVersion = Math.Max(fresh.CurrentInputVersion, 1);
+
+                await client.UpdateEntityAsync(fresh, fresh.ETag, TableUpdateMode.Replace, cancellationToken)
+                    .ConfigureAwait(false);
+                return new WorkItemImplementResult(WorkItemImplementOutcome.Started, fresh);
+            }
+            catch (RequestFailedException ex) when (ex.Status == 412 && attempt < maxBindAttempts)
+            {
+                _logger.LogInformation(
+                    "Implement bind ETag conflict for {WorkItemId}; retry {Attempt}/{Max}",
+                    workItemId,
+                    attempt,
+                    maxBindAttempts);
+            }
+            catch (Exception ex)
+            {
+                if (lockAddedThisCall)
+                {
+                    _logger.LogWarning(
+                        ex,
+                        "Implement bind failed after acquiring ~ACTIVE for {WorkItemId}; compensating delete",
+                        workItemId);
+                    await TryDeleteActiveAsync(client, item.ProjectId, cancellationToken).ConfigureAwait(false);
+                }
+
+                throw;
+            }
+        }
+
+        if (lockAddedThisCall)
+        {
+            await TryDeleteActiveAsync(client, item.ProjectId, cancellationToken).ConfigureAwait(false);
+        }
+
+        throw new InvalidOperationException(
+            $"Failed to bind Implement for work item {workItemId} after {maxBindAttempts} ETag retries.");
+    }
+
+    public async Task<bool> TryMarkTerminalAsync(
+        string workItemId,
+        string terminalStatus,
+        CancellationToken cancellationToken = default)
+    {
+        if (!WorkItemStatuses.ReleasesActiveMarker(terminalStatus))
+        {
+            return false;
+        }
+
+        var item = await GetByIdAsync(workItemId, cancellationToken).ConfigureAwait(false);
+        if (item is null)
+        {
+            return false;
+        }
+
+        var client = _factory.GetClient(TableNames.WorkItems);
+        item.Status = terminalStatus;
+        item.UpdatedAt = DateTimeOffset.UtcNow;
         await client.UpdateEntityAsync(item, item.ETag, TableUpdateMode.Replace, cancellationToken)
             .ConfigureAwait(false);
 
-        return new WorkItemImplementResult(WorkItemImplementOutcome.Started, item);
+        var holder = await GetActiveHolderAsync(client, item.ProjectId, cancellationToken).ConfigureAwait(false);
+        if (holder is not null && holder.WorkItemId == item.WorkItemId)
+        {
+            await TryDeleteActiveAsync(client, item.ProjectId, cancellationToken, holder.ETag)
+                .ConfigureAwait(false);
+        }
+
+        return true;
     }
 
     public async Task<IntakeSummaryCommitResult?> TryCommitIntakeSummaryAsync(
@@ -416,6 +526,34 @@ public sealed class WorkItemRepository : IWorkItemRepository
         catch (RequestFailedException ex) when (ex.Status == 404)
         {
             return null;
+        }
+    }
+
+    private async Task TryDeleteActiveAsync(
+        TableClient client,
+        string projectId,
+        CancellationToken cancellationToken,
+        ETag? etag = null)
+    {
+        try
+        {
+            if (etag is { } known)
+            {
+                await client.DeleteEntityAsync(projectId, WorkItemEntity.ActiveRowKey, known, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            else
+            {
+                await client.DeleteEntityAsync(projectId, WorkItemEntity.ActiveRowKey, ETag.All, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
+        catch (RequestFailedException ex) when (ex.Status is 404 or 412)
+        {
+            _logger.LogInformation(
+                "Compensate/delete ~ACTIVE for project {ProjectId} skipped (status {Status})",
+                projectId,
+                ex.Status);
         }
     }
 }

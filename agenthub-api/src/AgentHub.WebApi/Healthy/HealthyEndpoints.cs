@@ -1,6 +1,7 @@
 using AgentHub.Agents.Healthy;
 using AgentHub.Core.Models;
 using AgentHub.Infrastructure.Messaging;
+using AgentHub.WebApi.Infrastructure;
 
 namespace AgentHub.WebApi.Healthy;
 
@@ -64,10 +65,7 @@ public static class HealthyEndpoints
         var errors = HealthyTaskValidation.Validate(message);
         if (errors.Count > 0)
         {
-            return Results.Problem(
-                detail: string.Join(" ", errors),
-                statusCode: StatusCodes.Status400BadRequest,
-                title: "Invalid HEALTHY TaskMessage");
+            return ApiProblems.ValidationFailed(string.Join(" ", errors));
         }
 
         try
@@ -76,10 +74,7 @@ public static class HealthyEndpoints
         }
         catch (Exception ex)
         {
-            return Results.Problem(
-                detail: ex.Message,
-                statusCode: StatusCodes.Status503ServiceUnavailable,
-                title: "Failed to publish HEALTHY task");
+            return ApiProblems.ServiceUnavailable($"Failed to publish HEALTHY task: {ex.Message}");
         }
 
         return Results.Accepted(

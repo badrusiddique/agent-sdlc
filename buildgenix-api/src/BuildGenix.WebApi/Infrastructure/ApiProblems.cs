@@ -47,4 +47,11 @@ public static class ApiProblems
             statusCode: StatusCodes.Status501NotImplemented,
             title: "Not Implemented",
             extensions: new Dictionary<string, object?> { ["code"] = "NotImplemented" });
+
+    public static IResult ServiceUnavailable(string detail) =>
+        Results.Problem(
+            detail: detail,
+            statusCode: StatusCodes.Status503ServiceUnavailable,
+            title: "Service Unavailable",
+            extensions: new Dictionary<string, object?> { ["code"] = "ServiceUnavailable" });
 }

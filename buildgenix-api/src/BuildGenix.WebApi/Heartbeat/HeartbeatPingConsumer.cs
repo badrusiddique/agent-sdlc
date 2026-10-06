@@ -40,7 +40,9 @@ public sealed class HeartbeatPingConsumer : BackgroundService
 
         if (string.IsNullOrWhiteSpace(_options.ConnectionString))
         {
-            throw new InvalidOperationException("ServiceBus:ConnectionString is required when EnableConsumer is true.");
+            _logger.LogError(
+                "Heartbeat ping consumer cannot start: ServiceBus:ConnectionString missing while EnableConsumer=true. Host stays up.");
+            return;
         }
 
         _client = new ServiceBusClient(_options.ConnectionString);
@@ -110,7 +112,20 @@ public sealed class HeartbeatPingConsumer : BackgroundService
     private async Task ProcessMessageAsync(ProcessMessageEventArgs args)
     {
         var body = args.Message.Body.ToString();
-        var messageId = args.Message.MessageId ?? Guid.NewGuid().ToString("N");
+        if (string.IsNullOrWhiteSpace(args.Message.MessageId))
+        {
+            _logger.LogWarning("Heartbeat ping missing MessageId; dead-lettering (never invent GUID for dedup)");
+            await args
+                .DeadLetterMessageAsync(
+                    args.Message,
+                    deadLetterReason: "MissingMessageId",
+                    deadLetterErrorDescription: "Service Bus MessageId is required for D-C1 dedup.",
+                    cancellationToken: args.CancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
+        var messageId = args.Message.MessageId;
         var enqueuedAt = args.Message.EnqueuedTime == default
             ? DateTimeOffset.UtcNow
             : args.Message.EnqueuedTime;

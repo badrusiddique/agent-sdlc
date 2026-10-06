@@ -194,18 +194,22 @@ public sealed record IntakeContextDto(
 
 public sealed record ProduceIntakeSummaryRequest(bool? Force);
 
+/// <param name="MarkerOnly">True when only the revision marker is committed (no blob body yet; B1).</param>
 public sealed record IntakeSummaryRefDto(
     int Revision,
     string ArtifactId,
     string BlobPath,
-    DateTimeOffset ProducedAt);
+    DateTimeOffset ProducedAt,
+    bool MarkerOnly = true);
 
+/// <param name="MarkerOnly">True when ContentUrl is not served yet (marker-only until B1 blob write).</param>
 public sealed record IntakeSummaryDetailDto(
     int Revision,
     string ArtifactId,
     string? Content,
     string? ContentUrl,
-    DateTimeOffset ProducedAt);
+    DateTimeOffset ProducedAt,
+    bool MarkerOnly = true);
 
 // --- Artifacts ---
 public sealed record ArtifactListItemDto(
