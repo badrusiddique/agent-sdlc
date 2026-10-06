@@ -1,7 +1,6 @@
 using AgentHub.Agents.Healthy;
-using AgentHub.Agents.Healthy.Abstractions;
-using AgentHub.Agents.Healthy.Models;
-using AgentHub.Data.Repositories;
+using AgentHub.Core.Abstractions;
+using AgentHub.Core.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AgentHub.Agents.Healthy.Tests;
@@ -118,6 +117,23 @@ public sealed class HealthyAgentDispatcherTests
             HealthyAgentConstants.BlobPath("proj", "wi", 2));
     }
 
+    [Fact]
+    public async Task ProcessAsync_wrong_stage_dead_letters()
+    {
+        var results = new FakeResults();
+        var dedup = new FakeDedup();
+        var dispatcher = CreateDispatcher(results, dedup, handlerThrows: false);
+
+        var body = """
+            {"workItemId":"wi","projectId":"p","stage":"PRD","taskId":"t1","correlationId":"c","inputVersion":1}
+            """;
+        var outcome = await dispatcher.ProcessAsync(body, "t1:1", 1);
+
+        Assert.Equal(HealthyDispatchKind.DeadLetter, outcome.Kind);
+        Assert.Contains("HEALTHY", outcome.DeadLetterReason ?? string.Empty, StringComparison.Ordinal);
+        Assert.Empty(dedup.Marked);
+    }
+
     private static HealthyAgentDispatcher CreateDispatcher(
         FakeResults results,
         FakeDedup dedup,
@@ -165,30 +181,31 @@ public sealed class HealthyAgentDispatcherTests
             Task.CompletedTask;
     }
 
-    private sealed class EmptyLedger : IEffectLedgerRepository
+    private sealed class EmptyLedger : IEffectLedger
     {
-        public Task EnsureTableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task<EffectLedgerCommitResult> CommitAsync(
-            AgentHub.Data.Entities.EffectLedgerEntity entry,
-            CancellationToken cancellationToken = default) =>
-            Task.FromResult(new EffectLedgerCommitResult(true, entry));
-
-        public Task<AgentHub.Data.Entities.EffectLedgerEntity?> TryGetCommittedAsync(
+        public Task<CommittedEffect?> TryGetCommittedAsync(
             string workItemId,
             string taskId,
             string intentKind,
             int ordinal,
             CancellationToken cancellationToken = default) =>
-            Task.FromResult<AgentHub.Data.Entities.EffectLedgerEntity?>(null);
+            Task.FromResult<CommittedEffect?>(null);
+
+        public Task<EffectCommitResult> CommitAsync(
+            EffectIntent intent,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(new EffectCommitResult(true, new CommittedEffect(intent.InputJson, intent.OutputJson)));
     }
 
-    private sealed class NoopActivity : IActivityLogRepository
+    private sealed class NoopActivity : IActivityLog
     {
-        public Task EnsureTableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-
         public Task AppendAsync(
-            AgentHub.Data.Entities.ActivityLogEntity entry,
+            string workItemId,
+            string taskId,
+            string stage,
+            string level,
+            string message,
+            string? correlationId,
             CancellationToken cancellationToken = default) =>
             Task.CompletedTask;
     }
@@ -209,7 +226,7 @@ public sealed class HealthyAgentDispatcherTests
         }
     }
 
-    private sealed class FakeDedup : IAgProcessedEventsRepository
+    private sealed class FakeDedup : IMessageDedup
     {
         private readonly Action? _onMark;
 
@@ -217,8 +234,6 @@ public sealed class HealthyAgentDispatcherTests
 
         public bool Already { get; init; }
         public List<string> Marked { get; } = [];
-
-        public Task EnsureTableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task<bool> IsProcessedAsync(string messageId, CancellationToken cancellationToken = default) =>
             Task.FromResult(Already || Marked.Contains(messageId));

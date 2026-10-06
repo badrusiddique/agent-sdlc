@@ -1,4 +1,4 @@
-namespace AgentHub.WebApi.Options;
+namespace AgentHub.Infrastructure.Options;
 
 public sealed class ServiceBusOptions
 {

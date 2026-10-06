@@ -1,3 +1,5 @@
+using AgentHub.Core.Messaging;
+
 namespace AgentHub.Agents.Healthy;
 
 /// <summary>Locked identity for the HEALTHY harness agent (D-I2-2).</summary>
@@ -20,19 +22,15 @@ public static class HealthyAgentConstants
 
     public const int DefaultMaxDeliveryCount = 5;
 
-    /// <summary>
-    /// D-I2-4: stable context key for blob/table correlation.
-    /// Choice: <c>{projectId}:{workItemId}</c> (not the blob path prefix).
-    /// </summary>
     public static string StateContextId(string projectId, string workItemId) =>
-        $"{projectId}:{workItemId}";
+        MessageIds.StateContextId(projectId, workItemId);
 
     public static string LogicalMessageId(string taskId, int inputVersion) =>
-        $"{taskId}:{inputVersion}";
+        MessageIds.LogicalMessageId(taskId, inputVersion);
 
     public static string BlobPath(string projectId, string workItemId, int inputVersion) =>
         $"{projectId}/{workItemId}/v{inputVersion}/{ArtifactFileName}";
 
     public static string RunId(string taskId, int inputVersion, int deliveryCount) =>
-        $"{taskId}:{inputVersion}:{deliveryCount}";
+        MessageIds.RunId(taskId, inputVersion, deliveryCount);
 }

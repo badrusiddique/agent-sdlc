@@ -1,0 +1,15 @@
+{
+  "workItemId": "wi-contract-1",
+  "projectId": "proj-contract-1",
+  "stage": "HEALTHY",
+  "taskId": "task-contract-1",
+  "correlationId": "corr-contract-1",
+  "causationId": "cause-1",
+  "inputVersion": 1,
+  "stateContextId": "proj-contract-1:wi-contract-1",
+  "config": {
+    "modelId": "fixture-healthy",
+    "reasoningEffort": "low"
+  },
+  "artifacts": {}
+}

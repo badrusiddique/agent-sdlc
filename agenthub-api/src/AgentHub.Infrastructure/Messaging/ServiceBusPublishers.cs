@@ -1,16 +1,38 @@
 using System.Text.Json;
-using AgentHub.Agents.Healthy;
-using AgentHub.Agents.Healthy.Abstractions;
-using AgentHub.Agents.Healthy.Models;
-using AgentHub.WebApi.Options;
+using AgentHub.Core.Abstractions;
+using AgentHub.Core.Models;
+using AgentHub.Infrastructure.Options;
 using Azure.Messaging.ServiceBus;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace AgentHub.WebApi.Healthy;
+namespace AgentHub.Infrastructure.Messaging;
 
-public interface IHealthyTaskPublisher
+/// <summary>
+/// Worker options for the HEALTHY harness subscription (Workers:Healthy).
+/// Defaults match D-I2-2; production agents get their own options sections later.
+/// </summary>
+public sealed class HealthyWorkerOptions
 {
-    Task PublishAsync(TaskMessage message, CancellationToken cancellationToken = default);
+    public const string SectionName = "Workers:Healthy";
+
+    public bool Enabled { get; set; } = true;
+
+    public string Topic { get; set; } = "sdlc-tasks-healthy";
+
+    public string Subscription { get; set; } = "healthy-tasks";
+
+    public string ResultsTopic { get; set; } = "sdlc-results";
+
+    public int MaxDeliveryCount { get; set; } = 5;
+
+    /// <summary>ISO 8601 duration, e.g. 00:02:00.</summary>
+    public string MaxAutoLockRenewalDuration { get; set; } = "00:02:00";
+
+    /// <summary>Deliberate pause inside the handler (milliseconds).</summary>
+    public int DeliberatePauseMs { get; set; } = 250;
+
+    public int MaxConcurrentCalls { get; set; } = 1;
 }
 
 public sealed class ServiceBusHealthyTaskPublisher : IHealthyTaskPublisher, IAsyncDisposable
@@ -51,7 +73,7 @@ public sealed class ServiceBusHealthyTaskPublisher : IHealthyTaskPublisher, IAsy
             ContentType = "application/json",
             MessageId = message.LogicalMessageId,
             CorrelationId = message.CorrelationId,
-            Subject = HealthyAgentConstants.StageCode
+            Subject = message.Stage
         };
 
         await _sender.SendMessageAsync(sbMessage, cancellationToken).ConfigureAwait(false);

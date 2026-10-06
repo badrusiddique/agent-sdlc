@@ -6,10 +6,13 @@ Independent .NET 10 solution for the AgentHub agent-host Web API.
 
 | Path | Role |
 |------|------|
-| `src/AgentHub.WebApi` | ASP.NET Core host: Serilog, OpenAPI, heartbeat, HEALTHY REST + BackgroundService |
-| `src/AgentHub.Agents.Healthy` | **Functions-ready** host-agnostic HEALTHY handler, dispatcher, prompts |
+| `src/AgentHub.WebApi` | Thin ASP.NET host: Serilog, OpenAPI, heartbeat REST, HEALTHY publish REST, DI composition |
+| `src/AgentHub.Hosting` | `AddAgentWorkers` — BackgroundService workers (HEALTHY today; D-AS-1) |
+| `src/AgentHub.Infrastructure` | SB / Blob / LLM clients + Data port adapters |
+| `src/AgentHub.Core` | Host-agnostic contracts (`TaskMessage`, `AgentResult`) + ports (no SB/ASP.NET) |
+| `src/AgentHub.Agents.Healthy` | HEALTHY harness handler/dispatcher/prompt; **Core only** (not Data) |
 | `src/AgentHub.Data` | AH tables only (`ActivityLog`, `EffectLedger`, `AgProcessedEvents`) |
-| `tests/` | Unit tests (heartbeat + HEALTHY handler/dispatcher) |
+| `tests/` | WebApi, Healthy, Core (JSON contract goldens) |
 | `docker-compose.yml` | Azurite + Service Bus emulator |
 | `docker/servicebus-config.json` | Topics: heartbeat + `sdlc-tasks-healthy` / `sdlc-results` / `sdlc-events` |
 

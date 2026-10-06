@@ -1,9 +1,7 @@
 using System.Diagnostics;
 using System.Text.Json;
-using AgentHub.Agents.Healthy.Abstractions;
-using AgentHub.Agents.Healthy.Models;
-using AgentHub.Data.Entities;
-using AgentHub.Data.Repositories;
+using AgentHub.Core.Abstractions;
+using AgentHub.Core.Models;
 using Microsoft.Extensions.Logging;
 
 namespace AgentHub.Agents.Healthy;
@@ -14,16 +12,16 @@ public sealed class HealthyAgentHandler
 
     private readonly ILlmClient _llm;
     private readonly IArtifactBlobStore _blobs;
-    private readonly IEffectLedgerRepository _ledger;
-    private readonly IActivityLogRepository _activity;
+    private readonly IEffectLedger _ledger;
+    private readonly IActivityLog _activity;
     private readonly TimeSpan _deliberatePause;
     private readonly ILogger<HealthyAgentHandler> _logger;
 
     public HealthyAgentHandler(
         ILlmClient llm,
         IArtifactBlobStore blobs,
-        IEffectLedgerRepository ledger,
-        IActivityLogRepository activity,
+        IEffectLedger ledger,
+        IActivityLog activity,
         ILogger<HealthyAgentHandler> logger,
         TimeSpan? deliberatePause = null)
     {
@@ -41,7 +39,7 @@ public sealed class HealthyAgentHandler
         CancellationToken cancellationToken = default)
     {
         message.EnsureDefaults();
-        var errors = message.Validate();
+        var errors = HealthyTaskValidation.Validate(message);
         if (errors.Count > 0)
         {
             throw new InvalidOperationException(string.Join(" ", errors));
@@ -148,21 +146,19 @@ public sealed class HealthyAgentHandler
 
         var commit = await _ledger
             .CommitAsync(
-                new EffectLedgerEntity
-                {
-                    WorkItemId = message.WorkItemId,
-                    TaskId = message.TaskId,
-                    IntentKind = HealthyAgentConstants.IntentLlm,
-                    Ordinal = HealthyAgentConstants.OrdinalLlm,
-                    InputJson = JsonSerializer.Serialize(new { systemPrompt, userPrompt }, JsonOptions),
-                    OutputJson = outputJson
-                },
+                new EffectIntent(
+                    message.WorkItemId,
+                    message.TaskId,
+                    HealthyAgentConstants.IntentLlm,
+                    HealthyAgentConstants.OrdinalLlm,
+                    JsonSerializer.Serialize(new { systemPrompt, userPrompt }, JsonOptions),
+                    outputJson),
                 cancellationToken)
             .ConfigureAwait(false);
 
-        if (!commit.WasFirstWriter && commit.Entity.OutputJson is { Length: > 0 })
+        if (!commit.WasFirstWriter && commit.Effect.OutputJson is { Length: > 0 })
         {
-            return JsonSerializer.Deserialize<LlmCompletionResult>(commit.Entity.OutputJson, JsonOptions)
+            return JsonSerializer.Deserialize<LlmCompletionResult>(commit.Effect.OutputJson, JsonOptions)
                    ?? stored;
         }
 
@@ -209,40 +205,32 @@ public sealed class HealthyAgentHandler
 
         await _ledger
             .CommitAsync(
-                new EffectLedgerEntity
-                {
-                    WorkItemId = message.WorkItemId,
-                    TaskId = message.TaskId,
-                    IntentKind = HealthyAgentConstants.IntentArtifact,
-                    Ordinal = HealthyAgentConstants.OrdinalArtifact,
-                    OutputJson = JsonSerializer.Serialize(
+                new EffectIntent(
+                    message.WorkItemId,
+                    message.TaskId,
+                    HealthyAgentConstants.IntentArtifact,
+                    HealthyAgentConstants.OrdinalArtifact,
+                    null,
+                    JsonSerializer.Serialize(
                         new { blobPath, bytes = body.Length, contentType = "application/json" },
-                        JsonOptions)
-                },
+                        JsonOptions)),
                 cancellationToken)
             .ConfigureAwait(false);
     }
 
-    private async Task LogAsync(
+    private Task LogAsync(
         TaskMessage message,
         string level,
         string text,
-        CancellationToken cancellationToken)
-    {
-        await _activity
-            .AppendAsync(
-                new ActivityLogEntity
-                {
-                    WorkItemId = message.WorkItemId,
-                    TaskId = message.TaskId,
-                    Stage = HealthyAgentConstants.StageCode,
-                    Level = level,
-                    Message = text,
-                    CorrelationId = message.CorrelationId
-                },
-                cancellationToken)
-            .ConfigureAwait(false);
-    }
+        CancellationToken cancellationToken) =>
+        _activity.AppendAsync(
+            message.WorkItemId,
+            message.TaskId,
+            HealthyAgentConstants.StageCode,
+            level,
+            text,
+            message.CorrelationId,
+            cancellationToken);
 
     private static string Truncate(string value, int max)
     {

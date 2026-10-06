@@ -1,7 +1,6 @@
 using System.Text.Json;
-using AgentHub.Agents.Healthy.Abstractions;
-using AgentHub.Agents.Healthy.Models;
-using AgentHub.Data.Repositories;
+using AgentHub.Core.Abstractions;
+using AgentHub.Core.Models;
 using Microsoft.Extensions.Logging;
 
 namespace AgentHub.Agents.Healthy;
@@ -9,8 +8,6 @@ namespace AgentHub.Agents.Healthy;
 /// <summary>
 /// Host-neutral dispatcher: dedup check → handler → publish result → mark (D-C1).
 /// Host completes the Service Bus message after this returns Handled / AlreadyProcessed.
-/// Retriable handler faults return Abandon until MaxDeliveryCount (D-I2-3); last delivery
-/// publishes Failed, marks, and returns DeadLetter.
 /// </summary>
 public sealed class HealthyAgentDispatcher
 {
@@ -21,13 +18,13 @@ public sealed class HealthyAgentDispatcher
 
     private readonly HealthyAgentHandler _handler;
     private readonly IAgentResultPublisher _results;
-    private readonly IAgProcessedEventsRepository _dedup;
+    private readonly IMessageDedup _dedup;
     private readonly ILogger<HealthyAgentDispatcher> _logger;
 
     public HealthyAgentDispatcher(
         HealthyAgentHandler handler,
         IAgentResultPublisher results,
-        IAgProcessedEventsRepository dedup,
+        IMessageDedup dedup,
         ILogger<HealthyAgentDispatcher> logger)
     {
         _handler = handler;
@@ -65,7 +62,7 @@ public sealed class HealthyAgentDispatcher
         }
 
         message.EnsureDefaults();
-        var validation = message.Validate();
+        var validation = HealthyTaskValidation.Validate(message);
         if (validation.Count > 0)
         {
             return HealthyDispatchOutcome.DeadLetter(string.Join(" ", validation));
@@ -104,7 +101,6 @@ public sealed class HealthyAgentDispatcher
 
             if (deliveryCount < maxDeliveryCount)
             {
-                // Template §7 / D-I2-3: abandon for redelivery; do not mark.
                 return HealthyDispatchOutcome.Abandon(
                     $"Handler fault (delivery {deliveryCount}/{maxDeliveryCount}): {ex.GetType().Name}");
             }
@@ -124,7 +120,6 @@ public sealed class HealthyAgentDispatcher
                     2000)
             };
 
-            // Last delivery: publish Failed → mark → dead-letter (D-C1 + D-I2-3).
             await _results.PublishResultAsync(result, cancellationToken).ConfigureAwait(false);
             await _dedup.TryMarkProcessedAsync(serviceBusMessageId, cancellationToken).ConfigureAwait(false);
             return HealthyDispatchOutcome.DeadLetter(
@@ -132,7 +127,6 @@ public sealed class HealthyAgentDispatcher
                 result);
         }
 
-        // D-C1: publish result → mark → (host completes). If publish throws, do not mark.
         await _results.PublishResultAsync(result, cancellationToken).ConfigureAwait(false);
         await _dedup.TryMarkProcessedAsync(serviceBusMessageId, cancellationToken).ConfigureAwait(false);
         _logger.LogInformation(

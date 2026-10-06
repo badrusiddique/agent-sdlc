@@ -1,5 +1,6 @@
 using AgentHub.Agents.Healthy;
-using AgentHub.Agents.Healthy.Models;
+using AgentHub.Core.Models;
+using AgentHub.Infrastructure.Messaging;
 
 namespace AgentHub.WebApi.Healthy;
 
@@ -60,7 +61,7 @@ public static class HealthyEndpoints
         };
 
         message.EnsureDefaults();
-        var errors = message.Validate();
+        var errors = HealthyTaskValidation.Validate(message);
         if (errors.Count > 0)
         {
             return Results.Problem(

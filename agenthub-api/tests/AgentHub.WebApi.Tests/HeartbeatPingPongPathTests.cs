@@ -1,6 +1,6 @@
 using AgentHub.Data.Repositories;
 using AgentHub.WebApi.Heartbeat;
-using AgentHub.WebApi.Options;
+using AgentHub.Infrastructure.Options;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 

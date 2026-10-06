@@ -1,6 +1,6 @@
-using AgentHub.Agents.Healthy.Models;
+using AgentHub.Core.Models;
 
-namespace AgentHub.Agents.Healthy.Abstractions;
+namespace AgentHub.Core.Abstractions;
 
 public interface IAgentResultPublisher
 {

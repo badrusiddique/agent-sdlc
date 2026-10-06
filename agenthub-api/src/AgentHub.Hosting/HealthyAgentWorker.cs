@@ -1,9 +1,12 @@
 using AgentHub.Agents.Healthy;
-using AgentHub.WebApi.Options;
+using AgentHub.Infrastructure.Messaging;
+using AgentHub.Infrastructure.Options;
 using Azure.Messaging.ServiceBus;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace AgentHub.WebApi.Healthy;
+namespace AgentHub.Hosting;
 
 /// <summary>
 /// BackgroundService host for HEALTHY. Exceptions are logged; the host is never killed by handler faults.
@@ -171,7 +174,6 @@ public sealed class HealthyAgentWorker : BackgroundService
 
                 case HealthyDispatchKind.AlreadyProcessed:
                 case HealthyDispatchKind.Handled:
-                    // D-C1: complete only after publish + mark succeeded inside dispatcher.
                     await args.CompleteMessageAsync(args.Message, args.CancellationToken)
                         .ConfigureAwait(false);
                     break;
@@ -179,7 +181,6 @@ public sealed class HealthyAgentWorker : BackgroundService
         }
         catch (Exception ex)
         {
-            // Publish failure or unexpected fault: do not mark; abandon for redelivery.
             _logger.LogError(ex, "HEALTHY processing fault for {MessageId}; abandoning", messageId);
             try
             {

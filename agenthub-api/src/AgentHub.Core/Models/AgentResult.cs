@@ -1,10 +1,10 @@
-namespace AgentHub.Agents.Healthy.Models;
+namespace AgentHub.Core.Models;
 
 public sealed class AgentResult
 {
     public string WorkItemId { get; set; } = string.Empty;
     public string TaskId { get; set; } = string.Empty;
-    public string Stage { get; set; } = HealthyAgentConstants.StageCode;
+    public string Stage { get; set; } = string.Empty;
     public string Status { get; set; } = AgentResultStatus.Completed;
     public string CorrelationId { get; set; } = string.Empty;
     public int InputVersion { get; set; }

@@ -1,7 +1,8 @@
-using AgentHub.Agents.Healthy.Abstractions;
+using System.Net.Http.Json;
+using AgentHub.Core.Abstractions;
 using Microsoft.Extensions.Options;
 
-namespace AgentHub.WebApi.Llm;
+namespace AgentHub.Infrastructure.Llm;
 
 public sealed class FixtureLlmClient : ILlmClient
 {
@@ -145,41 +146,4 @@ public sealed class GatewayLlmClient : ILlmClient
 
     private static string Truncate(string value, int max) =>
         value.Length <= max ? value : value[..max];
-}
-
-public static class LlmServiceCollectionExtensions
-{
-    public static IServiceCollection AddAgentHubLlm(this IServiceCollection services, IConfiguration configuration)
-    {
-        services.Configure<LlmOptions>(configuration.GetSection(LlmOptions.SectionName));
-
-        services.AddHttpClient("ollama", (sp, client) =>
-        {
-            var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<LlmOptions>>().Value;
-            client.BaseAddress = new Uri(opts.Ollama.BaseUrl.TrimEnd('/') + "/");
-            client.Timeout = TimeSpan.FromMinutes(2);
-        });
-
-        services.AddHttpClient("aigw", client =>
-        {
-            client.Timeout = TimeSpan.FromMinutes(2);
-        });
-
-        services.AddSingleton<ILlmClient>(sp =>
-        {
-            var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<LlmOptions>>().Value;
-            return opts.Provider.Trim().ToLowerInvariant() switch
-            {
-                "ollama" => new OllamaLlmClient(
-                    sp.GetRequiredService<IHttpClientFactory>().CreateClient("ollama"),
-                    sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<LlmOptions>>()),
-                "gateway" => new GatewayLlmClient(
-                    sp.GetRequiredService<IHttpClientFactory>().CreateClient("aigw"),
-                    sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<LlmOptions>>()),
-                _ => new FixtureLlmClient()
-            };
-        });
-
-        return services;
-    }
 }

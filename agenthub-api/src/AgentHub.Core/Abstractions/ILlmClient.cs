@@ -1,4 +1,4 @@
-namespace AgentHub.Agents.Healthy.Abstractions;
+namespace AgentHub.Core.Abstractions;
 
 public interface ILlmClient
 {

@@ -1,5 +1,5 @@
 using AgentHub.Data.Repositories;
-using AgentHub.WebApi.Options;
+using AgentHub.Infrastructure.Options;
 using Azure.Messaging.ServiceBus;
 using Microsoft.Extensions.Options;
 

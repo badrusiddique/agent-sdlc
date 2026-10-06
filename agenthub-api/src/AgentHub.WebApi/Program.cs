@@ -1,11 +1,12 @@
 using AgentHub.Agents.Healthy;
-using AgentHub.Agents.Healthy.Abstractions;
+using AgentHub.Core.Models;
 using AgentHub.Data;
-using AgentHub.WebApi.Blob;
+using AgentHub.Hosting;
+using AgentHub.Infrastructure;
+using AgentHub.Infrastructure.Messaging;
+using AgentHub.Infrastructure.Options;
 using AgentHub.WebApi.Healthy;
 using AgentHub.WebApi.Heartbeat;
-using AgentHub.WebApi.Llm;
-using AgentHub.WebApi.Options;
 using Serilog;
 
 Log.Logger = new LoggerConfiguration()
@@ -23,36 +24,12 @@ try
         .Enrich.WithProperty("Application", "AgentHub.WebApi")
         .WriteTo.Console());
 
-    builder.Services.Configure<ServiceBusOptions>(
-        builder.Configuration.GetSection(ServiceBusOptions.SectionName));
-    builder.Services.Configure<HealthyWorkerOptions>(
-        builder.Configuration.GetSection(HealthyWorkerOptions.SectionName));
-    builder.Services.Configure<BlobStorageOptions>(
-        builder.Configuration.GetSection(BlobStorageOptions.SectionName));
-
     builder.Services.AddAgentHubData(builder.Configuration);
-    builder.Services.AddAgentHubLlm(builder.Configuration);
+    builder.Services.AddAgentHubInfrastructure(builder.Configuration);
+    builder.Services.AddAgentWorkers(builder.Configuration);
 
     builder.Services.AddSingleton<IHeartbeatPublisher, ServiceBusHeartbeatPublisher>();
     builder.Services.AddHostedService<HeartbeatPingConsumer>();
-
-    builder.Services.AddSingleton<IArtifactBlobStore, AzureArtifactBlobStore>();
-    builder.Services.AddSingleton<IHealthyTaskPublisher, ServiceBusHealthyTaskPublisher>();
-    builder.Services.AddSingleton<IAgentResultPublisher, ServiceBusAgentResultPublisher>();
-    builder.Services.AddSingleton<HealthyAgentHandler>(sp =>
-    {
-        var pauseMs = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<HealthyWorkerOptions>>()
-            .Value.DeliberatePauseMs;
-        return new HealthyAgentHandler(
-            sp.GetRequiredService<ILlmClient>(),
-            sp.GetRequiredService<IArtifactBlobStore>(),
-            sp.GetRequiredService<AgentHub.Data.Repositories.IEffectLedgerRepository>(),
-            sp.GetRequiredService<AgentHub.Data.Repositories.IActivityLogRepository>(),
-            sp.GetRequiredService<ILogger<HealthyAgentHandler>>(),
-            TimeSpan.FromMilliseconds(Math.Max(0, pauseMs)));
-    });
-    builder.Services.AddSingleton<HealthyAgentDispatcher>();
-    builder.Services.AddHostedService<HealthyAgentWorker>();
 
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(options =>

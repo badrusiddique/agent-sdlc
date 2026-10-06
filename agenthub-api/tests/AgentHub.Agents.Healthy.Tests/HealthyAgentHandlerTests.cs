@@ -1,8 +1,6 @@
 using AgentHub.Agents.Healthy;
-using AgentHub.Agents.Healthy.Abstractions;
-using AgentHub.Agents.Healthy.Models;
-using AgentHub.Data.Entities;
-using AgentHub.Data.Repositories;
+using AgentHub.Core.Abstractions;
+using AgentHub.Core.Models;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace AgentHub.Agents.Healthy.Tests;
@@ -51,14 +49,13 @@ public sealed class HealthyAgentHandlerTests
         var llm = new FakeLlm();
         var blobs = new FakeBlobStore();
         var ledger = new InMemoryEffectLedger();
-        await ledger.CommitAsync(new EffectLedgerEntity
-        {
-            WorkItemId = "wi1",
-            TaskId = "t1",
-            IntentKind = HealthyAgentConstants.IntentLlm,
-            Ordinal = 100,
-            OutputJson = """{"text":"cached","modelId":"fixture","inputTokens":1,"outputTokens":1}"""
-        });
+        await ledger.CommitAsync(new EffectIntent(
+            "wi1",
+            "t1",
+            HealthyAgentConstants.IntentLlm,
+            100,
+            null,
+            """{"text":"cached","modelId":"fixture","inputTokens":1,"outputTokens":1}"""));
         var handler = new HealthyAgentHandler(
             llm,
             blobs,
@@ -73,7 +70,8 @@ public sealed class HealthyAgentHandlerTests
             ProjectId = "p1",
             TaskId = "t1",
             CorrelationId = "c1",
-            InputVersion = 2
+            InputVersion = 2,
+            Stage = HealthyAgentConstants.StageCode
         };
 
         await handler.RunAsync(message, 1);
@@ -106,51 +104,56 @@ public sealed class HealthyAgentHandlerTests
         }
     }
 
-    private sealed class InMemoryEffectLedger : IEffectLedgerRepository
+    private sealed class InMemoryEffectLedger : IEffectLedger
     {
-        private readonly Dictionary<string, EffectLedgerEntity> _rows = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, CommittedEffect> _rows = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, (string Intent, int Ordinal)> _meta = new(StringComparer.Ordinal);
 
-        public Task EnsureTableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public bool Has(string intent, int ordinal) =>
-            _rows.Values.Any(r => r.IntentKind == intent && r.Ordinal == ordinal);
-
-        public Task<EffectLedgerCommitResult> CommitAsync(
-            EffectLedgerEntity entry,
-            CancellationToken cancellationToken = default)
-        {
-            var key = EffectLedgerEntity.RowKeyFor(entry.TaskId, entry.IntentKind, entry.Ordinal);
-            if (_rows.TryGetValue(key, out var existing))
-            {
-                return Task.FromResult(new EffectLedgerCommitResult(false, existing));
-            }
-
-            entry.Status = EffectLedgerEntity.CommittedStatus;
-            _rows[key] = entry;
-            return Task.FromResult(new EffectLedgerCommitResult(true, entry));
-        }
-
-        public Task<EffectLedgerEntity?> TryGetCommittedAsync(
+        public Task<CommittedEffect?> TryGetCommittedAsync(
             string workItemId,
             string taskId,
             string intentKind,
             int ordinal,
             CancellationToken cancellationToken = default)
         {
-            var key = EffectLedgerEntity.RowKeyFor(taskId, intentKind, ordinal);
+            var key = $"{taskId}_{intentKind}_{ordinal:D6}";
             return Task.FromResult(_rows.TryGetValue(key, out var e) ? e : null);
+        }
+
+        public bool Has(string intent, int ordinal) =>
+            _meta.Values.Any(r => r.Intent == intent && r.Ordinal == ordinal);
+
+        public Task<EffectCommitResult> CommitAsync(
+            EffectIntent intent,
+            CancellationToken cancellationToken = default)
+        {
+            var key = $"{intent.TaskId}_{intent.IntentKind}_{intent.Ordinal:D6}";
+            if (_rows.TryGetValue(key, out var existing))
+            {
+                return Task.FromResult(new EffectCommitResult(false, existing));
+            }
+
+            var effect = new CommittedEffect(intent.InputJson, intent.OutputJson);
+            _rows[key] = effect;
+            _meta[key] = (intent.IntentKind, intent.Ordinal);
+            return Task.FromResult(new EffectCommitResult(true, effect));
         }
     }
 
-    private sealed class InMemoryActivityLog : IActivityLogRepository
+    private sealed class InMemoryActivityLog : IActivityLog
     {
-        public List<ActivityLogEntity> Entries { get; } = [];
+        public List<(string Message, string Level)> Entries { get; } = [];
 
-        public Task EnsureTableAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
-
-        public Task AppendAsync(ActivityLogEntity entry, CancellationToken cancellationToken = default)
+        public Task AppendAsync(
+            string workItemId,
+            string taskId,
+            string stage,
+            string level,
+            string message,
+            string? correlationId,
+            CancellationToken cancellationToken = default)
         {
-            Entries.Add(entry);
+            Entries.Add((message, level));
             return Task.CompletedTask;
         }
     }

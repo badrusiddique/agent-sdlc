@@ -1,20 +1,12 @@
 using System.Text;
-using AgentHub.Agents.Healthy.Abstractions;
+using AgentHub.Core.Abstractions;
+using AgentHub.Infrastructure.Options;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace AgentHub.WebApi.Blob;
-
-public sealed class BlobStorageOptions
-{
-    public const string SectionName = "BlobStorage";
-
-    public string ConnectionString { get; set; } =
-        "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;";
-
-    public string ContainerName { get; set; } = "agenthub-artifacts";
-}
+namespace AgentHub.Infrastructure.Blob;
 
 public sealed class AzureArtifactBlobStore : IArtifactBlobStore
 {

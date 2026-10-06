@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Azure.Messaging.ServiceBus;
-using AgentHub.WebApi.Options;
+using AgentHub.Infrastructure.Options;
 using Microsoft.Extensions.Options;
 
 namespace AgentHub.WebApi.Heartbeat;

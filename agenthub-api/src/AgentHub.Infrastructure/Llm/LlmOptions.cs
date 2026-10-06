@@ -1,4 +1,4 @@
-namespace AgentHub.WebApi.Llm;
+namespace AgentHub.Infrastructure.Llm;
 
 public sealed class LlmOptions
 {
