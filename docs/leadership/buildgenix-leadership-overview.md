@@ -595,7 +595,7 @@ sequenceDiagram
 1. **Intake.** Screen: chat and Context so far. The user describes a calculator that adds two numbers, as a screen and a service with no AI.
 2. **Implement now.** The project is locked and the work item becomes generation 1.
 3. **Requirements.** Screen: "Writing the PRD". The Requirements agent writes PRD v1.0.
-4. **Gate 1, first draft.** Screen: "Waiting on you: review the PRD". The user reads PRD v1.0 and rejects it with the feedback "inputs can be decimals, and show an error when someone types letters".
+4. **Gate 1, first draft.** Screen: "Waiting on you: review the PRD". The user reads PRD v1.0 and rejects it with the feedback "inputs can be decimals; show an error for non-numeric input".
 5. **Redraft.** Screen: "Redrafting the PRD (revision 2)". buildgenix saves the feedback and sends the Requirements agent a new work order. The agent reads the previous PRD and the feedback and writes PRD v1.1 into a new version folder. The user approves it.
 6. **Design.** Screen: "Designing", then "Waiting on you: review the design". The Design agent writes design v1.0: an add operation that takes two decimals, a clear error for anything that is not a number, and a form with two inputs and a result. The user approves it.
 7. **Build.** Screen: "Building: phase k of N". The Build agent creates the repository, the backlog and the code in two phases, and opens a pull request.
@@ -627,7 +627,7 @@ sequenceDiagram
     Req->>Files: Write prd.json and prd.md in folder v1
     Req-->>Orch: Result Completed
     Orch-->>Screen: Waiting on you, review PRD v1.0
-    U->>Screen: Reject, inputs can be decimals<br/>and letters need an error
+    U->>Screen: Reject, decimals, error on non-numeric
     Orch->>Files: Write feedback-prd.json
     Orch->>Req: New work order, revision 2, with the feedback
     Req->>Files: Read previous PRD and feedback
@@ -679,7 +679,7 @@ sequenceDiagram
 
 1. **Intake.** Screen: chat and Context so far. On the Calculator project, the user starts a second work item and asks for subtraction. The intake summary names the existing app and the one new behaviour.
 2. **Implement now.** The work item becomes generation 2. buildgenix attaches the accepted PRD, design, code map, repository address and epic to every work order.
-3. **Requirements.** Screen: "Writing the PRD". The Requirements agent writes PRD v2.0, which describes the whole calculator: the add story is carried forward unchanged, the subtract story is added and marked as new, and a requirement says add must keep working.
+3. **Requirements.** Screen: "Writing the PRD". The Requirements agent writes PRD v2.0, which describes the whole calculator: the add story is carried forward unchanged, the subtract story is added and marked `added`, and a requirement says add must keep working.
 4. **Gate 1.** Screen: "Waiting on you: review the PRD". The user approves PRD v2.0.
 5. **Design.** Screen: "Designing". The Design agent works from the code map and finds the existing add code. Design v2.0 keeps every earlier acceptance check and lists the existing files that change (four source files and two test files in this example, with no new files), and checks that every file it plans to change really exists.
 6. **Gate 2.** Screen: "Waiting on you: review the design". The user approves design v2.0.
@@ -762,7 +762,7 @@ Phase 0 is deliberately small: it proves that the whole chain works end to end b
 |---|---|---|
 | Build host | One App Service container, where each of the three builder agents runs one job at a time | A separate short-lived job for each run. The agent's job has its own narrowly scoped identity; the generated code runs in a second, separate job that has no platform identity and can only reach the package sources |
 | Code review | A helper step inside the Build agent | Its own agent, with an human review floor beyond DEV |
-| Approval gates | PRD, design and DEV acceptance | Configurable per stage and per environment |
+| Approval gates | PRD, design and DEV acceptance | PRD, System Design and Code Review can be added per project. Three floors stay on: DEV acceptance before any merge, a human reading the diff before the work leaves DEV, and a human Production approval. Config cannot turn those floors off |
 | Who signs in and approves | A placeholder user; approvals cannot be tied to a person, and the requester can approve their own work | Sign-in with the organisation's identity, and the person approving a gate cannot be the person who asked for the change |
 | Deployment | The Deploy agent deploys directly into one DEV sandbox | Azure DevOps pipelines from the template. The pull request build tests the commit and deploys it to a Sandbox. The Deploy agent then asks the pipeline to deploy that same tested commit to DEV. After a person accepts it, the pull request is merged, and the merged build is promoted to System Test, Stage and Production, each with its own approvals in Azure DevOps. Production approval stays with people |
 | When tests fail | The work goes back to the Build agent, up to the loop limit | A check that proposes whether the PRD or the code should change |
