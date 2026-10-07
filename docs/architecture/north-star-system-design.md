@@ -4,7 +4,7 @@
 **Audience:** Senior engineers, solution architects, engineering leadership
 **Author:** Badru Siddique
 **Date:** 2026-10-07
-**Status:** DRAFT for design review. Facts follow the canonical design spec of 2026-10-07 (`internal/system-design-pack/design-spec.md`). The spec fixes Phase 0 and the North Star deltas; where the North Star needs more detail, this document states the design. Proposed starting values (caps, thresholds, names) are marked *proposed*, and questions nobody has decided yet are listed in section 18.
+**Status:** FINAL-CONDITIONAL. Facts follow the canonical design spec of 2026-10-07 (`internal/system-design-pack/design-spec.md`). Wave2 Critical findings (NS-DO-1, NS-SEC-1..4, NS-QA-1..2, NS-SA-1) are applied. Proposed starting values are marked *proposed*. Questions nobody has decided yet stay OPEN in section 18. Not implementation GO.
 
 > **How to read this document.** Leadership: sections 1 to 3 and 17. Engineers building agents: sections 4 to 6, 9 and 12. Platform and DevOps: sections 11, 13 to 15. The three worked examples in section 10 tie everything together and are the best way to check your understanding of the design.
 
@@ -98,11 +98,13 @@ flowchart LR
         DEP["Deployment worker"]
         HL["HEALTHY harness"]
     end
-    subgraph BLD["Builder: Azure Container Apps Jobs"]
+    subgraph BLD["Agent jobs CA env (workload profiles)"]
         IMP["Implementation job"]
         CR["Code Review job"]
         TST["Testing job"]
-        SBX["Sandbox job<br/>no managed identity"]
+    end
+    subgraph SBXENV["Sandbox CA env (own subnet)"]
+        SBX["Sandbox job<br/>AcrPull lifecycle None<br/>no identity to code"]
     end
     subgraph DATA["Storage account"]
         BGT["buildgenix tables"]
@@ -140,24 +142,45 @@ flowchart LR
     PUB --> TT
     TT --> CORE
     TT -->|"KEDA scaler starts one execution per message"| BLD
-    CORE & BLD --> TR & TE
+    CORE --> TR
+    CORE --> TE
+    BLD --> TR
+    BLD --> TE
     TR --> RC
     TE --> EC
-    RC & EC --> BGT
-    RC & EC & WH --> SIG
-    CORE & BLD --> AHT & BLOB & APIM
+    RC --> BGT
+    EC --> BGT
+    RC --> SIG
+    EC --> SIG
+    WH --> SIG
+    CORE --> AHT
+    CORE --> BLOB
+    CORE --> APIM
+    BLD --> AHT
+    BLD --> BLOB
+    BLD --> APIM
     BLD --> RESP
     SD --> CTX
     CTX --> WIKI
-    IMP & TST --> SBX
-    BLD --> REPO & BOARDS
+    IMP --> SBX
+    TST --> SBX
+    BLD --> REPO
+    BLD --> BOARDS
     IMP --> PIPE
     DEP -->|"queue the DEV run, Finalize merges the PR"| ADOS
     PIPE --> LADDER
     HOOK --> WH
     ACR --> BLD
-    KV -.-> CORE & BLD
-    ORCH & CORE & BLD -.-> MON
+    ACR --> SBX
+    KV -.-> CORE
+    KV -.-> BLD
+    ORCH -.-> MON
+    CORE -.-> MON
+    BLD -.-> MON
+    FW["Azure Firewall<br/>sandbox subnet egress"]
+    SBX --> FW
+    FW --> BLOB
+    FW --> ACR
 ```
 
 ### 2.2 What each box does, and why it is a separate box
@@ -211,9 +234,9 @@ flowchart LR
 | `PRD` | PRD | PRD agent, core | Human: approve or reject | Configurable, default on |
 | `SYSTEM_DESIGN` | System Design | System Design agent, core | Human: approve or reject | Configurable, default on |
 | `IMPLEMENTATION` | Build | Implementation agent, builder job | Auto-advance | Auto-advance |
-| `CODE_REVIEW` | Code Review | Phase 0: CodeReviewer subagent inside Implementation. North Star: Code Review agent, builder job | n/a | Optional human gate |
+| `CODE_REVIEW` | Code Review | Phase 0: CodeReviewer subagent inside Implementation. North Star: Code Review agent, builder job | n/a | Floor for every project whose ladder goes beyond DEV: human reviewer (other than requester) before Finalize; DEV-only projects may omit it |
 | `TESTING` | Test | Testing agent, builder job. Tests the work branch head commit and never merges | Auto-advance | Auto-advance, with a confirmation when verification proposes "PRD wrong" |
-| `DEPLOY_DEV`, action `Deploy` | Deploy | Phase 0: Deployment agent, builder, deploys the tested head commit itself. North Star: Deployment agent on core queues the ADO pipeline run that deploys that commit, then verifies | Human: DEV acceptance (Accept, or Request changes) | Configurable, default on |
+| `DEPLOY_DEV`, action `Deploy` | Deploy | Phase 0: Deployment agent, builder, deploys the tested head commit itself. North Star: Deployment agent on core queues the ADO pipeline run that deploys that commit, then verifies | Human: DEV acceptance (Accept, or Request changes) | Always on; not configurable |
 | `DEPLOY_DEV`, action `Finalize` | Deploy ("Finishing: merging to main") | Deployment agent, Finalizer subagent: merges the PR only if its head still equals the deployed commit | None; the work item completes | Same |
 | `DEPLOY_ST`, `DEPLOY_STAGE`, `DEPLOY_PROD` | Promote (System Test, Stage, Production) | ADO pipeline promotes the merged build of `main`; Deployment agent verifies (action `Verify`, contract 2.1) | n/a | Per environment policy; Production always human-led |
 | `DONE` | Done | none | n/a | n/a |
@@ -228,7 +251,7 @@ In the North Star, with a ladder, the rule generalises to "merge after the first
 
 Phase 0 has exactly three gates (S7): PRD, SYSTEM_DESIGN and DEV acceptance. Everything else advances on its own unless an agent stops with `HumanActionRequired` (a question, a loop limit or a budget). A reject at a gate is not a failure: buildgenix writes the reviewer's feedback to `feedback-{stage}.json` (for example `feedback-prd.json`), issues a new `taskId` for the same stage with `outputRevision + 1`, and the agent redrafts. After 3 human rejects of the same stage, the work item stops with `HumanActionRequired` `LoopLimit` so a person decides whether the request itself needs rethinking; the person can allow one more loop at a time up to a hard cap of 5, or Stop (section 3.6). At DEV acceptance the reject is called Request changes: buildgenix writes `feedback-implementation.json` and publishes an Implementation rework on the same branch and pull request, with its own limit of 3, counted separately from the PRD and design rejects and from test route-backs. Every redraft, route-back and Request changes raises the work item's `pipelineVersion` by 1 (section 5.2).
 
-In the North Star gates become a policy per project, per stage and per environment (proposed: a `gatePolicy` section in the project's `SettingsJson`). Two floors are not configurable (proposed): production is always human-led, and the person approving a gate cannot be the person who raised the request (D-13, deferred to Phase 1 because Phase 0 has dummy auth).
+In the North Star gates become a policy per project, per stage and per environment (proposed: a `gatePolicy` section in the project's `SettingsJson`). Three floors are not configurable: DEV acceptance is always a human decision before any merge; Production is always human-led; and once Entra sign-in exists (D-13), the person approving a gate cannot be the person who raised the request. Until then gates are advisory and the acceptance screen says so. `gatePolicy` governs BuildGenix gates only (PRD, System Design, Code Review, DEV acceptance). Rungs after the merge are gated only by checks on their ADO environments, owned by the platform team.
 
 ### 3.3 Loops and their guards
 
@@ -247,7 +270,8 @@ Every loop has a limit, and every limit ends in a state a person can act on. "No
 | In-step transient retry | Every call to the LLM, ADO, ARM and storage (`Microsoft.Extensions.Http.Resilience`) | Exponential back-off with a circuit breaker, up to 10 minutes per step | The exception reaches the dispatcher and the message is abandoned |
 | Service Bus redelivery | Dispatcher | MaxDeliveryCount 5 | Last delivery publishes `Failed`; if it cannot, the dead-letter watcher raises `HumanActionRequired` `Stuck` |
 | Handler deadline | Every handler | Lock renewal cap minus 10 minutes or 20 percent, whichever is smaller | `Failed` `DeadlineExceeded` |
-| Stage watchdog | buildgenix | `Running` with no event for 15 minutes (agents send a `Heartbeat` every 60 seconds); `Queued` and not started after 6 hours shows "waiting for capacity", after 12 hours `Stuck` | `HumanActionRequired` `Stuck` |
+| Stage watchdog | buildgenix | `Running` with no event for 15 minutes (agents send a `Heartbeat` every 60 seconds); `Queued` and not started after 6 hours shows "waiting for capacity", after 12 hours `Stuck`. `AwaitingCi` is excluded from the queued-task clock | `HumanActionRequired` `Stuck` |
+| CI wait | buildgenix, from entering `CI_Wait` | 60 minutes (proposed) without a `CiStatus` row for the current head | `HumanActionRequired` `Stuck` with reason `CiTimeout`; Retry publishes Testing in `ciCheck` mode (first sub-step reads the PR build for the head through ADO REST and applies the same CI_Wait join) |
 | Questions per run | Every agent | 3 | `LoopLimit` (the agent keeps asking, so a person decides) |
 | "One more loop" after a buildgenix `LoopLimit` | buildgenix, per counter | Cap rises by one each time, hard cap 5 | Only Stop remains |
 | Smoke validation | Deployment | 5 minute window with back-off | `HumanActionRequired` `Question` with logs |
@@ -338,6 +362,7 @@ The Phase 0 guide (section 11) shows the restart, question and other failure pat
 | `LoopLimit` or `BudgetExceeded` from an agent | An agent | Retry with guidance; raise the budget and retry; Stop | A new `taskId`, the next `outputRevision` and `pipelineVersion + 1` for the stage, the guidance as `feedback-{stage}.json`, the raised budget in `config`. For Implementation, `context.implementationMode = Continue` | A new task has an empty ledger, so nothing committed is replayed. Implementation in `Continue` mode keeps every phase already pushed (found by its `Bgx-Phase` trailer), restarts the phase that hit the limit with the guidance, then builds the remaining phases |
 | `LoopLimit` from buildgenix | buildgenix (3 route-backs, 3 rejects at a gate, 3 Request changes) | One more loop; Stop | An Implementation rework or a redraft | The counter's cap rises by one, up to a hard cap of 5 |
 | `Stuck` | Dead-letter watcher or stage watchdog (section 5.10) | Retry; Stop | The same task with `inputVersion + 1` | The ledger replays finished work and the run continues |
+| `Stuck` with `CiTimeout` | CI wait clock (section 3.3) | Retry (Testing in `ciCheck` mode); Stop | Testing task whose first sub-step reconciles the PR build from ADO REST, then the CI_Wait join | A lost or disabled hook no longer stalls forever |
 | Any | | Stop | Nothing | Work item `Failed` ("Stopped by user"), `~ACTIVE` released |
 
 Where an answered question continues:
@@ -520,13 +545,13 @@ Builds the code the design describes, test first, one phase at a time, and leave
 | Token budget | 1.8M stage cap (North Star proposed: 1.65M, with 150k moving to Code Review) |
 | Model | Phase 0: recommended `5.4` through APIM chat. North Star: a codex model (`53codex-chat`) through the Responses API once governance approves that path (open item 7) |
 | Contract key fields | `context.repo.url` (null for a new project until this stage creates it), `context.repo.workBranch`, `context.ado.epicId` (null until the first Implementation creates the project's epic), `context.templateId`, `loopIndex` |
-| Resources created | ADO repo `bgx-{slug}` (new project), `main` scaffold, work branch, commits with `Bgx-Task` and `Bgx-Phase` trailers, pull request, the project's epic (first work item) and stories, lock files; North Star also the pipeline definitions, ADO environments and service hook subscriptions; blobs |
+| Resources created | ADO repo `bgx-{slug}` (new project), `main` scaffold, work branch, commits with `Bgx-Task` and `Bgx-Phase` trailers, pull request, the project's epic (first work item) and stories, lock files; North Star also the thin pipeline definitions that `extends` platform templates; blobs. Environments, connections and hooks are platform-owned |
 | Failure modes | `BuildEnvironment` (SDK, feed or disk problem); `ExternalService` (ADO down); fix loop exhausted (`LoopLimit`); `BudgetExceeded`; push rejected by branch policy (`Failed` with reason). A failed first work item leaves a repo whose `main` holds only the template; the next attempt reuses it (section 3.5) |
 
 | Sub-step id | Subagent | Kind | Does |
 |---|---|---|---|
 | `workspace` | WorkspaceManager | deterministic | New project: look up repo `bgx-{slug}` by name and reuse it if a failed earlier first work item created it (its `main` can only hold the template, because merges happen only after acceptance); otherwise create it, scaffold from the template, push `main`. Existing: clone `main`. Create or reuse the work branch. Rework: clone the work branch. After a crash: re-clone at the last pushed commit |
-| `pipeline` (North Star) | PipelineProvisioner | deterministic (ADO REST) | New project: create the PR pipeline and the `main` pipeline from the template YAML, the ADO environments and the service hook subscriptions; each looked up by name before create. Needs the extra ADO rights in section 15.2 |
+| `pipeline` (North Star) | PipelineProvisioner | deterministic (ADO REST) | New project: create the three pipeline definitions (PR, deploy-dev, main) as thin `extends` wrappers from the protected templates repo, each looked up by name before create; existing project: look each up and fail `BuildEnvironment` if missing. ADO environments, their checks, service connections and service hook subscriptions are pre-created once by the platform team per `BuildGenix-Apps` (section 15.2); no agent holds Administrator or Creator on them. The platform team authorizes each new pipeline for the environments and connections it may use (no open access) |
 | `backlog` | BacklogSync | deterministic (ADO REST) | Creates the project's epic if `context.ado.epicId` is null, otherwise adds stories under it; items tagged `bgx-wi:{workItemId}` and `bgx-key:{storyKey}`; queries by tag before create so a retry never duplicates. Stories left by a failed attempt keep their own tag (Phase 0: the user closes them; North Star: closed automatically on failure). Skipped in rework |
 | `dependencies` | DependencyManager | deterministic | Adds the packages the techspec lists, only from the template's allowlist, at pinned versions (`npm install --save-exact --ignore-scripts`, `dotnet add package`), and commits the lock files. CodeWriter may not edit `package.json`, `package-lock.json` or package references |
 | `phase-{k}` | PhaseRunner, running TestWriter (LLM, tests first), CodeWriter (LLM, one file at a time with code-state references and the current file content), BuildVerifier (`dotnet build`, `dotnet test`, `npm ci --ignore-scripts`, `ng build`, `ng test --watch=false` with Vitest, no browser), FixLoop (LLM repair from compiler and test output), PhaseCommitter (commit "phase k: {title}" with the `Bgx-Task: {taskId}` and `Bgx-Phase: {k}` trailers and ledger-pinned author and committer dates, push, record the commit) | mixed | One sub-step per techspec phase |
@@ -1150,14 +1175,14 @@ North Star rows extend the Phase 0 map (spec section 9) with Code Review, the pu
 | System Design | "Waiting on you: review the design" | `AwaitingApproval` | `SYSTEM_DESIGN` | none | Approve; Reject with feedback |
 | Build | "Building: phase k of N" | `Running` | `IMPLEMENTATION` | Implementation: workspace, pipeline, backlog, phase-k, code-state, pull-request | Watch; open the ADO repo |
 | Code Review (North Star) | "Reviewing the code" | `Running` | `CODE_REVIEW` | Code Review: workspace, diff, static, conformance, review, comment, publish | Watch; open the PR |
-| Code Review gate (North Star, optional) | "Waiting on you: review the findings" | `AwaitingApproval` | `CODE_REVIEW` | none | Approve; Request changes |
+| Code Review gate (North Star; floor beyond DEV) | "Waiting on you: review the findings" | `AwaitingApproval` | `CODE_REVIEW` | none | Approve; Request changes. Required for any project whose ladder goes beyond DEV |
 | Build (review loop) | "Fixing review findings (round r of 2)" | `Running` | `IMPLEMENTATION` | Implementation with `feedback` from `review` | Watch |
-| PR build (North Star) | "Waiting for the pull request build" | `Queued` | `TESTING` | ADO PR pipeline (build, unit tests, Sandbox deploy of the head commit); no agent | Watch; open the Sandbox deployment |
+| PR build (North Star) | "Waiting for the pull request build" | `AwaitingCi` | `CI_Wait` | ADO PR pipeline (build, unit tests, Sandbox deploy of the head commit); no agent. Status allows Stop; excluded from the queued-task watchdog clock | Watch; open the Sandbox deployment; Stop |
 | Test | "Testing" | `Running` | `TESTING` | Testing: workspace, suites, acceptance, sandbox, verify, publish (no merge) | Watch |
 | Build (test loop) | "Fixing test failures (loop L of 3)" | `Running` | `IMPLEMENTATION` | Implementation with `feedback` and `testResults` | Watch |
 | Verification (North Star) | "Tests suggest the requirement is wrong" | `AwaitingApproval` (route-back confirmation) | `TESTING` | none | Confirm route to PRD; Route to Implementation instead |
 | Deploy | "Deploying to DEV" | `Running` | `DEPLOY_DEV` | Phase 0: Deployment, Deploy action: workspace, provision, package, deploy, smoke, summary. North Star: Deployment, Deploy action: run (queues the ADO DEV deployment of the tested commit), smoke, drift, summary | Watch; open the pipeline run |
-| Deploy | "Waiting on you: check the DEV app", with links to the app and the PR diff, and the line "Accept merges code that no person has reviewed" (Phase 0; the North Star Code Review agent changes the wording, section 15.3) | `AwaitingApproval` | `DEPLOY_DEV` | none | Accept; Request changes (Implementation rework on the same branch and PR, max 3); Stop |
+| Deploy | "Waiting on you: check the DEV app", with links to the app and the PR diff. Phase 0 and DEV-only North Star projects keep "Accept merges code that no person has reviewed". Projects whose ladder goes beyond DEV have already passed the human code-review floor (section 15.3) | `AwaitingApproval` | `DEPLOY_DEV` | none | Accept; Request changes (Implementation rework on the same branch and PR, max 3); Stop |
 | Build (change request) | "Applying your changes (round c of 3)" | `Running` | `IMPLEMENTATION` | Implementation in `Rework` mode with `feedback-implementation.json` | Watch |
 | Build (retry after a limit) | "Continuing the build from phase k" | `Running` | `IMPLEMENTATION` | Implementation in `Continue` mode with the guidance | Watch |
 | Deploy | "Finishing: merging to main" | `Running` | `DEPLOY_DEV` | Deployment, Finalize action: finalize | Watch |
@@ -1187,7 +1212,7 @@ North Star rows extend the Phase 0 map (spec section 9) with Code Review, the pu
 | PRD (publish) | `prd.json`, `prd.md` | Blob | Ledger |
 | System Design (publish) | `techspec.json`, `system-design.md` | Blob | Ledger |
 | Implementation (WorkspaceManager) | ADO repo `bgx-{slug}` (new project), `main` scaffold, work branch | ADO Repos | Look up `bgx-{slug}` by name before create; a repo left by a failed first work item is reused |
-| Implementation (PipelineProvisioner, North Star) | PR pipeline and `main` pipeline from the template YAML; ADO environments `sandbox`, `dev`, `system-test`, `stage`, `production`; service hook subscriptions to the buildgenix receiver | ADO Pipelines and project settings | Look up by name before create |
+| Implementation (PipelineProvisioner, North Star) | Thin PR, deploy-dev and `main` pipeline definitions that `extends` `BuildGenix-Apps/pipeline-templates` at a pinned ref | ADO Pipelines only (no environment or hook create) | Look up by name before create; platform team authorizes the new pipelines |
 | Implementation (DependencyManager) | Package additions from the template allowlist at pinned versions, and the lock files | ADO Repos (work branch) | Commit carries the `Bgx-Task` trailer and is found on the branch before committing again |
 | Implementation (BacklogSync) | Epic and stories tagged `bgx-wi:{workItemId}` and `bgx-key:{storyKey}` | ADO Boards | Query by tag before create; a failed attempt's stories keep their own tag (Phase 0: left for the user; North Star: closed on failure) |
 | Implementation (PhaseCommitter) | One commit per phase, pushed, with `Bgx-Task` and `Bgx-Phase` trailers and ledger-pinned dates | ADO Repos | Commit id in the ledger; after a crash the trailer finds the pushed commit (section 5.6) |
@@ -2050,7 +2075,7 @@ The residual risk of Phase 0 is that generated code shares a kernel, a network a
 | Concurrency | Many executions in parallel across work items; each execution receives exactly one message (`MaxConcurrentCalls = 1`, `PrefetchCount = 0`) and settles it; KEDA caps executions per job, and there is no gate shared between jobs | The handler code stays the same as Phase 0; scale comes from executions, not threads |
 | Timeouts | Execution timeout set above the subscription's lock renewal cap | The handler deadline (cap minus 10 minutes or 20 percent), not the platform, must be what ends a long run, so the result is always published |
 | Agent identity | One user-assigned identity per agent job, scoped to that agent's grants (section 15) | Container Apps assigns managed identity per job, so per-agent jobs are what make per-agent identities possible |
-| Generated code | Runs in a **separate sandbox job with no managed identity** and an egress allow-list limited to the package feeds. The Phase 0 environment allowlist, `--ignore-scripts`, package allowlist, git hardening and output redaction stay, because they also protect the agent job's own logs and repository. The agent job (the orchestrating job) holds the identity and a narrowly scoped right to start executions of the sandbox job | Identity is a job-level setting, so a second container in the agent job would still see the agent's identity endpoint; only a separate job removes it |
+| Generated code | Runs in a separate sandbox job in its own Container Apps environment (workload profiles) on its own subnet. A route table sends all outbound traffic from that subnet to Azure Firewall, whose application rules allow only: the package feeds (or the Azure Artifacts upstream, open item 5), the exchange storage account `{account}.blob.core.windows.net`, and the ACR login and data endpoints. Agent jobs run in a different environment and subnet with their own egress rules. The sandbox has no identity available to code: one user-assigned identity `id-bgx-sandbox-pull` with AcrPull only, attached with `lifecycle: None`. The Phase 0 environment allowlist, `--ignore-scripts`, package allowlist, git hardening and output redaction stay. The agent job holds the identity and a custom role with only `Microsoft.App/jobs/start/action` and `Microsoft.App/jobs/executions/read` on the sandbox job resource | Identity is a job-level setting; only a separate job on a separate subnet removes both the token path and the network path to platform resources |
 | Hand-off | The agent job uploads the working copy to a per-run prefix in a sandbox exchange container, starts the sandbox execution with a short-lived SAS for that prefix, and reads the outputs back | The sandbox can touch exactly one run's files for a few minutes and nothing else |
 | Alternative | Azure Container Apps dynamic sessions (custom container) instead of a sandbox job | Faster start for many short commands; needs a spike to confirm the toolchain fits |
 | Cold start | A large SDK image pulled on a fresh node takes noticeably longer than a warm App Service. Keep the toolchain in stable base layers so they cache, and measure in the spike | Acceptable against runs measured in tens of minutes or hours; most visible for Code Review |
@@ -2064,12 +2089,12 @@ flowchart LR
     ACR["Container Registry"] -->|"AcrPull by the job identity"| AJ
     H -->|"upload working copy"| EX["Sandbox exchange container<br/>per-run prefix"]
     H -->|"start execution with a short-lived SAS"| SJ
-    subgraph SJ["Sandbox job execution, no identity"]
+    subgraph SJ["Sandbox job execution, AcrPull lifecycle None"]
         R["dotnet build and test<br/>npm ci, ng build, ng test"]
     end
     EX -->|"SAS read"| SJ
     SJ -->|"SAS write of outputs"| EX
-    SJ -->|"allow-listed egress only"| FEED["NuGet and npm feeds<br/>or Azure Artifacts upstream"]
+    SJ -->|"Firewall allow-list"| FEED["Package feeds, exchange blob,<br/>ACR endpoints only"]
     H -->|"LLM calls"| AIGW["AI Gateway"]
     H -->|"git and REST"| ADO["Azure DevOps"]
     H -->|"results and events"| OUT["buildgenix.agent-results<br/>buildgenix.agent-events"]
@@ -2152,8 +2177,8 @@ The LLM-Wiki behind the context service is a different thing. It holds standards
 - **One branch per work item**, named in `context.repo.workBranch` as `feature/wi-{displayNumber}-{titleSlug}`, where `titleSlug` is the lower-case title cut to 30 characters (for example `feature/wi-1-hello-world`, `feature/wi-2-subtract`). A route-back or a Request changes reuses the branch; a crash rebuilds the working copy from it. Every commit carries `Bgx-Task: {taskId}` and, for phase commits, `Bgx-Phase: {k}` trailers, with author and committer dates pinned in the ledger, so a redelivered run finds its own commit on the branch instead of pushing a second one, and `Continue` mode can tell which phases are done.
 - **Backlog.** One epic per project, created by the first Implementation and stored as `AdoEpicId` in the `~BASELINE` row; later work items receive it as `context.ado.epicId` and add their stories under it. Each item is tagged `bgx-wi:{workItemId}` and `bgx-key:{storyKey}`, and BacklogSync queries by tag before it creates anything. Stories left by a failed work item keep their own tag: Phase 0 leaves them for the user, the North Star closes them automatically on failure.
 - **One pull request per work item**, from the work branch to `main`, linked to the stories. BuildGenix finds it by `sourceRefName` before creating one. Only the Deployment agent's Finalize action completes it, after DEV acceptance: it GETs the PR first, then PATCHes `status = completed` with `lastMergeSourceCommit` set to the deployed commit and `completionOptions` `mergeStrategy = noFastForward`, `transitionWorkItems = true`, `deleteSourceBranch = false`, and polls `status` and `mergeStatus` until the merge commit exists. `lastMergeSourceCommit` makes ADO itself refuse the merge if the head moved, and keeping the branch means a re-test after a conflict still has something to test. North Star branch policies on `main`: build validation by the PR pipeline, and the Code Review identity as a required reviewer, distinct from the authoring identity.
-- **Pipeline from the stack template** (North Star). Each template ships its pipeline YAML. CI on PR builds and tests the head commit and deploys it to Sandbox. The DEV deployment takes the PR build's artifact for the tested head commit and is queued by the Deployment agent (PipelineRunner), not by a merge. The `main` pipeline runs on merge, builds the merged commit once and promotes that artifact to System Test, Stage and Production as ADO environments with their own approvals.
-- **Service hooks** (North Star). ADO notifies buildgenix when a PR build finishes (which triggers Testing) and when a promotion stage finishes (which triggers a Verify task). buildgenix maps the event to the work item, updates state and pushes SignalR. The DEV run needs no hook, because the Deployment agent that queued it waits for it inside its own task.
+- **Pipeline from a platform template** (North Star). Generated repositories hold a thin `azure-pipelines.yml` that only `extends` `bgx-pipeline-templates/{stackProfile}.yml@templates`, pinned to a tag, from the protected repository `BuildGenix-Apps/pipeline-templates` that agents cannot write. Every service connection and ADO environment the templates use carries a Required template check for those templates, so a pipeline that does not extend them cannot use them. System Test, Stage and Production connections also have a branch control check allowing only `refs/heads/main`. CodeWriter, FixLoop and DependencyManager may not write `azure-pipelines*.yml`, `.azure-pipelines/` or `pipelines/`, and StaticChecks reports any change to those paths as a blocker the LLM cannot clear. The pipeline templates repository is changed only through PRs approved by the platform team. Build and test run in a job with no service connection, `persistCredentials: false`, job authorization scope limited to the current repository, and the same `--ignore-scripts` and package allowlist as the sandbox job. Only a separate deploy job uses the Sandbox connection, and it consumes the built artifact without running generated code. The PR pipeline checks out the PR head explicitly (`git checkout $(System.PullRequest.SourceCommitId)` after `checkout: self`), builds, tests and publishes an artifact tagged `head:{commit}`, and deploys it to Sandbox. buildgenix matches hooks on the head commit from the run's `triggerInfo` (`pr.sourceSha`) or the artifact tag, never on `sourceVersion`. Build validation remains on the merge commit as a separate required check. The DEV deployment is a separate pipeline `bgx-{slug}-deploy-dev` (`trigger: none`) queued by PipelineRunner with the PR build id Testing tested. The `main` pipeline runs on merge, builds the merged commit once and promotes that artifact to System Test, Stage and Production.
+- **Service hooks** (North Star). The platform team creates project-wide hooks once (`build.complete`, stage-state-changed). ADO notifies buildgenix when a PR build finishes and when a promotion stage finishes. The hook is a signal, not evidence: buildgenix records a `CiStatus` row and evaluates the CI_Wait join (section 13.2); it never publishes a task from the hook handler alone. The DEV run needs no hook, because the Deployment agent that queued it waits for it inside its own task.
 
 ### 13.2 Service hook path
 
@@ -2174,18 +2199,20 @@ sequenceDiagram
     API->>SGP: IsProcessed with key ado plus eventId
     SGP-->>API: No
     API->>BT: Find the work item by work branch and PR id
-    API->>BT: Check the commit is the current headCommit, else record and stop
-    API->>BT: Record CI green, set PendingMessage for the Testing task
-    API->>TTST: TaskMessage TESTING with headCommit and pullRequestId
-    API->>BT: Clear PendingMessage
+    API->>BT: Record CiStatus for the commit, evaluate the CI_Wait join
+    opt Join ready: status AwaitingCi, CiStatus green for current headCommit, Code Review done
+        API->>BT: set PendingMessage for the Testing task
+        API->>TTST: TaskMessage TESTING with headCommit and pullRequestId
+        API->>BT: Clear PendingMessage
+        API->>SIG: StageProgress, PR build green, testing
+        SIG-->>WEB: StageProgress
+        WEB-->>User: Testing chip starts
+    end
     API->>SGP: Mark processed
-    API->>SIG: StageProgress, PR build green, testing
-    SIG-->>WEB: StageProgress
-    WEB-->>User: Testing chip starts
-    Note over ADO,API: ADO retries a failed hook delivery, so the dedup key makes a second delivery a no-op
+    Note over ADO,API: ADO retries a failed hook delivery, so the dedup key makes a second delivery a no-op. A lost hook is recovered by the CI wait clock and ciCheck Retry.
 ```
 
-A promotion event takes the same path: buildgenix finds the work item by the merged commit and publishes a Verify task to `agenthub.deployment.agent` with `context.pipeline` set. The head commit check matters after a rework: a late "green" for the old head must not start Testing for code that has since changed.
+buildgenix records every PR build outcome in a `CiStatus` row keyed by work item and source commit, whatever stage the work item is in, and never publishes a task from the hook handler directly. Testing is published by one join that is evaluated in two places, when a `CiStatus` row is written and when the Code Review result (or the Code Review gate approval) is applied: the work item is in `CI_Wait` (status `AwaitingCi`), the current `headCommit` has a `CiStatus` row, and that row is green. A red row for the current head applies the CI red route-back (section 3.3). A row for any other commit is kept for audit and ignored. A promotion event takes the same record-then-join path for Verify tasks.
 
 The webhook route `POST /api/webhooks/azure-devops` and the dedup key `ado:{eventId}` are North Star additions to the API contract catalog. The hook authenticates with credentials held in Key Vault and configured on the subscription. The hook carries facts only; buildgenix decides what they mean, exactly as it does for an `AgentResult`.
 
@@ -2261,8 +2288,8 @@ The Responses API path for codex models goes straight to Azure OpenAI and bypass
 | Per-agent identities | One builder identity for three agents | One user-assigned identity per agent job (Implementation, Code Review, Testing) and one for core | A compromised test run cannot use another agent's rights |
 | Author is not reviewer | CodeReviewer inside Implementation | Code Review job with its own ADO identity, a required reviewer by branch policy | The author can no longer approve its own pull request |
 | No deploy rights for agents | Builder has Contributor on the sandbox resource group | Deployment agent on core with the ADO rights in the next row and Reader on the target resource groups (for the drift check); deployments run under ADO service connections, one per environment, using workload identity federation | No agent identity can change Azure resources, and no long-lived deploy secret exists |
-| Extra ADO rights | Builder: repo create, contribute, PR and work item rights | Implementation identity also creates pipelines, ADO environments and service hook subscriptions (PipelineProvisioner). Deployment identity queues pipeline runs, completes PRs and transitions work items (PipelineRunner, Finalizer). Promotion approvals stay with people in ADO environments. Owner of these grants: open item 12 | Each right sits with the one agent that uses it, and no agent can approve a promotion |
-| Generated code has no identity | Environment allowlist, per-agent sandbox users and git as its own user in the builder container | Separate sandbox job with no managed identity, SAS-scoped file exchange, egress allow-listed to package feeds | Removes both the token path and the network path to platform resources |
+| Extra ADO rights | Builder: repo create, contribute, PR and work item rights | The platform team pre-creates, once per `BuildGenix-Apps` project, the ADO environments, their approvals and checks, the service connections (one per environment, workload identity federation) and the service hook subscriptions. No agent identity holds Administrator or Creator on any environment or service connection. Implementation creates pipeline definitions only, and the platform team authorizes each new pipeline for the environments and connections it may use (no open access). Deployment queues runs and completes PRs. Promotion approvals stay with people. Owner of these grants: open item 12 | Each right sits with the one agent that uses it, and no agent can approve a promotion or own an environment |
+| Generated code has no identity | Environment allowlist, per-agent sandbox users and git as its own user in the builder container | Separate sandbox job in its own CA environment and subnet (AcrPull `lifecycle: None`), SAS-scoped file exchange, Azure Firewall egress allow-listed to package feeds, exchange blob and ACR | Removes the token path and the network path to platform resources, in the sandbox job and in the PR pipeline's build and test job |
 | Real users | Dummy auth (D-13 deferred to Phase 1) | Entra ID sign-in for buildgenix-web and buildgenix-api; approver cannot be the requester; Production approval stays in ADO | Gates mean something only when the approver is a known, different person |
 | Prompt and output safety | Guardrail pipeline with input and output checks | The same pipeline with Prompt Shields enabled on every model call, and secret scanning before every artifact or ledger write | Indirect prompt injection through PRD text, repository content or test output |
 | Network | Public endpoints with RBAC | Private endpoints for Storage, Service Bus and Key Vault; agents reach only the AI Gateway, ADO and their own resources (proposed) | Data exfiltration from a compromised worker |
@@ -2286,7 +2313,7 @@ Phase 0 compensating controls:
 
 The Phase 0 guide words the rule as: "In Phase 0, code written by the Build agent is merged to main after automated review, tests and a human's acceptance of the running app, without a person reading the diff." Confirming that wording is open item 15.
 
-The North Star narrows the gap in two steps. The Code Review agent runs under its own identity as a required reviewer by branch policy, so the author no longer reviews itself. An optional human code-review gate (`gatePolicy`, section 3.2) lets a project require a person to approve the diff before Testing; projects that handle sensitive data or reach System Test should turn it on.
+The North Star narrows the gap in two steps. The Code Review agent runs under its own identity as a required reviewer by branch policy, so the author no longer reviews itself. A human code-review gate is a floor for every project whose ladder goes beyond DEV: before Finalize, a person other than the requester approves the PR diff in ADO (a required human reviewer by branch policy, in addition to the Code Review identity). Projects that stop at DEV may run without it, and their acceptance screen keeps "Accept merges code that no person has reviewed". Turning the floor off is not a project setting.
 
 ---
 
@@ -2362,7 +2389,8 @@ These are the numbers that tell the design owner whether the verification step i
 
 | Phase 0 choice | Why it is right for Phase 0 | What it costs | North Star extension path |
 |---|---|---|---|
-| Builder is one App Service container | One image, one deploy, local parity, no new platform | One run per agent type at a time; generated code shares a kernel and a network with a privileged identity | Container Apps Jobs per agent with a separate identity-free sandbox; same handler code |
+| Builder is one App Service container | One image, one deploy, local parity, no new platform | One run per agent type at a time; generated code shares a kernel and a network with a privileged identity | Container Apps Jobs per agent with a separate sandbox CA environment and Azure Firewall egress; same handler code |
+| Fixed platform cost | Phase 0: App Service plans and ACR Basic | North Star adds Azure Firewall (Standard), a second Dedicated workload-profiles environment for the sandbox, ACR Premium, extra ADO Basic licences, Azure SignalR Standard units | Estimate per month from the Azure pricing calculator before North Star slice 1; owned by the platform team |
 | Code review is a subagent of Implementation | No extra topic, host or identity | The author reviews itself | CODE_REVIEW agent on its own topic and identity, optional gate |
 | Agent deploys with the Azure SDK | Real deployment now, without pipeline plumbing | The builder needs Contributor; no promotion path | ADO pipeline from the template; the agent on core queues the DEV run of the tested commit and verifies; higher rungs promote the merged build |
 | Merge only after acceptance, through Finalize | `main` always equals the accepted baseline, so a failed or reworked work item never leaves unaccepted code for the next one to clone | One extra short Deployment run per work item, and a `HumanActionRequired` if someone pushed to the branch after the deploy | Same rule on the ladder: merge after the first human-accepted rung (DEV), then promote the merged build |
@@ -2374,7 +2402,7 @@ These are the numbers that tell the design owner whether the verification step i
 | DEV apps behind IP access restrictions | Works without app registrations | Access follows the network, not the person (open item 13) | Entra authentication on generated apps |
 | One shared sandbox LLM key for generated apps | One secret to manage | One app's leak or quota use affects all (open item 4) | A gateway consumer per app and environment |
 | Models through APIM chat only | Every call metered and logged in one place | No codex model for code | Codex through Responses after a governance decision (open item 7) |
-| Code merges without a person reading the diff | Matches the three gates Badru chose | Unreviewed code runs in DEV and reaches `main` (section 15.3, open item 15) | Code Review agent as required reviewer, optional human code-review gate |
+| Code merges without a person reading the diff | Matches the three gates Badru chose | Unreviewed code runs in DEV and reaches `main` (section 15.3, open item 15) | Code Review agent as required reviewer; human CR floor for ladders beyond DEV |
 | Static standards pack | No new service | Knowledge does not grow with use | LLM-Wiki behind the context service |
 | One instance of each host | Easy to reason about, matches the single `~ACTIVE` lock | Throughput is bounded by one core host and one builder | Many job executions for agents. Scaling out buildgenix-api needs specific code changes, not a redesign: leader election (a blob lease) for the `PendingMessage` resender and the stage watchdog, a sharded `~SEQ` counter for ClientEvents, Azure SignalR Service instead of the in-process hub, and lifting D-7 to allow more than one active work item per project, which needs a generation and rebase model for parallel branches |
 | Results over a Service Bus topic | Durable through buildgenix restarts; HEALTHY already does it | One more topic to operate | Same; REST stays a documented fallback transport |
