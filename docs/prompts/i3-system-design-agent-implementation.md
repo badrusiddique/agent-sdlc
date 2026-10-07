@@ -1,5 +1,7 @@
 # I3 — System Design agent CODE IMPLEMENTATION (paste-ready)
 
+> **Follow `docs/prompts/i3-system-design-agent-spoon-feed.md` on the other machine.** That file is the slice 7 start instructions, including the Core field list and the Manual QA steps. This file remains the shorter gate record. Where they differ, the spoon-feed and the Phase 0 guide win. Cancel is `status` `Failed` with `errorCode` `Cancelled` (guide section 3.4). Do not omit that error code.
+
 **Kind:** Paste-ready coding prompt for AgentHub.Agents.SystemDesign  
 **Date:** 2026-10-07  
 **Status:** PROMPT READY (post 6-persona gate fold-in). **Not coding GO.**  
@@ -179,7 +181,7 @@ Subagent rules: typed in/out records; **no** table writes, **no** SB publish, **
 
 Critic / validate loop: while revision &lt; 3, feed issues back to plan/write; at 3 → `HumanActionRequired` `LoopLimit`. Product questions → `HumanActionRequired` `Question`.
 
-**Cancel marker (PE-I3P-1):** before blob publish, if `{projectId}/{workItemId}/control/cancelled.json` exists → **`Failed`** (D-AS-3 only). Put the reason in `ErrorMessage` (e.g. stopped / cancel marker). **Do not invent** `errorCode=Cancelled` (not in design-spec §3.2 list: MissingInput, InvalidInput, GuardrailBlocked, BuildEnvironment, ExternalService, Unhandled). Prefer `Unhandled` or null errorCode + clear ErrorMessage; ask Badru before adding a new errorCode.
+**Cancel marker:** before the handler starts, and at every sub-step boundary, if `{projectId}/{workItemId}/control/cancelled.json` exists, publish **`Failed`** with **`errorCode` `Cancelled`** (guide section 3.4). Status stays `Failed`. There is no fourth status.
 
 ### Crash / messaging / ledger (mandatory)
 
@@ -279,7 +281,7 @@ Do **not** implement in this slice:
 - [ ] Guardrail Block → Failed no retry
 - [ ] Ledger 409 replay skips re-LLM / re-write; ordinal constants documented
 - [ ] MessageId uses InputVersion; blob folder uses outputRevision / BlobPrefix
-- [ ] Cancel marker → Failed + ErrorMessage (no invented Cancelled status/errorCode)
+- [ ] Cancel marker publishes Failed with errorCode Cancelled (status stays Failed)
 - [ ] Skipped tests = fail the suite
 
 ### Manual QA actual (local) — cite manual-e2e-means-actual.md
