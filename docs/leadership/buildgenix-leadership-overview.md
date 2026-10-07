@@ -761,7 +761,7 @@ Phase 0 is deliberately small: it proves that the whole chain works end to end b
 | Area | Phase 0 now | Later (design target, not committed) |
 |---|---|---|
 | Build host | One App Service container, where each of the three builder agents runs one job at a time | A separate short-lived job for each run. The agent's job has its own narrowly scoped identity; the generated code runs in a second, separate job that has no platform identity and can only reach the package sources |
-| Code review | A helper step inside the Build agent | Its own agent, with an optional human review |
+| Code review | A helper step inside the Build agent | Its own agent, with an human review floor beyond DEV |
 | Approval gates | PRD, design and DEV acceptance | Configurable per stage and per environment |
 | Who signs in and approves | A placeholder user; approvals cannot be tied to a person, and the requester can approve their own work | Sign-in with the organisation's identity, and the person approving a gate cannot be the person who asked for the change |
 | Deployment | The Deploy agent deploys directly into one DEV sandbox | Azure DevOps pipelines from the template. The pull request build tests the commit and deploys it to a Sandbox. The Deploy agent then asks the pipeline to deploy that same tested commit to DEV. After a person accepts it, the pull request is merged, and the merged build is promoted to System Test, Stage and Production, each with its own approvals in Azure DevOps. Production approval stays with people |
@@ -886,7 +886,7 @@ Whatever people type or attach in the intake chat is sent to the model and kept 
 
 The compensating controls are these. The automated review's fixed checks (secrets, banned code, the approved package list, no edits to package files, coverage of the design) block a merge, and the AI cannot override them. Packages come only from the approved list, with install scripts switched off. The merge happens only after the app has been accepted, and only for the exact commit that was tested and deployed. The acceptance screen links the code changes and says "Accept merges code that no person has reviewed".
 
-The later design closes the gap in steps: a separate Code Review agent under its own identity, real sign-in with the rule that the approver is not the requester, and an optional human code review gate. Badru is asked to confirm the wording (section 13.8, item 11). Leadership is asked to accept the three consequences above for Phase 0, and to decide who may open the BuildGenix screen (section 13.8, item 13).
+The later design closes the gap in steps: a separate Code Review agent under its own identity, real sign-in with the rule that the approver is not the requester, and a human code-review floor for projects that go beyond DEV. Badru is asked to confirm the wording (section 13.8, item 11). Leadership is asked to accept the three consequences above for Phase 0, and to decide who may open the BuildGenix screen (section 13.8, item 13).
 
 Other points:
 

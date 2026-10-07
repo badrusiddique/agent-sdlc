@@ -576,7 +576,7 @@ flowchart TD
     W -->|"existing project"| W2["Clone main"]
     W -->|"redelivery"| W3["Re-clone at last pushed commit from the ledger"]
     W -->|"rework"| W5["Clone the work branch, phase-fix from feedback"]
-    W1 --> PP["pipeline: PipelineProvisioner<br/>pipelines, environments, service hooks"]
+    W1 --> PP["pipeline: PipelineProvisioner<br/>thin extends pipeline definitions only"]
     W4 --> PP
     PP --> BR["Create or reuse the work branch"]
     W2 --> BR
@@ -603,7 +603,7 @@ flowchart TD
 
 ### 4.6 Code Review agent (North Star; a subagent in Phase 0)
 
-An independent reviewer with its own identity, its own topic and an optional human gate. In Phase 0 the same checks run as the CodeReviewer subagent inside Implementation (S6), which is cheaper but means the author grades its own work. Splitting it out in the North Star is what makes the PR review meaningful under ADO branch policies: the reviewing identity is not the authoring identity. In both forms the deterministic checks run first and block on their own: the LLM review can add findings but cannot clear a deterministic blocker.
+An independent reviewer with its own identity, its own topic and a human gate that is a floor for every project whose ladder goes beyond DEV (optional only for DEV-only projects). In Phase 0 the same checks run as the CodeReviewer subagent inside Implementation (S6), which is cheaper but means the author grades its own work. Splitting it out in the North Star is what makes the PR review meaningful under ADO branch policies: the reviewing identity is not the authoring identity. In both forms the deterministic checks run first and block on their own: the LLM review can add findings but cannot clear a deterministic blocker.
 
 | Field | Value |
 |---|---|
@@ -612,7 +612,7 @@ An independent reviewer with its own identity, its own topic and an optional hum
 | Lock renewal cap, handler deadline | 60 min, 50 min (proposed) |
 | Inputs | `techSpec`, `prd`, `codeState`, `codeGraph`; existing projects `baselineCodeState`; `context.repo` with the head commit and PR id |
 | Outputs | `review.json` (`review`); review threads on the ADO pull request |
-| Gate after | Optional CODE_REVIEW gate (configurable) |
+| Gate after | Floor beyond DEV; optional only for DEV-only projects |
 | Retries | 2 fix rounds per work item (orchestrator route-backs); 2 JSON repairs per LLM step; 5 deliveries |
 | Token budget | 150k (proposed, carved out of Implementation's 1.8M) |
 | Model | Recommended `5.4` for review (open item 7) |
@@ -992,7 +992,7 @@ The ledger row for an external effect can only be written after the call returns
 | git push of phase k | Fetch the remote branch; if its head carries the trailers `Bgx-Task: {taskId}` and `Bgx-Phase: {k}`, adopt that commit. Author and committer dates come from the ledger, so a replayed commit gets the same sha | Same |
 | Create PR | GET active PRs with the same `sourceRefName` | Same |
 | Complete PR | GET the PR; if `status = completed`, read `lastMergeCommit` | Same |
-| Create pipelines, environments, service hooks | Not in Phase 0 | GET each by name |
+| Create pipeline definitions only | Not in Phase 0 | GET each pipeline by name; create thin extends wrapper if missing. Never create environments, connections or hooks (platform-owned) |
 | Queue the DEV run | Not in Phase 0 | Run id in the ledger; on redelivery, list runs for the commit and adopt a matching one |
 | Azure resources, OneDeploy | ARM `CreateOrUpdate` is idempotent; re-deploying the same zip is harmless | Done by the pipeline, not the agent |
 
@@ -1361,7 +1361,7 @@ Participant ids used across the diagrams: `WEB`, `API`, `BT`, `SIG` are buildgen
 2. **Implement now.** buildgenix-api takes `~ACTIVE` for `HW`, sets `targetGeneration = 0 + 1 = 1` and `pipelineVersion` 1, binds summary revision 1 and publishes the PRD task through `PendingMessage`.
 3. **PRD.** The PRD agent loads the summary, asks the context service for the requirements guidance of the `fe-be-llm` stack, then analyses, writes and critiques. It publishes `HW/HW1/v1/prd.json` and `prd.md` (v1.0) and returns `Completed`. buildgenix raises the PRD gate and the requester approves.
 4. **System Design.** The task names `prd` at revision 1 and `templateId` `fe-be-llm@1.0.0`. The agent resolves the template layout and plans three phases: the BE thought endpoint with an LLM client behind an interface, the FE page that calls it, and configuration and health. On critique it adds a timeout and fallback for the model call. It publishes `HW/HW1/v1/techspec.json` and `system-design.md`, and the requester approves.
-5. **Implementation.** KEDA starts one job execution. WorkspaceManager looks for repo `bgx-hello-world` by name, finds none, creates it and pushes the template scaffold to `main`. PipelineProvisioner creates the pipeline, the five environments and the service hooks. The agent creates `feature/wi-1-hello-world` and syncs one epic and three stories. Each phase writes tests first, then code, builds and tests in the sandbox job, and pushes. Phase 1 needs one fix attempt. Graphify produces the code graph, the PR is opened, and the PR build starts and deploys head commit `H1` to Sandbox.
+5. **Implementation.** KEDA starts one job execution. WorkspaceManager looks for repo `bgx-hello-world` by name, finds none, creates it and pushes the template scaffold to `main`. PipelineProvisioner creates the thin extends pipeline definitions (environments, connections and hooks already exist, platform-owned). The agent creates `feature/wi-1-hello-world` and syncs one epic and three stories. Each phase writes tests first, then code, builds and tests in the sandbox job, and pushes. Phase 1 needs one fix attempt. Graphify produces the code graph, the PR is opened, and the PR build starts and deploys head commit `H1` to Sandbox.
 6. **Code Review.** A separate job clones `H1`, maps the diff to symbols, runs static and conformance checks and the LLM review. It posts two suggestions and no blockers and writes `review.json`. buildgenix waits for the PR build.
 7. **Testing.** Published after the service hook reports the PR build green for `H1`. Suites and acceptance checks run with `Llm:Provider=Fixture`. SandboxProbe calls the Sandbox deployment of `H1` with the real model behind it. All green, so the agent returns `Completed` for `H1`. Nothing is merged.
 8. **DEV deployment (Deploy action).** buildgenix publishes the Deployment task with `deploymentAction = Deploy` and `headCommit = H1`. PipelineRunner queues the DEV deployment of `H1`, reusing the PR build's artifact, and the pipeline deploys `bgx-hello-world-be-dev` and `bgx-hello-world-fe-dev` under the DEV service connection. The agent smoke-tests, checks drift and writes `completion-summary.json`. buildgenix raises the DEV acceptance gate.
@@ -1524,7 +1524,7 @@ sequenceDiagram
     ADO-->>IMP: Not found
     IMP->>ADO: Create repo bgx-hello-world and push the main scaffold
     IMP->>LED: Record repo creation and the scaffold commit
-    IMP->>ADO: pipeline, find or create the pipeline, five environments and service hooks
+    IMP->>ADO: pipeline, find or create thin extends pipeline definitions only
     IMP->>ADO: Create branch feature/wi-1-hello-world
     IMP->>ADO: backlog, query by tag bgx-wi HW1, create one epic and three stories
     loop phase-k for k from 1 to 3
@@ -1873,7 +1873,7 @@ Three details are worth calling out. First, nothing merges before acceptance, so
 2. **Implement now.** buildgenix takes `~ACTIVE`, sets `targetGeneration = 1 + 1 = 2` and `pipelineVersion` 1, and from now on every task carries `projectMode` `Existing`, `baselineGeneration` 1, `targetGeneration` 2, the repo URL and `context.ado.epicId` from the baseline, and `baselinePrd`, `baselineTechSpec`, `baselineCodeState` paths (section 9.5).
 3. **A cumulative PRD.** PrdWriter carries the add story and its acceptance criteria forward unchanged, adds a subtract story marked `added`, and adds a regression requirement that add must keep working. The PRD lands at `CALC/CALC2/v1/prd.json`, labelled v2.0, and describes the whole product, so the next work item reads one file rather than a chain of deltas.
 4. **System Design against the code-state.** RepoContextBuilder picks `CalculatorController`, `CalculatorService.Add`, the Angular `CalculatorComponent` and their tests from `CALC/CALC1/v2/code-state.json`, so the planner sees the real class and method names without reading the whole repository. DesignPlanner produces a modify-only file plan: `CalculatorService.cs` and `CalculatorController.cs` (add `Subtract`), `calculator.component.ts` and `.html` (an operation selector), plus the two test files. The techspec is cumulative: it carries the add acceptance checks forward and adds `POST /api/calculator/subtract {a: 5.5, b: 2}` expecting `{result: 3.5}`. DesignValidator checks that every modify target exists in the code-state and that no baseline check was dropped without a `retired` entry.
-5. **Implementation on an existing repo.** WorkspaceManager clones `main`, which holds the CALC1 merge made by Finalize, so the code matches the baseline code-state the design was planned against. It creates `feature/wi-2-subtract`. PipelineProvisioner finds the pipeline, environments and hooks by name and changes nothing. BacklogSync adds one story tagged `bgx-wi:CALC2` under the epic named by `context.ado.epicId` (from the `~BASELINE` row). The subtract tests are written first, the four source files are modified, all tests run (add and subtract), Graphify regenerates the full graph, and the PR opens.
+5. **Implementation on an existing repo.** WorkspaceManager clones `main`, which holds the CALC1 merge made by Finalize, so the code matches the baseline code-state the design was planned against. It creates `feature/wi-2-subtract`. PipelineProvisioner finds the three pipeline definitions by name and fails BuildEnvironment if any is missing; environments, connections and hooks stay platform-owned. BacklogSync adds one story tagged `bgx-wi:CALC2` under the epic named by `context.ado.epicId` (from the `~BASELINE` row). The subtract tests are written first, the four source files are modified, all tests run (add and subtract), Graphify regenerates the full graph, and the PR opens.
 6. **Code Review** compares `main...head` against the baseline code-state. Conformance confirms that the only baseline symbols changed are the ones the plan named.
 7. **Testing** runs the full suites and every acceptance check in the cumulative techspec, add and subtract, on the head commit, so the add checks act as regression tests. All green; nothing merges.
 8. **Deploy, accept, Finalize.** The DEV deployment updates the existing apps in place. The requester accepts, Finalize merges the PR into `main` with `noFastForward`, and the same transaction that completes CALC2 moves the `~BASELINE` row to the `CALC/CALC2/v1/` files with generation 2.
@@ -2218,7 +2218,7 @@ The webhook route `POST /api/webhooks/azure-devops` and the dedup key `ado:{even
 
 ### 13.3 Operations and how each stays idempotent
 
-Every ADO write an agent makes is listed in section 8 with its idempotency rule, and section 5.6 gives the find-or-create table with the key each one is found by: look up by name, tag, trailer or `sourceRefName` before creating (repository, pipelines, environments, hooks, stories, commits, the open PR for the branch), record commit and run ids in the ledger (phase commits, the queued DEV run, the merge), and check state before acting (Finalize is a no-op on a PR already completed with the same head and refuses on a moved head). Three rules are specific to the integration. The work branch is reused when it exists, and a crash re-clones it at the last pushed commit. Reading a pipeline run (PipelineRunner while waiting, PipelineRunReader for Verify) is read-only and safe to repeat. A redelivered service hook is a no-op through `SgProcessedEvents` key `ado:{eventId}`.
+Every ADO write an agent makes is listed in section 8 with its idempotency rule, and section 5.6 gives the find-or-create table with the key each one is found by: look up by name, tag, trailer or `sourceRefName` before creating (repository, pipeline definitions, stories, commits, the open PR for the branch; environments, connections and hooks are platform-owned and never created by an agent), record commit and run ids in the ledger (phase commits, the queued DEV run, the merge), and check state before acting (Finalize is a no-op on a PR already completed with the same head and refuses on a moved head). Three rules are specific to the integration. The work branch is reused when it exists, and a crash re-clones it at the last pushed commit. Reading a pipeline run (PipelineRunner while waiting, PipelineRunReader for Verify) is read-only and safe to repeat. A redelivered service hook is a no-op through `SgProcessedEvents` key `ado:{eventId}`.
 
 ADO access for the builder uses its user-assigned identity `id-bgx-builder` added as an ADO user with Contributor rights only in the dedicated project (open items 6 and 14). The fallback is a PAT from Key Vault scoped to Code and Work Items read and write, with a 90 day expiry, a named owner and a rotation reminder.
 
@@ -2429,7 +2429,7 @@ Items 1 to 9 are the open questions from spec section 14, also items 1 to 9 of t
 | 9 | AI Gateway Consumer ID (OPEN-I2-6) | Written as `{consumer-id}` |
 | 10 | Promotions above DEV: project release records, or stages of the work item | Work item completes at the Finalize merge; promotions are recorded against the project and verified under `DEPLOY_ST`, `DEPLOY_STAGE`, `DEPLOY_PROD` |
 | 11 | What exactly the North Star Sandbox rung is: a per-PR preview environment or one shared sandbox | Describes it as "the Sandbox deployment of the PR build" without assuming which |
-| 12 | Who grants and owns the extra ADO rights: create pipelines, environments and service hook subscriptions (Implementation), queue runs, complete PRs and transition work items (Deployment) | Lists the rights in section 15.2; owner to confirm |
+| 12 | Who grants and owns the extra ADO rights: platform team owns environments, connections and hooks; Implementation creates pipeline definitions only (then platform authorizes them); Deployment queues runs, completes PRs and transitions work items | Lists the rights in section 15.2; owner to confirm |
 | 13 | The corporate IP ranges for the access restrictions on generated DEV apps | Provisioner sets access restrictions from configuration; no ranges are assumed. The North Star replaces them with Entra authentication (section 15.2) |
 | 14 | The name of the dedicated ADO project for generated repos (proposed `BuildGenix-Apps`) | Uses `BuildGenix-Apps` in examples and `context.ado.project`; the platform's own repos stay in `AI-Operations` |
 | 15 | Confirm in these words: "In Phase 0, code written by the Build agent is merged to main after automated review, tests and a human's acceptance of the running app, without a person reading the diff." | Section 15.3 states the consequence and the compensating controls; the acceptance screen carries "Accept merges code that no person has reviewed" |
