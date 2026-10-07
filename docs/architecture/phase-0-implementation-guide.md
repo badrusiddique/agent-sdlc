@@ -4,7 +4,7 @@
 **Audience:** Engineers, senior engineers, solution architects
 **Author:** Badru Siddique
 **Date:** 2026-10-07
-**Status:** Design for review. Not implementation GO. Coding starts only on Badru's explicit GO per slice (see section 14).
+**Status:** FINAL-CONDITIONAL — design complete; open items in section 16.1 remain. Not implementation GO. Coding starts only on Badru's explicit GO per slice (see section 14). Where this guide and the design-spec differ on Phase 0, this guide wins (design-spec header precedence).
 
 > **Scope.** This guide covers exactly what must work end to end for the three Phase 0 examples: a new Hello World app with an AI "thought of the day", a new calculator that adds two numbers, and an update to that calculator to subtract. Anything beyond those three is North Star (`north-star-system-design.md`).
 >
