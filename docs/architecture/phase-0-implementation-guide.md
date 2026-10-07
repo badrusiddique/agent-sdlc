@@ -4,7 +4,7 @@
 **Audience:** Engineers, senior engineers, solution architects
 **Author:** Badru Siddique
 **Date:** 2026-10-07
-**Status:** FINAL-CONDITIONAL — design complete; open items in section 16.1 remain. Not implementation GO. Coding starts only on Badru's explicit GO per slice (see section 14). Where this guide and the design-spec differ on Phase 0, this guide wins (design-spec header precedence).
+**Status:** FINAL-CONDITIONAL. Design complete; open items in section 16.1 remain. Not implementation GO. Coding starts only on Badru's explicit GO per slice (see section 14). Where this guide and the design-spec differ on Phase 0, this guide wins (design-spec header precedence).
 
 > **Scope.** This guide covers exactly what must work end to end for the three Phase 0 examples: a new Hello World app with an AI "thought of the day", a new calculator that adds two numbers, and an update to that calculator to subtract. Anything beyond those three is North Star (`north-star-system-design.md`).
 >
@@ -575,7 +575,7 @@ stateDiagram-v2
 |---|---|---|---|---|
 | `Question` | an agent (`AskAsync`, ledger ordinal 900 + q) | Answer | Same `taskId`, `inputVersion + 1`, `humanAnswer` | The ledger replays everything up to the question and `AnswerAsync` commits the answer at 950 + q. What runs next depends on where the agent asked (table below). An answered question always grants one extra revision, so a question asked at the last revision still has a step to continue into |
 | `LoopLimit` or `BudgetExceeded` | an agent | Retry with guidance; raise the budget (by at most 50 percent per retry and to at most twice the configured budget; the raise is recorded as a WorkItemEvent with the user id) and retry; Stop | A **new** `taskId`, the next `outputRevision` and `pipelineVersion + 1` for the same stage, the guidance as `feedback-{stage}.json`, the raised budget in `config`. For Implementation, `context.implementationMode = Continue` | A new task has an empty ledger, so nothing committed is replayed. Implementation in `Continue` mode keeps every phase already pushed (found by its `Bgx-Phase` trailer), restarts the phase that hit the limit with the guidance, and then builds the remaining phases |
-| `LoopLimit` | buildgenix-api (3 route-backs, or 3 rejects at a gate) | One more loop; Stop | For route-backs: an Implementation rework. For rejects: a redraft | The counter's cap rises by one, up to a hard cap of 5 |
+| `LoopLimit` | buildgenix-api (3 route-backs, or 3 rejects at a gate) | One more loop; Stop | For a test route-back or Request changes: an Implementation rework. For a PRD or design reject: a redraft of that stage | The counter's cap rises by one, up to a hard cap of 5 |
 | `Stuck` | dead-letter watcher or watchdog (section 3.9) | Retry; Stop | The same task with `inputVersion + 1` | The ledger replays finished work; the run continues |
 | any | | Stop | nothing | Work item `Failed` ("Stopped by user"), `~ACTIVE` released |
 
@@ -696,7 +696,7 @@ This is the agent whose output every later stage executes, so its job is to leav
 | `repo-context` | RepoContextBuilder | deterministic, existing only | Picks the symbols in `code-state.json` that the PRD stories touch, plus their callers and callees, inside a token budget. The LLM sees symbol references and signatures, not raw source |
 | `plan` | DesignPlanner | LLM | Components, phases, file plan, API contracts |
 | `write` | SectionWriter | LLM, one call per section | Architecture, data, API, LLM integration, TDD plan, acceptance checks, ADO backlog, deployment plan, run and test commands |
-| `validate` | DesignValidator | deterministic | Every PRD acceptance criterion has a check; every story has files; every path is inside the template layout; existing mode: every "modify" target exists in code-state and no "create" collides with an existing file; stack is .NET 10, Angular, Table Storage only; resource names follow the convention |
+| `validate` | DesignValidator | deterministic | Runs before critique. Every PRD acceptance criterion has a check; every story has files; every path is inside the template layout; existing mode: every "modify" target exists in code-state, no "create" collides with an existing file, and a baseline acceptance check that disappears without a `retired` entry fails; packages are only from the template allowlist; stack is .NET 10, Angular, Table Storage only; resource names follow the convention. Violations while the revision is 0, 1 or 2 go back to `plan` and do not call critique. The next failure is `HumanActionRequired` `LoopLimit` |
 | `critique` | DesignCritic | LLM | Gaps against the PRD and the standards pack; issues go back to `plan` or `write` |
 | `render` | DesignRenderer | deterministic | `techspec.json` to `system-design.md` |
 | `publish` | artifact writer | deterministic | Writes both files |
@@ -709,11 +709,13 @@ flowchart TD
     RC --> PL[plan: DesignPlanner<br/>ledger LLM 110 + rev]
     PL --> WR[write: SectionWriter x sections<br/>ledger LLM 130 + rev*10 + section]
     WR --> V[validate: DesignValidator]
-    V -->|errors| CR
+    V -->|violations, attempts left| PL
+    V -->|violations, no attempts left| LL([HumanActionRequired LoopLimit])
     V -->|clean| CR[critique: DesignCritic<br/>ledger LLM 120 + rev]
-    CR -->|issues and rev < 3| PL
-    CR -->|issues and rev = 3| LL([HumanActionRequired LoopLimit])
-    CR -->|needs a product answer| Q([HumanActionRequired Question])
+    CR -->|issues, attempts left| WR
+    CR -->|issues, no attempts left| LL
+    PL -->|needs a product answer| Q([HumanActionRequired Question])
+    CR -->|needs a product answer| Q
     CR -->|clean| RN[render: system-design.md]
     RN --> P[publish: techspec.json + system-design.md<br/>ledger WriteArtifact 200, 201]
     P --> D([Completed])
@@ -1227,36 +1229,36 @@ sequenceDiagram
     participant AZ as Azure ARM and Kudu
     participant APP as Generated app
 
-    API->>SBT: TaskMessage DEPLOY_DEV (T-DE-1:3) {action Deploy, headCommit}
+    API->>SBT: TaskMessage DEPLOY_DEV (T-DE-1:3) action Deploy, headCommit
     SBT->>BLD: deliver
     BLD->>ADO: clone feature/wi-1-hello-world at headCommit
     BLD->>AZ: CreateOrUpdate asp-bgx-sandbox-dev (created on first deploy)
     BLD->>AZ: CreateOrUpdate bgx-hello-world-fe-dev (Node, pm2 serve --spa)
     AZ-->>BLD: FE default hostname
-    BLD->>AZ: CreateOrUpdate bgx-hello-world-be-dev (.NET 10, health /health,<br/>Cors__AllowedOrigins = FE hostname, Llm__Provider=Gateway,<br/>Key Vault reference, identity id-bgx-sandbox-apps)
+    BLD->>AZ: CreateOrUpdate bgx-hello-world-be-dev, .NET 10, health /health,<br/>CORS origin is the FE hostname, Llm provider Gateway,<br/>Key Vault reference, identity id-bgx-sandbox-apps
     AZ-->>BLD: BE default hostname
     BLD->>AHT: EffectLedger AzureResource 900..902
-    BLD->>BLD: dotnet publish BE, ng build FE,<br/>write assets/runtime-config.json {apiBase: BE hostname}, zip both
+    BLD->>BLD: dotnet publish BE, ng build FE,<br/>write assets/runtime-config.json with the BE hostname, zip both
     BLD->>AZ: OneDeploy BE zip (Entra token)
     BLD->>AZ: OneDeploy FE zip
     BLD->>AHT: EffectLedger Deploy 950, 951
     BLD->>APP: GET be/health, GET be/api/thought, GET fe/
     APP-->>BLD: 200, 200 with text, 200
     BLD->>BLOB: write p/wi1/v1/completion-summary.json
-    BLD->>API: AgentResult Completed (via results topic)<br/>outputs {deployedUrls, azureResources}
+    BLD->>API: AgentResult Completed via results topic<br/>outputs deployedUrls and azureResources
     API->>BGT: Artifacts completionSummary rev 1,<br/>gate DEPLOY_DEV Pending, AwaitingApproval
     API->>WEB: SignalR WorkItemStateChanged
     U->>APP: open FE URL, sees a thought of the day
     U->>WEB: Accept
-    WEB->>API: POST /gates/{gate}/decisions {Approved}
-    API->>BGT: gate Approved, inputVersion 4,<br/>PendingMessage = Deployment task (action Finalize)
-    API->>SBT: TaskMessage DEPLOY_DEV (T-FN-1:4) {action Finalize, headCommit, pullRequestId}
+    WEB->>API: POST gate decision Approved
+    API->>BGT: gate Approved, inputVersion 4,<br/>PendingMessage is the Deployment task, action Finalize
+    API->>SBT: TaskMessage DEPLOY_DEV (T-FN-1:4) action Finalize, headCommit, pullRequestId
     SBT->>BLD: deliver
     BLD->>ADO: read PR 1182: head equals deployed commit
     BLD->>ADO: complete PR 1182 (merge to main, transition stories)
     BLD->>AHT: EffectLedger AdoPrComplete 980 (mergeCommit)
-    BLD->>API: AgentResult Completed (via results topic) {mergeCommit}
-    API->>BGT: EGT: WorkItem Completed, stage DONE, delete ~ACTIVE,<br/>upsert WorkItems ~BASELINE (wi1 paths, repoUrl, epicId),<br/>baselineGeneration = 1; rebuild ProjectArtifactIndex from ~BASELINE
+    BLD->>API: AgentResult Completed via results topic, mergeCommit
+    API->>BGT: EGT: WorkItem Completed, stage DONE, delete ~ACTIVE,<br/>upsert WorkItems ~BASELINE (wi1 paths, repoUrl, epicId),<br/>baselineGeneration = 1, then rebuild ProjectArtifactIndex from ~BASELINE
     API->>WEB: SignalR WorkItemStateChanged (Completed)
 ```
 
@@ -1561,10 +1563,10 @@ Unless a row says otherwise, exits for slices 2 to 10 are measured locally (Dock
 | 1 | Infrastructure script (tables, containers, topics, subscriptions, identities, role assignments), builder image, ACR, builder App Service, egress and isolation proof | Every endpoint in 9.5 answers from inside the container; `npm ci --ignore-scripts`, `ng build`, `ng test`, `dotnet test` and `graphify extract . --code-only` on the `fe-be` template exit 0, with times recorded; the 9.3 isolation test shows no identity data; a scoped identity reads and writes its tables and gets 403 on a foreign one |
 | 2 | Contract v2 with golden JSON tests; topic rename by configuration; shared `AgentDispatcher` extracted from HEALTHY (MIG-7); Service Bus on managed identity; per-worker concurrency; deadline; resilience | HEALTHY passes end to end on `agenthub.healthy.agent` and `buildgenix.agent-results`; each `CrashAt` point recovers with exactly one result |
 | 3 | buildgenix orchestration: task publisher with PendingMessage and resender, results consumer, events consumer with the guards of 3.9, dead-letter watcher, watchdog, the new columns and `~BASELINE` row, StageStatuses, ClientEvents, RunLog, WorkItemTelemetry, PendingApprovals, SignalR (`StageProgress`, `HighLevelSummary`, `VerboseLog`, `WorkItemStateChanged`), terminal `~ACTIVE` release (MIG-6) | A HEALTHY run published from buildgenix-api changes the browser within 2 seconds of each event; a forced dead-letter shows `Stuck`; a silent run with `RunningSilenceMinutes` set to 1 shows `Stuck` within 2 minutes; an out-of-order event does not change status |
-| 4 | Intake and human decisions: Conversations table and routes, the four Intake steps, summary revisions, Implement now binding, gate decisions (ETag, Approvals, PipelineVersion, feedback files), Request changes, `/answer`, retry and Stop (section 6.3) | A chat produces `intake-summary.json` revision 1; Implement now publishes `T-PRD-1:1`; Reject writes `feedback-prd.json` and publishes a redraft; an answer republishes the same `taskId` with `inputVersion + 1`; Stop writes `control/cancelled.json` and releases `~ACTIVE`, and a task republished afterwards ends `Cancelled` without any external effect (HEALTHY stands in for the agents) |
+| 4 | Intake and human decisions: Conversations table and routes, the four Intake steps, summary revisions, Implement now binding, gate decisions (ETag, Approvals, PipelineVersion, feedback files), Request changes, `/answer`, retry and Stop (section 6.3) | A chat produces `intake-summary.json` revision 1; Implement now publishes `T-PRD-1:1`; Reject writes `feedback-prd.json` and publishes a redraft; an answer republishes the same `taskId` with `inputVersion + 1`; Stop writes `control/cancelled.json` and releases `~ACTIVE`, and a task republished afterwards ends `Failed` with `errorCode` `Cancelled` and performs no external effect (HEALTHY stands in for the agents) |
 | 5 | Templates `fe-be` and `fe-be-llm` with manifests and dependency allowlists; standards pack v1 | Both templates build and test in the builder in slice 1's measured time or less |
 | 6 | PRD agent | The three example prompts produce PRDs that pass PrdCritic on Fixture (20 of 20) and on Ollama; a scripted reject produces v1.1 that addresses every feedback point |
-| 7 | System Design agent | Examples 1 to 3 produce techspecs that pass DesignValidator; example 3 is modify-only and carries the add checks forward |
+| 7 | System Design agent | Examples 1 to 3 write `techspec.json` and `system-design.md` that pass the DesignValidator row in section 8.2; example 3 is modify-only and the add checks are still present |
 | 8 | Implementation agent | Example 2 on Fixture produces a green branch and a PR; `CrashAt mid-phase:2` resumes without a second repo, epic, story or PR; a `Fixture:Signal LoopLimit` in phase 2 followed by a retry runs in `Continue` mode, keeps the phase 1 commit and builds phases 2 and 3 |
 | 9 | Testing agent | Example 2's scripted float bug routes back once and passes on revision 2 |
 | 10 | Deployment agent with Finalize | Example 2 live in DEV; smoke passes; Accept merges with `noFastForward`; `~BASELINE` moves in one transaction |
