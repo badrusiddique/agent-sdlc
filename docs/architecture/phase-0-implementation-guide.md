@@ -1256,7 +1256,7 @@ sequenceDiagram
     BLD->>ADO: complete PR 1182 (merge to main, transition stories)
     BLD->>AHT: EffectLedger AdoPrComplete 980 (mergeCommit)
     BLD->>API: AgentResult Completed (via results topic) {mergeCommit}
-    API->>BGT: WorkItem Completed, stage DONE, delete ~ACTIVE,<br/>ProjectArtifactIndex ~BASELINE_* = wi1 revisions,<br/>baselineGeneration = 1
+    API->>BGT: EGT: WorkItem Completed, stage DONE, delete ~ACTIVE,<br/>upsert WorkItems ~BASELINE (wi1 paths, repoUrl, epicId),<br/>baselineGeneration = 1; rebuild ProjectArtifactIndex from ~BASELINE
     API->>WEB: SignalR WorkItemStateChanged (Completed)
 ```
 
