@@ -13,4 +13,7 @@ public sealed class PocPipelineOptions
 
     /// <summary>When true, skip Azure Tables and keep state in memory + AuditLog.json.</summary>
     public bool UseInMemoryTables { get; set; } = true;
+
+    /// <summary>Model id passed on each task (null/empty lets AgentHub use its provider default).</summary>
+    public string? ModelId { get; set; }
 }

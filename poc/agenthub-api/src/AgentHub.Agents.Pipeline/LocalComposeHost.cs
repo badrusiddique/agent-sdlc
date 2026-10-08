@@ -28,14 +28,32 @@ public static class LocalComposeHost
 
         if (File.Exists(composeFile) && HasDocker())
         {
+            var hostPort = GetFreePort();
+            var composeText = await File.ReadAllTextAsync(composeFile, cancellationToken).ConfigureAwait(false);
+            // Rewrite published host port so concurrent work items do not clash.
+            composeText = System.Text.RegularExpressions.Regex.Replace(
+                composeText,
+                "\"\\d+:8080\"",
+                $"\"{hostPort}:8080\"");
+            var runtimeCompose = Path.Combine(workspace, "docker-compose.runtime.yml");
+            await File.WriteAllTextAsync(runtimeCompose, composeText, cancellationToken).ConfigureAwait(false);
+
             await RunAsync(
                     "docker",
-                    $"compose -f \"{composeFile}\" up -d --build",
+                    $"compose -p \"{SanitizeProjectName(workItemId)}\" -f \"{runtimeCompose}\" up -d --build",
                     workspace,
                     cancellationToken)
                 .ConfigureAwait(false);
-            var mapped = await TryReadComposeUrlAsync(composeFile, cancellationToken).ConfigureAwait(false);
-            return new DeployOutcome(mapped ?? url, "docker-compose", null);
+
+            var mapped = $"http://127.0.0.1:{hostPort}";
+            var composeHealthy = await WaitForHealthyAsync(mapped, TimeSpan.FromSeconds(120), cancellationToken)
+                .ConfigureAwait(false);
+            if (!composeHealthy)
+            {
+                throw new InvalidOperationException($"Docker compose smoke failed for {mapped}/health.");
+            }
+
+            return new DeployOutcome(mapped, "docker-compose", null);
         }
 
         var csproj = Directory.EnumerateFiles(backend, "*.csproj")
@@ -76,9 +94,9 @@ public static class LocalComposeHost
             throw new InvalidOperationException("Failed to start local backend process.");
         }
 
-        var healthy = await WaitForHealthyAsync(url, TimeSpan.FromSeconds(90), cancellationToken)
+        var processHealthy = await WaitForHealthyAsync(url, TimeSpan.FromSeconds(90), cancellationToken)
             .ConfigureAwait(false);
-        if (!healthy)
+        if (!processHealthy)
         {
             string stdout = string.Empty;
             string stderr = string.Empty;
@@ -221,12 +239,10 @@ public static class LocalComposeHost
     private static string Truncate(string value, int max) =>
         string.IsNullOrEmpty(value) || value.Length <= max ? value : value[..max] + "...";
 
-    private static Task<string?> TryReadComposeUrlAsync(string composeFile, CancellationToken cancellationToken)
+    private static string SanitizeProjectName(string workItemId)
     {
-        // Convention in our templates: host port 43142 (API).
-        _ = composeFile;
-        _ = cancellationToken;
-        return Task.FromResult<string?>("http://127.0.0.1:43142");
+        var cleaned = new string(workItemId.Select(ch => char.IsLetterOrDigit(ch) ? ch : 'x').ToArray());
+        return cleaned.Length == 0 ? "bgxpoc" : cleaned.ToLowerInvariant();
     }
 
     private static string ResolveDotnet()

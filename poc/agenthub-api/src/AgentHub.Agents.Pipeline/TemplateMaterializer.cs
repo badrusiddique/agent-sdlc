@@ -32,25 +32,23 @@ public static class TemplateMaterializer
     public static void ApplyImplementationHints(string workspace, string stackProfile, string llmJson)
     {
         var headline = "Hello";
+        string? thoughtCopy = null;
         try
         {
             using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(llmJson) ? "{}" : llmJson);
             if (doc.RootElement.TryGetProperty("headline", out var h) && h.GetString() is { Length: > 0 } text)
             {
-                headline = text;
+                headline = text.Length > 80 ? text[..80] : text;
+            }
+
+            if (doc.RootElement.TryGetProperty("thought", out var t) && t.GetString() is { Length: > 0 } thought)
+            {
+                thoughtCopy = thought.Length > 240 ? thought[..240] : thought;
             }
         }
         catch (JsonException)
         {
-            if (!string.IsNullOrWhiteSpace(llmJson))
-            {
-                headline = llmJson.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .FirstOrDefault() ?? "Hello";
-                if (headline.Length > 80)
-                {
-                    headline = headline[..80];
-                }
-            }
+            // Keep template defaults when the model does not return JSON.
         }
 
         var indexPath = Path.Combine(workspace, "backend", "wwwroot", "index.html");
@@ -61,10 +59,13 @@ public static class TemplateMaterializer
             File.WriteAllText(indexPath, html);
         }
 
-        if (stackProfile.Equals("fe-be-llm", StringComparison.OrdinalIgnoreCase))
+        // Only replace ThoughtCopy when the model returned an explicit thought;
+        // never dump raw LLM output into the fallback file.
+        if (thoughtCopy is not null
+            && stackProfile.Equals("fe-be-llm", StringComparison.OrdinalIgnoreCase))
         {
             var thoughtPath = Path.Combine(workspace, "backend", "ThoughtCopy.txt");
-            File.WriteAllText(thoughtPath, headline);
+            File.WriteAllText(thoughtPath, thoughtCopy);
         }
     }
 

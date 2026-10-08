@@ -1,0 +1,3 @@
+{
+  "content": "# Hello World\n\nBuild a Hello World app: Angular FE \u002B .NET 10 BE \u002B an LLM giving a thought of the day\n\n\u0060\u0060\u0060json\n{\u0022title\u0022: \u0022PRD for User Request\u0022, \u0022summary\u0022: \u0022Build a Hello World app: Angular FE \u002B .NET 10 BE \u002B an LLM giving a thought of the day\u0022, \u0022stories\u0022: [{\u0022id\u0022: \u0022S1\u0022, \u0022title\u0022: \u0022Angular FE\u0022, \u0022acceptance\u0022: \u0022Yes\u0022}, {\u0022id\u0022: \u0022S2\u0022, \u0022title\u0022: \u0022.NET 10 BE\u0022, \u0022acceptance\u0022: \u0022Yes\u0022}]}\n\u0060\u0060\u0060\n"
+}

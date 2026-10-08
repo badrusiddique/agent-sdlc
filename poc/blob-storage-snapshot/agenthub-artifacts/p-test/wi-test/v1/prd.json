@@ -1,0 +1,1 @@
+{"title":"Build and Deploy Hello World Web App","summary":"Build and deploy a simple web application using a Python Flask API.","stories":[{"id":"S1","title":"Build and Deploy Hello World Web App","acceptance":["Build and deploy the web application successfully. ","Deploy the web application to a production environment."]}],"stackProfile":"fe-be-llm"}

@@ -1,0 +1,41 @@
+{
+  "ActivityLog": {
+    "rowCount": 86
+  },
+  "AgProcessedEvents": {
+    "rowCount": 31
+  },
+  "ApprovalGates": {
+    "rowCount": 0
+  },
+  "Approvals": {
+    "rowCount": 12
+  },
+  "Artifacts": {
+    "rowCount": 72
+  },
+  "EffectLedger": {
+    "rowCount": 63
+  },
+  "Projects": {
+    "rowCount": 3
+  },
+  "SgProcessedEvents": {
+    "rowCount": 0
+  },
+  "WmProcessedEvents": {
+    "rowCount": 0
+  },
+  "WorkItemEvents": {
+    "rowCount": 84
+  },
+  "WorkItemIndex": {
+    "rowCount": 4
+  },
+  "WorkItems": {
+    "rowCount": 10
+  },
+  "WorkItemsByCreator": {
+    "rowCount": 4
+  }
+}

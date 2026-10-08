@@ -1,0 +1,83 @@
+{
+  "originalRequest": "Update the calculator app to subtract two numbers",
+  "projectId": "01a11a59e967760bafa174e6984ed15d",
+  "workItemId": "01a11a5a284f7f0086050ecff7c94322",
+  "stackProfile": "fe-be",
+  "projectMode": "Existing",
+  "startedAt": "2026-10-08T07:11:18.6259004+00:00",
+  "completedAt": "2026-10-08T07:11:37.746625+00:00",
+  "finalStatus": "Completed",
+  "deployedUrl": "http://127.0.0.1:44015",
+  "transitions": [
+    {
+      "stage": "INTAKE",
+      "status": "Draft",
+      "at": "2026-10-08T07:11:18.6292497+00:00",
+      "message": "Wrote intake-summary.json",
+      "artifactPath": "01a11a59e967760bafa174e6984ed15d/01a11a5a284f7f0086050ecff7c94322/v1/intake-summary.json"
+    },
+    {
+      "stage": "PRD",
+      "status": "Completed",
+      "at": "2026-10-08T07:11:25.105552+00:00",
+      "message": "task 01a11a5a28687a1294c24ebc05740178",
+      "artifactPath": "01a11a59e967760bafa174e6984ed15d/01a11a5a284f7f0086050ecff7c94322/v1/prd.json"
+    },
+    {
+      "stage": "PRD",
+      "status": "Approved",
+      "at": "2026-10-08T07:11:25.1138333+00:00",
+      "message": "causationId=gate:PRD:1:Approved",
+      "artifactPath": null
+    },
+    {
+      "stage": "SYSTEM_DESIGN",
+      "status": "Completed",
+      "at": "2026-10-08T07:11:28.9716008+00:00",
+      "message": "task 01a11a5a41ba7a6ea54e7072fc5c72a5",
+      "artifactPath": "01a11a59e967760bafa174e6984ed15d/01a11a5a284f7f0086050ecff7c94322/v1/techspec.json"
+    },
+    {
+      "stage": "SYSTEM_DESIGN",
+      "status": "Approved",
+      "at": "2026-10-08T07:11:28.9810094+00:00",
+      "message": "causationId=gate:SYSTEM_DESIGN:2:Approved",
+      "artifactPath": null
+    },
+    {
+      "stage": "IMPLEMENTATION",
+      "status": "Completed",
+      "at": "2026-10-08T07:11:31.5976591+00:00",
+      "message": "task 01a11a5a50d579129ae38987a6bb1855",
+      "artifactPath": "01a11a59e967760bafa174e6984ed15d/01a11a5a284f7f0086050ecff7c94322/v1/code-state.json"
+    },
+    {
+      "stage": "TESTING",
+      "status": "Completed",
+      "at": "2026-10-08T07:11:33.7156387+00:00",
+      "message": "task 01a11a5a5b0f79cdab3f0a12a19a1154",
+      "artifactPath": "01a11a59e967760bafa174e6984ed15d/01a11a5a284f7f0086050ecff7c94322/v1/test-results.json"
+    },
+    {
+      "stage": "DEPLOY_DEV:Deploy",
+      "status": "Completed",
+      "at": "2026-10-08T07:11:37.7023489+00:00",
+      "message": "task 01a11a5a635570f0be960abf983d34ed",
+      "artifactPath": "01a11a59e967760bafa174e6984ed15d/01a11a5a284f7f0086050ecff7c94322/v1/completion-summary.json"
+    },
+    {
+      "stage": "DEPLOY_DEV",
+      "status": "Approved",
+      "at": "2026-10-08T07:11:37.7097865+00:00",
+      "message": "causationId=gate:DEPLOY_DEV:3:Approved",
+      "artifactPath": null
+    },
+    {
+      "stage": "DEPLOY_DEV:Finalize",
+      "status": "Completed",
+      "at": "2026-10-08T07:11:37.7394177+00:00",
+      "message": "task 01a11a5a72ee7c7c8a61d49a7e4a9650",
+      "artifactPath": "01a11a59e967760bafa174e6984ed15d/01a11a5a284f7f0086050ecff7c94322/v1/completion-summary.json"
+    }
+  ]
+}

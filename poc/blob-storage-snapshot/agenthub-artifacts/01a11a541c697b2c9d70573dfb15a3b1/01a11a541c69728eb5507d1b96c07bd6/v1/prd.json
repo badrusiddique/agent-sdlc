@@ -1,0 +1,47 @@
+{
+  "title": "Build a Hello World app: Angular FE + .NET 10 BE + an LLM giving a thought of the day",
+  "summary": "Build a simple application combining Angular Front End, .NET 10 Backend, and a Large Language Model (LLM) for daily insights.",
+  "stories": [
+    {
+      "id": "S1",
+      "title": "Create Angular Front End",
+      "acceptance": [
+        "Create a new Angular project",
+        "Configure Angular dependencies",
+        "Write a simple Angular component"
+      ]
+    },
+    {
+      "id": "S2",
+      "title": "Create .NET 10 Backend",
+      "acceptance": [
+        "Create a new .NET 10 API project",
+        "Implement API endpoints",
+        "Configure database connections"
+      ]
+    },
+    {
+      "id": "S3",
+      "title": "Integrate LLM with Backend",
+      "acceptance": [
+        "Create a new LLM model",
+        "Integrate LLM into API endpoints"
+      ]
+    },
+    {
+      "id": "S4",
+      "title": "Build Frontend with Angular and .NET",
+      "acceptance": [
+        "Create a new Angular frontend app",
+        "Integrate LLM insights into the app"
+      ]
+    },
+    {
+      "id": "S5",
+      "title": "Deploy to Cloud",
+      "acceptance": [
+        "Deploy to Azure App Service"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"title": "PRD for User Request", "summary": "Build a Hello World app: Angular FE + .NET 10 BE + an LLM giving a thought of the day", "stories": [{"id": "S1", "title": "Angular FE", "acceptance": "Yes"}, {"id": "S2", "title": ".NET 10 BE", "acceptance": "Yes"}]}

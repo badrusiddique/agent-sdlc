@@ -400,7 +400,11 @@ public sealed class PocPipelineOrchestrator
                 workspaceRoot,
                 baselineArtifacts = baseline ?? new Dictionary<string, string>()
             },
-            config = new { modelId = "fixture", reasoningEffort = "low" }
+            config = new
+            {
+                modelId = string.IsNullOrWhiteSpace(_options.ModelId) ? null : _options.ModelId,
+                reasoningEffort = "low"
+            }
         };
 
         var client = _httpClientFactory.CreateClient("agenthub");

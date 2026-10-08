@@ -1,0 +1,9 @@
+{
+  "deployedUrls": {
+    "app": "http://127.0.0.1:44015"
+  },
+  "mode": "docker-compose",
+  "processId": null,
+  "stackProfile": "fe-be",
+  "request": "Update the calculator app to subtract two numbers"
+}

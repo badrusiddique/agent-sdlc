@@ -1,0 +1,9 @@
+{
+  "deployedUrls": {
+    "app": "http://127.0.0.1:33011"
+  },
+  "mode": "docker-compose",
+  "processId": null,
+  "stackProfile": "fe-be",
+  "request": "Create a calculator app that adds two numbers"
+}

@@ -1,0 +1,9 @@
+{
+  "deployedUrls": {
+    "app": "http://127.0.0.1:44413"
+  },
+  "mode": "docker-compose",
+  "processId": null,
+  "stackProfile": "fe-be-llm",
+  "request": "Build a Hello World app: Angular FE \u002B .NET 10 BE \u002B an LLM giving a thought of the day"
+}

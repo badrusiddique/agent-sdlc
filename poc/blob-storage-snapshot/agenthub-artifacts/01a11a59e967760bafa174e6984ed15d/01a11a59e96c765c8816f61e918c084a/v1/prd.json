@@ -1,0 +1,14 @@
+{
+  "title": "Calculator",
+  "summary": "Create a calculator app that adds two numbers",
+  "stories": [
+    {
+      "id": "S1",
+      "title": "Primary behaviour",
+      "acceptance": [
+        "Happy path works locally"
+      ]
+    }
+  ],
+  "stackProfile": "fe-be"
+}

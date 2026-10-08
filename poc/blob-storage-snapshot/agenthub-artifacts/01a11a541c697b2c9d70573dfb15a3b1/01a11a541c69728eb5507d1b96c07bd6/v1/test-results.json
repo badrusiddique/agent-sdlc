@@ -1,0 +1,5 @@
+{
+  "status": "green",
+  "detail": "  Determining projects to restore...\n  Restored /tmp/bgx-poc/01a11a541c697b2c9d70573dfb15a3b1/01a11a541c69728eb5507d1b96c07bd6/backend/HelloWorld.Api.csproj (in 60 ms).\n  HelloWorld.Api -\u003E /tmp/bgx-poc/01a11a541c697b2c9d70573dfb15a3b1/01a11a541c69728eb5507d1b96c07bd6/backend/bin/Debug/net10.0/HelloWorld.Api.dll\n\nBuild succeeded.\n    0 Warning(s)\n    0 Error(s)\n\nTime Elapsed 00:00:01.65\n",
+  "headCommit": "db9bc4a"
+}

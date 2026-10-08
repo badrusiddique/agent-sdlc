@@ -19,7 +19,7 @@ Root projects are untouched. Integrate later by lifting `AgentHub.Agents.Pipelin
 - Deploy then Finalize; three auto-approved gates (PRD, System Design, DEV acceptance).
 - `AuditLog.json` holds the original request and every transition.
 
-## Run locally
+## Run locally (file + fixture LLM)
 
 ```bash
 export DOTNET_ROOT=$HOME/.dotnet
@@ -37,6 +37,43 @@ ASPNETCORE_URLS=http://127.0.0.1:43181 dotnet run --project src/BuildGenix.WebAp
 # Terminal 3 — three happy paths
 ./scripts/verify-three.sh
 ```
+
+## Run with Azurite + Ollama + Docker Compose
+
+Requires Docker Azurite on `10000–10002`, Ollama with `llama3.2:1b`, and `OLLAMA_HOST=0.0.0.0:11434` so containers can reach the host.
+
+```bash
+AZURITE_CS='DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;QueueEndpoint=http://127.0.0.1:10001/devstoreaccount1;TableEndpoint=http://127.0.0.1:10002/devstoreaccount1;'
+
+# AgentHub
+cd poc/agenthub-api
+ASPNETCORE_URLS=http://127.0.0.1:43180 \
+TableStorage__Provider=Azure TableStorage__ConnectionString="$AZURITE_CS" \
+BlobStorage__Provider=Azure BlobStorage__ConnectionString="$AZURITE_CS" \
+Llm__Provider=Ollama Llm__Ollama__BaseUrl=http://127.0.0.1:11434 \
+Llm__Ollama__DefaultModel=llama3.2:1b \
+OLLAMA_BASE_URL=http://127.0.0.1:11434 OLLAMA_MODEL=llama3.2:1b \
+dotnet run --project src/AgentHub.WebApi --no-launch-profile
+
+# BuildGenix (unset BGX_SKIP_TABLE_INIT)
+cd poc/buildgenix-api
+ASPNETCORE_URLS=http://127.0.0.1:43181 \
+TableStorage__ConnectionString="$AZURITE_CS" \
+PocPipeline__UseInMemoryTables=false \
+PocPipeline__AgentHubBaseUrl=http://127.0.0.1:43180 \
+PocPipeline__AuditLogDirectory=/tmp/bgx-poc-audit-azurite \
+dotnet run --project src/BuildGenix.WebApi --no-launch-profile
+
+./scripts/verify-three.sh
+```
+
+## Evidence and reviews
+
+| Doc | Purpose |
+|---|---|
+| [`docs/what-was-done.md`](docs/what-was-done.md) | What this POC delivered |
+| [`docs/six-persona-happy-path-verification.md`](docs/six-persona-happy-path-verification.md) | SA / PE / QA / DBA / DevOps / PM sign-off |
+| [`blob-storage-snapshot/`](blob-storage-snapshot/) | Azurite blob dump + audit logs + verify JSON from the final run |
 
 ## Endpoints
 

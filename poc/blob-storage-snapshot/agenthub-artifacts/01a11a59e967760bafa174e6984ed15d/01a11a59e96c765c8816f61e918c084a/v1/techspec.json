@@ -1,0 +1,20 @@
+{
+  "components": [
+    "fe"
+  ],
+  "apis": [
+    {
+      "method": "GET",
+      "path": "/api/calculator",
+      "purpose": "Fetches calculator data"
+    }
+  ],
+  "phases": [
+    {
+      "id": 1,
+      "name": "Initial Setup"
+    }
+  ],
+  "deploy": "local-compose",
+  "stackProfile": "fe-be"
+}

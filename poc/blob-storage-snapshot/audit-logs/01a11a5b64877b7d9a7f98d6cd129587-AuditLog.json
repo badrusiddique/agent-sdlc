@@ -1,0 +1,83 @@
+{
+  "originalRequest": "Build a Hello World app: Angular FE \u002B .NET 10 BE \u002B an LLM giving a thought of the day",
+  "projectId": "01a11a5b648277e5baa20d1555157c7e",
+  "workItemId": "01a11a5b64877b7d9a7f98d6cd129587",
+  "stackProfile": "fe-be-llm",
+  "projectMode": "New",
+  "startedAt": "2026-10-08T07:12:39.5716299+00:00",
+  "completedAt": "2026-10-08T07:13:01.6197832+00:00",
+  "finalStatus": "Completed",
+  "deployedUrl": "http://127.0.0.1:44413",
+  "transitions": [
+    {
+      "stage": "INTAKE",
+      "status": "Draft",
+      "at": "2026-10-08T07:12:39.5761915+00:00",
+      "message": "Wrote intake-summary.json",
+      "artifactPath": "01a11a5b648277e5baa20d1555157c7e/01a11a5b64877b7d9a7f98d6cd129587/v1/intake-summary.json"
+    },
+    {
+      "stage": "PRD",
+      "status": "Completed",
+      "at": "2026-10-08T07:12:46.1439623+00:00",
+      "message": "task 01a11a5b649c7936a52a2db58b280a17",
+      "artifactPath": "01a11a5b648277e5baa20d1555157c7e/01a11a5b64877b7d9a7f98d6cd129587/v1/prd.json"
+    },
+    {
+      "stage": "PRD",
+      "status": "Approved",
+      "at": "2026-10-08T07:12:46.1522088+00:00",
+      "message": "causationId=gate:PRD:1:Approved",
+      "artifactPath": null
+    },
+    {
+      "stage": "SYSTEM_DESIGN",
+      "status": "Completed",
+      "at": "2026-10-08T07:12:53.5000563+00:00",
+      "message": "task 01a11a5b7e487a04a405e0d53f7a5c9f",
+      "artifactPath": "01a11a5b648277e5baa20d1555157c7e/01a11a5b64877b7d9a7f98d6cd129587/v1/techspec.json"
+    },
+    {
+      "stage": "SYSTEM_DESIGN",
+      "status": "Approved",
+      "at": "2026-10-08T07:12:53.5119586+00:00",
+      "message": "causationId=gate:SYSTEM_DESIGN:2:Approved",
+      "artifactPath": null
+    },
+    {
+      "stage": "IMPLEMENTATION",
+      "status": "Completed",
+      "at": "2026-10-08T07:12:56.1292454+00:00",
+      "message": "task 01a11a5b9b087e24bebffbfc4adc01c2",
+      "artifactPath": "01a11a5b648277e5baa20d1555157c7e/01a11a5b64877b7d9a7f98d6cd129587/v1/code-state.json"
+    },
+    {
+      "stage": "TESTING",
+      "status": "Completed",
+      "at": "2026-10-08T07:12:57.636647+00:00",
+      "message": "task 01a11a5ba54278c298c53156d146617f",
+      "artifactPath": "01a11a5b648277e5baa20d1555157c7e/01a11a5b64877b7d9a7f98d6cd129587/v1/test-results.json"
+    },
+    {
+      "stage": "DEPLOY_DEV:Deploy",
+      "status": "Completed",
+      "at": "2026-10-08T07:13:01.566279+00:00",
+      "message": "task 01a11a5bab257e91972b088e111a03be",
+      "artifactPath": "01a11a5b648277e5baa20d1555157c7e/01a11a5b64877b7d9a7f98d6cd129587/v1/completion-summary.json"
+    },
+    {
+      "stage": "DEPLOY_DEV",
+      "status": "Approved",
+      "at": "2026-10-08T07:13:01.5734459+00:00",
+      "message": "causationId=gate:DEPLOY_DEV:3:Approved",
+      "artifactPath": null
+    },
+    {
+      "stage": "DEPLOY_DEV:Finalize",
+      "status": "Completed",
+      "at": "2026-10-08T07:13:01.6146902+00:00",
+      "message": "task 01a11a5bba8575039fc91298806b9112",
+      "artifactPath": "01a11a5b648277e5baa20d1555157c7e/01a11a5b64877b7d9a7f98d6cd129587/v1/completion-summary.json"
+    }
+  ]
+}

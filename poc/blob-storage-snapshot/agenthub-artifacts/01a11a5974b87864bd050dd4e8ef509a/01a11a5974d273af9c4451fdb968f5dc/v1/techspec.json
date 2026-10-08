@@ -1,0 +1,21 @@
+{
+  "components": [
+    "fe",
+    "be"
+  ],
+  "apis": [
+    {
+      "method": "GET",
+      "path": "/api/thought-of-the-day",
+      "purpose": "Fetch a thought of the day from a LLM API"
+    }
+  ],
+  "phases": [
+    {
+      "id": 1,
+      "name": "System Design"
+    }
+  ],
+  "deploy": "local-compose",
+  "stackProfile": "fe-be-llm"
+}

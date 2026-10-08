@@ -1,0 +1,5 @@
+{
+  "status": "green",
+  "detail": "  Determining projects to restore...\n  Restored /tmp/bgx-poc/01a11a59e967760bafa174e6984ed15d/01a11a59e96c765c8816f61e918c084a/tests/Calculator.Api.Tests/Calculator.Api.Tests.csproj (in 228 ms).\n  Calculator.Api.Tests -\u003E /tmp/bgx-poc/01a11a59e967760bafa174e6984ed15d/01a11a59e96c765c8816f61e918c084a/tests/Calculator.Api.Tests/bin/Debug/net10.0/Calculator.Api.Tests.dll\nTest run for /tmp/bgx-poc/01a11a59e967760bafa174e6984ed15d/01a11a59e96c765c8816f61e918c084a/tests/Calculator.Api.Tests/bin/Debug/net10.0/Calculator.Api.Tests.dll (.NETCoreApp,Version=v10.0)\nA total of 1 test files matched the specified pattern.\n\nPassed!  - Failed:     0, Passed:     2, Skipped:     0, Total:     2, Duration: 16 ms - Calculator.Api.Tests.dll (net10.0)\n",
+  "headCommit": "1d4d8d5"
+}

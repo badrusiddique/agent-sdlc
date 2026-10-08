@@ -1,0 +1,23 @@
+{
+  "components": [
+    "fe"
+  ],
+  "apis": [
+    {
+      "method": "POST",
+      "path": "/api/calculator",
+      "purpose": "Subtract two numbers"
+    }
+  ],
+  "phases": [
+    {
+      "id": 1,
+      "name": "System Design"
+    }
+  ],
+  "deploy": {
+    "type": "local-compose",
+    "environment": "local"
+  },
+  "stackProfile": "fe-be"
+}

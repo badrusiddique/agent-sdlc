@@ -1,0 +1,3 @@
+{
+  "content": "# Calculator\n\nCreate a calculator app that adds two numbers\n\n\u0060\u0060\u0060json\n{\n  \u0022title\u0022: \u0022Calculator\u0022,\n  \u0022summary\u0022: \u0022Create a calculator app that adds two numbers\u0022,\n  \u0022stories\u0022: [\n    {\n      \u0022id\u0022: \u0022S1\u0022,\n      \u0022title\u0022: \u0022Primary behaviour\u0022,\n      \u0022acceptance\u0022: [\n        \u0022Happy path works locally\u0022\n      ]\n    }\n  ],\n  \u0022stackProfile\u0022: \u0022fe-be\u0022\n}\n\u0060\u0060\u0060\n"
+}

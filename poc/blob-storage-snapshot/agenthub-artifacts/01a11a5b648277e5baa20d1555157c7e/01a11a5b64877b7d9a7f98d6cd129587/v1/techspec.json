@@ -1,0 +1,34 @@
+{
+ "components": ["fe", "be"],
+ "apis": [
+  {
+   "method": "GET",
+   "path": "/api/thought-of-the-day",
+   "purpose": "Retrieves a random thought of the day from a machine learning model"
+  }
+ ],
+ "phases": [
+  {
+   "id": 1,
+   "name": "Build FE"
+  },
+  {
+   "id": 2,
+   "name": "Deploy FE to local-compose"
+  },
+  {
+   "id": 3,
+   "name": "Deploy BE to local-compose"
+  },
+  {
+   "id": 4,
+   "name": "Test BE"
+  },
+  {
+   "id": 5,
+   "name": "Deploy BE to prod"
+  }
+ ],
+ "deploy": "local-compose",
+ "stackProfile": "fe-be-llm"
+}

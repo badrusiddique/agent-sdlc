@@ -1,0 +1,22 @@
+{
+  "title": "Update Calculator App to Subtract Two Numbers",
+  "summary": "Implement subtraction functionality for the existing calculator app",
+  "stories": [
+    {
+      "id": "S1",
+      "title": "Implement Subtraction Logic",
+      "acceptance": "Implemented subtraction logic for the calculator app",
+      "type": "story"
+    },
+    {
+      "id": "S2",
+      "title": "Test Subtraction Functionality",
+      "acceptance": "Tested the subtraction functionality with two test cases"
+    },
+    {
+      "id": "S3",
+      "title": "Optimize Performance",
+      "acceptance": "Optimized the subtraction function for better performance"
+    }
+  ]
+}

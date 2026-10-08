@@ -1,0 +1,18 @@
+{
+  "components": ["fe", "be"],
+  "apis": [
+    {
+      "method": "GET",
+      "path": "/api/HelloWorld",
+      "purpose": "Return a simple response from the Hello World API"
+    }
+  ],
+  "phases": [
+    {
+      "id": 1,
+      "name": "Build"
+    }
+  ],
+  "deploy": "local-compose",
+  "stackProfile": "fe-be-llm"
+}

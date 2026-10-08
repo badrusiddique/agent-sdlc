@@ -7,3 +7,5 @@ services:
     command: ["dotnet", "run", "--project", "Calculator.Api.csproj", "--urls", "http://0.0.0.0:8080"]
     ports:
       - "43143:8080"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

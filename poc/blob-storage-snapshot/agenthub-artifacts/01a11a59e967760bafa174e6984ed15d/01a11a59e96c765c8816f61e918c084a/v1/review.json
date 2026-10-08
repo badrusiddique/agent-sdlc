@@ -1,0 +1,7 @@
+{
+  "status": "passed",
+  "checks": [
+    "template-allowlist",
+    "health-endpoint"
+  ]
+}
