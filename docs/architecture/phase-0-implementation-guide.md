@@ -461,7 +461,7 @@ New columns this design needs (built in slice 3):
 | WorkItems | `TargetGeneration` | int | Implement now | Once |
 | WorkItems | `PendingMessage`, `PendingAt` (schema ADR-025) | JSON, time | task publisher | Every task publish, cleared after send |
 | WorkItems | `SignalKind`, `HumanMessage` (exists) | string | results consumer, watchdog | HumanActionRequired |
-| WorkItems | `RepoFactsJson` | JSON (url, branch, headCommit, prId, mergeCommit, deployed URLs) | results consumer | After Implementation, Testing, Deployment |
+| WorkItems | `RepoFactsJson` | JSON (url, branch, headCommit, testedCommit, deployedCommit, prId, mergeCommit, deployed URLs) | results consumer | After Implementation, Testing, Deployment |
 | WorkItems | `~BASELINE` row | Generation, WorkItemId, PrdPath, TechSpecPath, CodeStatePath, RepoUrl, AdoEpicId, MergeCommit, TemplateId, AcceptedAt | results consumer | Finalize, in the same transaction as Completed |
 | WorkItems | `LastAppliedResultId` | string (`result:{taskId}:{inputVersion}`) | results consumer | Last write of every applied result (section 3.9, guard 4) |
 | WorkItems | `StackProfile`, `TemplateId` | string, string | Implement now | Set once from the intake classifier on a new project, or from `~BASELINE.TemplateId` on an existing project. Finalize copies `TemplateId` into `~BASELINE` |
