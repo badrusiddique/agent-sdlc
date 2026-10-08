@@ -1,24 +1,111 @@
 # Spoon-feed: implement the System Design agent in agenthub-api
 
-**Purpose:** Paste this file into the coding agent on the other machine. It is the slice 7 implementation. Implement only `AgentHub.Agents.SystemDesign` and the Core, Infrastructure and Hosting seams named below. Do not implement PRD, Implementation, Testing, Deployment, or buildgenix-api.
+**Purpose:** Paste this file into the coding agent on the other machine. Execute **Part A** only. Sections 0 to 14 are the later full System Design agent. Do not implement them in this pass.
 
-**Repo:** `https://github.com/badrusiddique/agent-sdlc` only. Never `ai-sdlc`.
+**Repo:** `https://github.com/badrusiddique/agent-sdlc` only. Never `ai-sdlc`. Work in the root `agenthub-api/` and `buildgenix-api/`. Do not edit `poc/`. That folder is a separate happy-path proof and is not this agent.
 
 **Date:** 2026-10-08
 
-**Not coding GO.** Start only after Badru's explicit GO for slice 7 (guide section 14). Pasting this file prepares the work. It does not by itself authorize implementation.
+**This pass:** Badru asked for the first piece of the System Design agent, described in Part A. That piece is the work to do. The rest of this file stays for a later pass.
 
-**Authority:** `docs/architecture/phase-0-implementation-guide.md` sections 3, 5.1, 6.3, 8.2, 8.7 and 8.8, as they stand after the 2026-10-08 fixes. This file restates the rules the System Design agent must follow. If a sentence here and that guide differ, stop and ask. Do not pick one.
+**Authority:** `docs/architecture/phase-0-implementation-guide.md` sections 3, 5.1, 6.3 and 8.2. If Part A and the guide differ, stop and ask.
 
-**Not in scope:** closing any open item in guide section 16.1. Where this file names a configured default for an open item, use that default and record the item as OPEN in the implementation notes.
-
-**Manual QA:** Azurite, the Service Bus emulator, and Ollama, on real processes. A Fixture or scripted-LLM unit test is never a Manual QA pass. See `docs/manual-e2e-means-actual.md`.
-
-**Coding gate:** implement this file when it is pasted as the slice 7 task. Do not start any other slice.
+**Manual QA:** Azurite, the Service Bus emulator, and a real model. A Fixture run is not a Manual QA pass. See `docs/manual-e2e-means-actual.md`.
 
 ---
 
-## 0. What you are building
+## Part A. First piece: one design file, one revise loop
+
+Do this. Stop when the done list at the end of Part A is true. Do not build DesignValidator, section-by-section writing, templates, `techspec.json`, or the three full examples. Those are sections 0 to 14.
+
+### A1. What "done" is
+
+A person sends one System Design task. A new worker in agenthub-api calls the model once with a fixed prompt, writes `system-design.md` into blob storage, and publishes one result. buildgenix-api moves the work item to "waiting for review". If the person asks for changes, buildgenix-api sends a new task and the agent writes a new version file. The previous file stays. If the person approves, buildgenix-api marks the design stage approved and does not call the agent again.
+
+### A2. Shape
+
+Copy the HEALTHY agent. Same host process. New worker. Not a second operating-system process.
+
+| Item | Value |
+|---|---|
+| Library | `agenthub-api/src/AgentHub.Agents.SystemDesign/` (references Core only, same as `AgentHub.Agents.Healthy`) |
+| Worker | `SystemDesignAgentWorker` registered in `AddAgentWorkers`. `Workers:SystemDesign:Enabled` defaults to false |
+| Topic | `agenthub.system-design.agent` |
+| Subscription | `agenthub-system-design` |
+| Stage | `SYSTEM_DESIGN` |
+| Prompt | `Prompts/system-design-system.txt`. Fixed text is enough. Example: "Write a short system design in markdown for the request in the user message. Use headings and bullets." |
+| Model | `Llm:Provider`. Local Manual QA uses `Ollama`. Azure uses `Gateway` when `AIGW_SUBSCRIPTION_KEY` (or the existing Gateway setting) is present. Do not hard-code a model. If Gateway is not configured, record Gateway as BLOCKED and still pass the Ollama run. Open item 9 stays open |
+| Artifact | `{BlobPrefix}system-design.md`. The filename is `system-design.md`, not `System_Design.md` and not `techspec.md`. `BlobPrefix` is `{projectId}/{workItemId}/v{outputRevision}/` and comes from the message. Do not derive `v{n}` from `InputVersion` |
+| Result artifact key | `techSpecMd` |
+| Result topic | `buildgenix.agent-results`. Result Service Bus `MessageId` is `result:{taskId}:{inputVersion}` |
+| Events topic | `buildgenix.agent-events`. Publish `AgentStarted` when the run starts, one `SubStepCompleted` when the file is written, and `AgentCompleted` or `AgentFailed` or `AgentHumanActionRequired` at the end |
+| Tables the agent may write | `EffectLedger`, `ActivityLog`, `AgProcessedEvents` only |
+
+Copy these HEALTHY files and rename them. Do not change HEALTHY behaviour:
+
+- `HealthyAgentHandler.cs`, `HealthyAgentDispatcher.cs`, `HealthyAgentConstants.cs`, `HealthyTaskValidation.cs`, `PromptLoader.cs`
+- `HealthyAgentWorker.cs` and the DI block in `AgentWorkersServiceCollectionExtensions.cs`
+- `HealthyEndpoints.cs` becomes `POST /api/connectivity/system-design`, mapped only when the environment is `Development`
+- Add the topic and subscription to `agenthub-api/docker/servicebus-config.json`. Also add `buildgenix.agent-results` / `buildgenix-api` and `buildgenix.agent-events` / `buildgenix-api` if they are not there. Recreate the emulator container after the edit. Do not use `docker compose down -v`
+
+Handler steps, in order:
+
+1. Validate the message. Required: `Stage` = `SYSTEM_DESIGN`, `BlobPrefix` ending in `/`, and a non-empty user request (the harness body field `requestText`, stored on the task as `HumanAnswer` when that is the only text, or as artifact text you put in the user prompt). A bad message is `Failed` / `InvalidInput`.
+2. If `{projectId}/{workItemId}/control/cancelled.json` exists, return `Failed` / `Cancelled` and do not call the model.
+3. Call the model once. Run the existing guardrail on the input and on the markdown before the blob write. A block is `Failed` / `GuardrailBlocked`, then mark processed and complete. No retry. The HEALTHY guardrail blocks headings and long text. For this agent construct a separate `LocalGuardrailPipeline` with a higher character limit and headings allowed. Do not change the singleton HEALTHY uses.
+4. Write the markdown with a create-if-absent upload under `BlobPrefix`. Ledger the call and the write. A second delivery of the same message replays the ledger and does not call the model again.
+5. Publish `AgentResult` with `Status` = `Completed`, `Artifacts["techSpecMd"]` = the blob path, then the terminal event, then mark `AgProcessedEvents`, then complete the Service Bus message. Status is only `Completed`, `HumanActionRequired`, or `Failed`.
+
+`MessageId` on the task is `{taskId}:{inputVersion}`. Leave HEALTHY's result publisher alone.
+
+### A3. How buildgenix-api learns the state
+
+The agent does not write buildgenix tables and does not call buildgenix-api as its only report. It publishes the result on `buildgenix.agent-results`. That topic holds the result if buildgenix-api is restarting.
+
+`POST /api/internal/sdlc-results` in `InternalNotifyController` is still a stub that returns not-implemented. Replace that stub with one apply method, and call the same method from a Service Bus listener on `buildgenix.agent-results` / `buildgenix-api`. The HTTP route stays as a manual test door onto that method. It is not the path the agent uses.
+
+The apply method, for `stage` = `SYSTEM_DESIGN` only:
+
+- Dedup on the result `MessageId`. A repeat is a 200 no-op.
+- Store the artifact path on the work item.
+- On `Completed`, set the work item to waiting for design review. Do not approve it.
+- On `Failed`, set the work item to `Failed` and record `errorCode` and `errorMessage`.
+- Ignore other stages in this pass (log them). Do not build the rest of the pipeline.
+
+Also listen to `buildgenix.agent-events` and apply `AgentStarted` (status running) and the terminal event. That is the "keep the state updated" path. Do not add a new public browser API.
+
+### A4. Changes and approval
+
+Both decisions are buildgenix-api actions. The agent does not decide them.
+
+**Changes.** The person sends feedback text. buildgenix-api writes `{projectId}/{workItemId}/v{next}/feedback-system-design.json`, creates a new `taskId`, sets `outputRevision` to the next number, sets `blobPrefix` to `.../v{next}/`, and publishes that task to `agenthub.system-design.agent`. The agent runs again and writes a new `system-design.md`. It must not overwrite the previous version. Put the feedback text in the user prompt.
+
+**Approve.** buildgenix-api marks the design gate approved and the design stage done. It does not publish another System Design task.
+
+Add two small internal or existing-gate routes if the catalog does not already have them: one for "request design changes" and one for "approve design". Reuse `GatesController` if a design gate row already exists. Do not invent a new work-item status beyond `Running`, waiting for review, `Failed`, and design-approved.
+
+### A5. Prove it
+
+1. `dotnet test` on `agenthub-api/AgentHub.slnx` and `buildgenix-api` still passes, including HEALTHY.
+2. Start Azurite and the Service Bus emulator the way `agenthub-api/README.md` describes.
+3. Enable the worker with `Workers__SystemDesign__Enabled=true` and `Llm__Provider=Ollama`. Do not commit `Enabled=true`.
+4. POST the harness with a one-line request. Expect 202.
+5. Download `system-design.md`. The path matches `blobPrefix`. The result is on `buildgenix.agent-results`.
+6. The work item in buildgenix-api is waiting for review, not approved.
+7. Send a change. A second file appears under `v2/` (or the next revision). The first file is unchanged.
+8. Approve. The work item shows the design stage approved. No second model call happens.
+9. Publish the same `taskId` and `inputVersion` again. The run is a no-op.
+10. Write the evidence in `docs/qa/manual-qa-system-design-first-slice.md` with the commands and the blob paths. If Gateway was configured, record that run too. If not, write BLOCKED for Gateway and PASS for Ollama.
+
+### A6. Stop
+
+Do not continue into section 0. Report the evidence path and stop.
+
+---
+
+## 0. Later work: the full System Design agent
+
+Do not implement this section, or anything after it, in the first pass. Part A is the pass. This section is the target for the next pass.
 
 | Include | Exclude |
 |---|---|
@@ -700,10 +787,9 @@ From guide section 16.1. The ones that touch this slice:
 ## 14. Paste block
 
 ```text
-Implement the System Design agent in https://github.com/badrusiddique/agent-sdlc only. Never ai-sdlc.
-Follow docs/prompts/i3-system-design-agent-spoon-feed.md from the top. Do not skip section 4.
-Scope: AgentHub.Agents.SystemDesign plus the seams that file names. HEALTHY tests stay green.
-Authority: the Phase 0 implementation guide sections named in that file. If the prompt and the guide differ, stop and ask.
-Out of scope: PRD, Implementation, Testing, Deployment, buildgenix-api, closing guide section 16.1.
-Done: dotnet test on AgentHub.slnx, then Ollama Manual QA for examples 1, 2 and 3 per section 11. A scripted LLM is not Manual QA.
+Execute Part A only of docs/prompts/i3-system-design-agent-spoon-feed.md.
+Repo: https://github.com/badrusiddique/agent-sdlc only. Never ai-sdlc. Edit root agenthub-api and buildgenix-api. Do not edit poc/.
+Part A: a HEALTHY-shaped System Design worker on agenthub.system-design.agent, one fixed prompt, one model call, system-design.md under the message blob prefix, result on buildgenix.agent-results, buildgenix-api applies that result to the work item. A change request writes a new version file. Approve only updates buildgenix state.
+Do not implement sections 0 to 14.
+Done: the Part A5 checks, with evidence in docs/qa/manual-qa-system-design-first-slice.md. HEALTHY tests stay green.
 ```
