@@ -206,7 +206,7 @@ Names marked **(confirm)** come from historical sources and must be confirmed wi
 
 Every subscription: MaxDeliveryCount 5 (D-I2-3), lock duration 5 minutes (the Service Bus maximum on every tier, auto-renewed by the worker up to the cap above), dead-letter after MaxDeliveryCount and on message time-to-live expiry (`DeadLetteringOnMessageExpiration = true`; an expired lock is a redelivery, not a dead-letter). Every worker uses `MaxConcurrentCalls = 1` and `PrefetchCount = 0`, and there is **no** global run gate across workers on a host. A global gate would leave a received message waiting for the slot while its renewal clock and delivery count run out. The core host can therefore run one PRD and one design at the same time, and the builder one run of each of its three agents; the builder plan is sized for that (section 9). This replaces the `Workers:MaxConcurrentRuns = 1` default from agent-model §9.
 
-Each handler runs under a wall-clock deadline of its cap minus 10 minutes or 20 percent, whichever is smaller. On the deadline the handler stops, publishes Failed with `errorCode = DeadlineExceeded`, and completes the message. In normal operation one copy of a task runs at a time. If a lock is ever lost early (a network detach, an overlapping container during a platform swap), a second copy is still safe, because every effect is ledger-guarded and every external call is find-or-create (section 3.6). A `MessageLockLost` on settle, after the result was published, is treated as already processed.
+Each handler runs under a wall-clock deadline of min(cap minus 10 minutes, 80 percent of the cap): 48 minutes on a 60 minute cap, 192 minutes on a 4 hour cap. On the deadline the handler stops, publishes Failed with `errorCode = DeadlineExceeded`, and completes the message. In normal operation one copy of a task runs at a time. If a lock is ever lost early (a network detach, an overlapping container during a platform swap), a second copy is still safe, because every effect is ledger-guarded and every external call is find-or-create (section 3.6). A `MessageLockLost` on settle, after the result was published, is treated as already processed.
 
 Transient failures (HTTP 429, 5xx, timeouts) to the LLM, ADO, ARM and storage are retried inside the step with exponential back-off and a circuit breaker (`Microsoft.Extensions.Http.Resilience`), for up to 10 minutes per step, before the exception reaches the dispatcher. Only then is the message abandoned. Five deliveries therefore ride out close to an hour of outage instead of burning all attempts in seconds.
 
@@ -271,7 +271,7 @@ Service Bus `MessageId` = `{taskId}:{inputVersion}` (D-I2-4). `taskId` is one UL
 |---|---|---|
 | `artifacts` | buildgenix-api | Latest registered revision of every input the stage needs (resolved from the `~HEAD_` rows). Fixed keys: `intakeSummary`, `prd`, `prdMd`, `techSpec`, `techSpecMd`, `review`, `codeState`, `codeGraph`, `testResults`, `completionSummary`, `feedback`, and for existing projects `baselinePrd`, `baselineTechSpec`, `baselineCodeState` |
 | `blobPrefix` | buildgenix-api | Where this run writes its outputs: `{projectId}/{workItemId}/v{outputRevision}/`. The agent never computes a path |
-| `context` | buildgenix-api | Small facts the agent would otherwise have to look up. `repo.url` is null until Implementation creates the repo; buildgenix stores the URL from the result and sends it on every later task. `repo.headCommit` and `repo.pullRequestId` come from the latest Implementation result. `deploymentAction` (`Deploy` or `Finalize`) is set only on Deployment tasks. `ado.epicId` is the project's epic, null until the first Implementation creates it; later work items add stories under it |
+| `context` | buildgenix-api | Small facts the agent would otherwise have to look up. `repo.url` is null until Implementation creates the repo; buildgenix stores the URL from the result and sends it on every later task. `repo.pullRequestId` comes from the latest Implementation result. `repo.headCommit` is the latest Implementation `headCommit` on a TESTING task, `testedCommit` on a Deploy task, and `deployedCommit` on a Finalize task. `templateId` is the intake classifier result on a new project and `~BASELINE.TemplateId` on an existing project. `deploymentAction` (`Deploy` or `Finalize`) is set only on Deployment tasks. `ado.epicId` is the project's epic, null until the first Implementation creates it; later work items add stories under it |
 | `humanAnswer` | buildgenix-api | Text of the human's answer when the task resumes after a Question |
 | `config.budget` | buildgenix-api | Stage cap and what is left of the work item's token budget (section 8.7) |
 
@@ -315,7 +315,7 @@ Published once per run on `buildgenix.agent-results`. Service Bus `MessageId` = 
 |---|---|
 | `status` | `Completed`, `HumanActionRequired`, `Failed` (D-AS-3). Nothing else |
 | `signal.kind` | With HumanActionRequired: `Question`, `LoopLimit`, `BudgetExceeded`. With Completed from Testing: `RouteBack` (`routeBackTo: "IMPLEMENTATION"`). The agent proposes; buildgenix-api decides. buildgenix-api itself can also set `Stuck` on a work item (section 3.9); agents never send it |
-| `outputs` | Facts that are not files: `repoUrl`, `workBranch`, `headCommit`, `pullRequestId`, `pullRequestUrl`, `mergeCommit`, `adoWorkItems`, `deployedUrls`, `azureResources`. Sent with every status, including Failed, so buildgenix-api always knows what was created |
+| `outputs` | Facts that are not files: `repoUrl`, `workBranch`, `headCommit`, `pullRequestId`, `pullRequestUrl`, `mergeCommit`, `adoWorkItems`, `deployedUrls`, `azureResources`. Testing and the Deploy action always return `outputs.headCommit` for the commit they cloned and ran. buildgenix-api stores those as `RepoFactsJson.testedCommit` and `deployedCommit`. Sent with every status, including Failed, so buildgenix-api always knows what was created |
 | `errorCode` (Failed) | `MissingInput`, `InvalidInput`, `GuardrailBlocked`, `BuildEnvironment`, `ExternalService`, `DeadlineExceeded`, `Cancelled`, `Unhandled` |
 
 How buildgenix-api turns a result into the next step. The words NEXT, END and HUMAN-ACTION describe these transitions; they are never values of `status`.
@@ -367,7 +367,7 @@ The ledger row for an **external** effect is written after the call returns, so 
 |---|---|
 | Create ADO repo | GET the repo by name `bgx-{slug}`; reuse it if present |
 | Create epic or story | WIQL query by tags `bgx-wi:{workItemId}` and `bgx-key:{storyKey}` |
-| git push of phase k | Fetch the remote branch; if its head carries the commit trailer `Bgx-Task: {taskId}` and `Bgx-Phase: {k}`, adopt that commit. Commits also take `GIT_AUTHOR_DATE` and `GIT_COMMITTER_DATE` from the ledger, so a replayed commit gets the same sha |
+| git push of phase k | Fetch the remote branch; if its head carries the commit trailer `Bgx-Task: {taskId}` and `Bgx-Phase: {k}`, adopt that commit. Commits take author and committer name and email from `Builder:GitIdentity` (stored on the GitPush ledger input), take `GIT_AUTHOR_DATE` and `GIT_COMMITTER_DATE` from the ledger, are never signed, and use `core.autocrlf=false`, so a replayed commit of the same tree and parent gets the same sha |
 | Create PR | GET active PRs with the same `sourceRefName` |
 | Complete PR | GET the PR; if `status = completed`, read `lastMergeCommit` |
 | Azure resources | ARM CreateOrUpdate is idempotent by definition |
@@ -393,7 +393,7 @@ The agent never reads a buildgenix table and never calls buildgenix-api in Phase
 | `outputRevision` (`n`) | Stage within a work item | 1 | That stage runs again for a redraft, rework, change request or retry after a limit | Blob folder `v{n}`; Artifacts row revision |
 | `pipelineVersion` | Work item | 1 | Once per backward transition: a reject, a test route-back, a change request, a retry after a limit (+1, schema D-52). Stages that simply run again after that transition, such as Testing after a rework, stay on the new version | ApprovalGates and StageStatuses row keys |
 | `loopIndex` | Work item | 0 | Each test route-back | Limit of 3 route-backs |
-| Reject counters | One per gated stage | 0 | Each human reject at that gate | Limit of 3 per gate |
+| Reject counters | One per gated stage | 0 | Each human reject at that gate, or Request changes at DEV acceptance | Limit of 3 per gate |
 | `generation` (`g`) | Project | 0 | A work item is finalized | Label `v{g}.{n-1}`; baseline |
 | `deliveryCount` | Service Bus delivery | 1 | Each redelivery | `runId`, `eventId` |
 | `seq` | One delivery of one run | 1 | Each event | `eventId` |
@@ -401,16 +401,16 @@ The agent never reads a buildgenix table and never calls buildgenix-api in Phase
 
 ### 3.9 Applying results and events safely
 
-Results and events travel on different topics with separate consumers, so they can arrive in any order, and a redelivered run can emit events after its result was already applied. buildgenix-api applies them with three guards:
+Results and events travel on different topics with separate consumers, so they can arrive in any order, and a redelivered run can emit events after its result was already applied. buildgenix-api applies them with four guards:
 
 1. **Current-task guard.** A result or event changes `WorkItems` only if its `taskId` and `inputVersion` equal the work item's `CurrentTaskId` and `CurrentInputVersion`. Anything else is recorded in Activity, marked processed and completed, but does not move the work item.
 2. **Expected-state guard.** `AgentStarted` sets `Running` only when the status is `Queued`; a result applies only when the status is `Queued` or `Running`. Writes are ETag-conditioned, so two consumers can never both apply.
 3. **Forward-only projection.** StageStatuses chips only move forward within a `pipelineVersion` (section 7).
 4. **Last write is the state change.** Applying a result touches several tables (Artifacts, gates, pending actions, telemetry). Each of those writes is idempotent by key, and the `WorkItems` update comes last, carrying `LastAppliedResultId`. A crash part-way leaves the work item in its previous state, so the redelivered result passes the guards and re-applies the idempotent writes before the final update.
 
-Two safety nets close the remaining gaps:
+Three safety nets close the remaining gaps:
 
-- **Dead-letter watcher.** buildgenix-api listens to the dead-letter sub-queue of every task subscription. A dead-lettered task (for example a crash on the last delivery, where no Failed result could be published) turns the work item into `HumanActionRequired` with signal `Stuck` and the dead-letter reason. A task that already failed normally (five failed deliveries, where the last delivery publishes Failed before it dead-letters) is only logged: the work item is already `Failed`.
+- **Dead-letter watcher.** buildgenix-api listens to the dead-letter sub-queue of every task subscription. A dead-lettered task (for example a crash on the last delivery, where no Failed result could be published) turns the work item into `HumanActionRequired` with signal `Stuck` and the dead-letter reason. When a delivery has already published a result, the agent completes the message (it does not dead-letter). A dead-letter with no published result sets `Stuck`. A dead-letter whose reason is `ResultPublished` is only logged.
 - **Stage watchdog.** Two clocks, so waiting for capacity is never confused with a dead run. A `Running` work item with no event for 15 minutes (heartbeats arrive every 60 seconds) becomes `HumanActionRequired` with signal `Stuck`. A `Queued` work item whose task has not started within 6 hours (longer than the 4-hour Implementation cap plus a margin) gets an informational "waiting for capacity" note on screen, and becomes `Stuck` only after 12 hours. The person can retry (the same task is republished with `inputVersion + 1`; the ledger replays finished work) or stop.
 - **Cancel marker.** When a person stops a work item, buildgenix-api first writes `{projectId}/{workItemId}/control/cancelled.json` (reason, time, the `taskId` current at the time), then fails the work item. The dispatcher checks for this file before starting a handler, the handler checks it at every sub-step boundary, and every external effect (push, PR, merge, Azure call, deploy) checks it again just before acting. A late or still-queued copy of the task therefore stops before it can push, deploy or merge, publishes Failed `Cancelled`, and its result is ignored by the current-task guard. Agents only need read access to the `artifacts` container for this, which they already have.
 
@@ -444,7 +444,7 @@ The important property: nothing that matters lives only in memory. If any host r
 - A project has a **generation** `g`: the number of finalized work items. When the user clicks Implement now, buildgenix-api sets the work item's `TargetGeneration = baseline generation + 1` while holding the project's `~ACTIVE` lock (D-C4b), so two work items can never claim the same generation. A failed work item does not consume it; the next work item reuses it, and the screen always shows the work item number beside the label.
 - The label users see is `v{g}.{n-1}`: the first PRD of the first work item is v1.0, its redraft v1.1, and the first PRD of the next work item on the same project is v2.0. The intake summary bound at Implement now is labelled `v{g}.0` whatever its revision number.
 - `pipelineVersion` starts at 1 and rises by one per backward transition: a reject, a test route-back, a change request, or a retry after a limit (schema D-52). The stages that run again after that transition stay on the new version. In example 2 that gives v1 (first pass), v2 (after the PRD reject), v3 (after the test route-back). Gate rows and progress rows are keyed by it. The progress view shows, for each stage, the rows of the highest `pipelineVersion` that has any.
-- **Baseline.** The project baseline is one reserved row `~BASELINE` in the `WorkItems` table, partition `{projectId}`, next to `~ACTIVE`. When the Finalize result arrives, one entity-group transaction updates the work item to `Completed`, deletes `~ACTIVE`, and upserts `~BASELINE`. A crash cannot release the lock without moving the baseline, or the other way round. The next work item reads `baselinePrd`, `baselineTechSpec`, `baselineCodeState`, the repo URL and the epic id from that row. `ProjectArtifactIndex` (the project Artifacts tab) is rebuilt from it afterwards and is never the source of truth.
+- **Baseline.** The project baseline is one reserved row `~BASELINE` in the `WorkItems` table, partition `{projectId}`, next to `~ACTIVE`. When the Finalize result arrives, one entity-group transaction updates the work item to `Completed`, deletes `~ACTIVE`, and upserts `~BASELINE`. A crash cannot release the lock without moving the baseline, or the other way round. The next work item reads `baselinePrd`, `baselineTechSpec`, `baselineCodeState`, the repo URL, the epic id and `TemplateId` from that row. `ProjectArtifactIndex` (the project Artifacts tab) is rebuilt from it afterwards and is never the source of truth.
 - Files are never overwritten: the ledger makes each write happen once, and the container has versioning and soft delete as a safety net.
 
 Filename catalog: `intake-summary.json`, `prd.json`, `prd.md`, `techspec.json`, `system-design.md`, `review.json`, `code-state.json`, `code-graph.json`, `test-results.json`, `completion-summary.json`, and the feedback files buildgenix-api writes for a redraft, rework or retry: `feedback-prd.json`, `feedback-system-design.json`, `feedback-implementation.json`. Feedback carries its stage in the filename because several stages can reach the same revision number in one work item. One control file sits outside the versioned folders: `{projectId}/{workItemId}/control/cancelled.json`, written only by buildgenix-api on Stop (section 3.9). It is the single path agents compute themselves, because a stopped work item has no next task message to carry it.
@@ -463,6 +463,8 @@ New columns this design needs (built in slice 3):
 | WorkItems | `SignalKind`, `HumanMessage` (exists) | string | results consumer, watchdog | HumanActionRequired |
 | WorkItems | `RepoFactsJson` | JSON (url, branch, headCommit, prId, mergeCommit, deployed URLs) | results consumer | After Implementation, Testing, Deployment |
 | WorkItems | `~BASELINE` row | Generation, WorkItemId, PrdPath, TechSpecPath, CodeStatePath, RepoUrl, AdoEpicId, MergeCommit, TemplateId, AcceptedAt | results consumer | Finalize, in the same transaction as Completed |
+| WorkItems | `LastAppliedResultId` | string (`result:{taskId}:{inputVersion}`) | results consumer | Last write of every applied result (section 3.9, guard 4) |
+| WorkItems | `StackProfile`, `TemplateId` | string, string | Implement now | Set once from the intake classifier on a new project, or from `~BASELINE.TemplateId` on an existing project. Finalize copies `TemplateId` into `~BASELINE` |
 | Projects | `Slug` + claim row `~SLUG_{slug}` | string | project create | Once; the claim row makes the slug unique |
 | Projects | `Repository` (D-49 planned) | string | results consumer | The first result that reports `outputs.repoUrl`, including a Failed one, so a retried first work item finds it |
 | ProjectArtifactIndex | PK `{projectId}`, RK `{invertedTicks}_{artifactId}`; WorkItemId, DisplayNumber, RegistryKey, Revision, Label, BlobPath, Accepted (bool) | | results consumer | After each registration; rebuilt from Artifacts and `~BASELINE`; `Accepted` separates finalized work from failed attempts that share a label |
@@ -550,6 +552,7 @@ stateDiagram-v2
     Accept --> Finalize: Accept
     Finalize --> Completed: PR merged (baseline = generation g)
     Finalize --> Failed: Failed
+    Finalize --> Question: HumanActionRequired (moved head or merge conflict)
     PRD_Running --> Question: HumanActionRequired
     SD_Running --> Question: HumanActionRequired
     Build --> Question: HumanActionRequired
@@ -575,7 +578,7 @@ stateDiagram-v2
 |---|---|---|---|---|
 | `Question` | an agent (`AskAsync`, ledger ordinal 900 + q) | Answer | Same `taskId`, `inputVersion + 1`, `humanAnswer` | The ledger replays everything up to the question and `AnswerAsync` commits the answer at 950 + q. What runs next depends on where the agent asked (table below). An answered question always grants one extra revision, so a question asked at the last revision still has a step to continue into |
 | `LoopLimit` or `BudgetExceeded` | an agent | Retry with guidance; raise the budget (by at most 50 percent per retry and to at most twice the configured budget; the raise is recorded as a WorkItemEvent with the user id) and retry; Stop | A **new** `taskId`, the next `outputRevision` and `pipelineVersion + 1` for the same stage, the guidance as `feedback-{stage}.json`, the raised budget in `config`. For Implementation, `context.implementationMode = Continue` | A new task has an empty ledger, so nothing committed is replayed. Implementation in `Continue` mode keeps every phase already pushed (found by its `Bgx-Phase` trailer), restarts the phase that hit the limit with the guidance, and then builds the remaining phases |
-| `LoopLimit` | buildgenix-api (3 route-backs, or 3 rejects at a gate) | One more loop; Stop | For a test route-back or Request changes: an Implementation rework. For a PRD or design reject: a redraft of that stage | The counter's cap rises by one, up to a hard cap of 5 |
+| `LoopLimit` | buildgenix-api (3 route-backs, 3 rejects at a gate, or 3 Request changes at DEV acceptance) | One more loop; Stop | For a test route-back or Request changes: an Implementation rework. For a PRD or design reject: a redraft of that stage | The counter's cap rises by one, up to a hard cap of 5 |
 | `Stuck` | dead-letter watcher or watchdog (section 3.9) | Retry; Stop | The same task with `inputVersion + 1` | The ledger replays finished work; the run continues |
 | any | | Stop | nothing | Work item `Failed` ("Stopped by user"), `~ACTIVE` released |
 
@@ -686,18 +689,18 @@ Each box emits `SubStepStarted` and `SubStepCompleted`; each critique iteration 
 
 ### 8.2 System Design agent
 
-**Topic** `agenthub.system-design.agent` · **Host** core · **Inputs** `prd`, `intakeSummary`; existing `baselineTechSpec`, `baselineCodeState`; template manifest `templates/{templateId}/manifest.json`; standards pack `templates/standards/v1/` · **Outputs** `techspec.json`, `system-design.md` · **Gate** SYSTEM_DESIGN · **Token cap** 500k.
+**Topic** `agenthub.system-design.agent` · **Host** core · **Inputs** `prd`, `intakeSummary`; existing `baselineTechSpec`, `baselineCodeState`; redraft or retry also `techSpec` (previous) and `feedback` (`feedback-system-design.json`); template manifest `templates/{templateId}/manifest.json`; standards pack `templates/standards/v1/` · **Outputs** `techspec.json`, `system-design.md` · **Gate** SYSTEM_DESIGN · **Token cap** 500k.
 
-This is the agent whose output every later stage executes, so its job is to leave nothing to guess. `techspec.json` contains, for the target stack: components and boundaries, phases with milestones, a file plan (path, create or modify, classes and methods with signatures), API contracts, the LLM integration for `fe-be-llm`, a TDD plan, acceptance tests written as executable checks (method, path, body, expected status, expected response shape), the ADO epic and stories, the deployment plan (which resources to create or update, with names), and the exact commands to run and test locally.
+This is the agent whose output every later stage executes, so its job is to leave nothing to guess. `techspec.json` contains, for the target stack: components and boundaries, phases with milestones, a file plan (path, create or modify, classes and methods with signatures), API contracts, the LLM integration for `fe-be-llm`, a TDD plan, acceptance tests written as executable checks (method, path, body, expected status, expected response shape, and expected body for deterministic endpoints), the ADO epic and stories, the deployment plan (which resources to create or update, with names), and the template's build, test and run commands, copied from the manifest and never written by the model.
 
 | Sub-step | Subagent | Kind | Does |
 |---|---|---|---|
 | `context` | ModeDetector, TemplateResolver | deterministic | New project or existing (baseline present); resolves the template layout: project names, folders, ports, test frameworks, health path |
 | `repo-context` | RepoContextBuilder | deterministic, existing only | Picks the symbols in `code-state.json` that the PRD stories touch, plus their callers and callees, inside a token budget. The LLM sees symbol references and signatures, not raw source |
 | `plan` | DesignPlanner | LLM | Components, phases, file plan, API contracts |
-| `write` | SectionWriter | LLM, one call per section | Architecture, data, API, LLM integration, TDD plan, acceptance checks, ADO backlog, deployment plan, run and test commands |
-| `validate` | DesignValidator | deterministic | Runs before critique. Every PRD acceptance criterion has a check; every story has files; every path is inside the template layout; existing mode: every "modify" target exists in code-state, no "create" collides with an existing file, and a baseline acceptance check that disappears without a `retired` entry fails; packages are only from the template allowlist; stack is .NET 10, Angular, Table Storage only; resource names follow the convention. Violations while the revision is 0, 1 or 2 go back to `plan` and do not call critique. The next failure is `HumanActionRequired` `LoopLimit` |
-| `critique` | DesignCritic | LLM | Gaps against the PRD and the standards pack; issues go back to `plan` or `write` |
+| `write` | SectionWriter | LLM, one call per section | Nine sections for `fe-be-llm` and eight for `fe-be` (LLM integration is skipped and keeps its number): architecture, data, API, LLM integration, TDD plan, acceptance checks, ADO backlog, deployment plan. Commands are copied from the manifest in C#, not written by the model |
+| `validate` | DesignValidator | deterministic | Runs before critique. The revision counter `r` starts at 0. At most 3 attempts (`r` = 0, 1, 2), plus one extra revision when a question is answered. Every active PRD criterion has a check with method, path, body, expected status, expected shape, and expected body for deterministic endpoints. Every story whose status is `added` or `changed` has a file-plan entry; carried-forward stories need none. Every path stays inside a template root, with no `..` segment and no pipeline or package-manifest path. Existing mode: every `modify` target exists, no `create` collides, and a baseline check may be `retired` only when the PRD retires it. Packages come only from the template allowlist. Commands equal the manifest. Stack is .NET 10, Angular and Table Storage only. Resource names follow the convention, and a `fe-be-llm` endpoint must equal the configured AI Gateway route. Violations at `r` = 0 or 1 go back to `plan` and do not call critique. A violation at `r` = 2 is `HumanActionRequired` `LoopLimit` |
+| `critique` | DesignCritic | LLM | Gaps against the PRD and the standards pack. Issues go back to `write` for the named sections. An issue prefixed `plan:` goes back to `plan`. `plan` and `critique` may both ask a Question |
 | `render` | DesignRenderer | deterministic | `techspec.json` to `system-design.md` |
 | `publish` | artifact writer | deterministic | Writes both files |
 
@@ -709,11 +712,12 @@ flowchart TD
     RC --> PL[plan: DesignPlanner<br/>ledger LLM 110 + rev]
     PL --> WR[write: SectionWriter x sections<br/>ledger LLM 130 + rev*10 + section]
     WR --> V[validate: DesignValidator]
-    V -->|violations, attempts left| PL
-    V -->|violations, no attempts left| LL([HumanActionRequired LoopLimit])
+    V -->|violations, r is 0 or 1| PL
+    V -->|violations, r is 2| LL([HumanActionRequired LoopLimit])
     V -->|clean| CR[critique: DesignCritic<br/>ledger LLM 120 + rev]
-    CR -->|issues, attempts left| WR
-    CR -->|issues, no attempts left| LL
+    CR -->|issues, r is 0 or 1| WR
+    CR -->|plan prefix, r is 0 or 1| PL
+    CR -->|issues, r is 2| LL
     PL -->|needs a product answer| Q([HumanActionRequired Question])
     CR -->|needs a product answer| Q
     CR -->|clean| RN[render: system-design.md]
@@ -727,8 +731,8 @@ flowchart TD
 
 | Sub-step | Subagent | Kind | Does |
 |---|---|---|---|
-| `workspace` | WorkspaceManager | deterministic | New project: looks up ADO repo `bgx-{slug}` by name first and reuses it if an earlier, failed first work item already created it (its `main` can only hold the template, because merges happen only after acceptance); otherwise creates it, unpacks the template, commits and pushes `main`, then sets branch security on `main` so only `id-bgx-builder` may push or complete pull requests into it (people can read and open PRs, but not push). Existing: clones `main` and checks that its head is the baseline's `MergeCommit`; if `main` moved outside BuildGenix, the agent asks a Question instead of building on code the baseline does not describe. Creates or reuses the work branch. After a crash: re-clones at the last pushed commit recorded in the ledger |
-| `backlog` | BacklogSync | deterministic, ADO REST | Creates the project's epic if `context.ado.epicId` is null, otherwise adds stories under that epic. Each item is tagged `bgx-wi:{workItemId}` and `bgx-key:{storyKey}`; it queries by tag before creating, so a retry never duplicates |
+| `workspace` | WorkspaceManager | deterministic | New project: looks up ADO repo `bgx-{slug}` by name first and reuses it if an earlier, failed first work item already created it (its `main` can only hold the template, because merges happen only after acceptance); otherwise creates it, unpacks the template, commits and pushes `main`, then pushes `main`. The agent sets no permissions. In the dedicated ADO project people are Readers with Contribute to pull requests, and only the `BGX Agents` group (which holds `id-bgx-builder` and is not in Contributors) holds Contribute, so people can read and comment but not push. The builder holds no Manage permissions, Edit policies or Bypass policies right. Existing: clones `main` and checks that its head is the baseline's `MergeCommit`; if `main` moved outside BuildGenix, the agent asks a Question instead of building on code the baseline does not describe. Creates or reuses the work branch. After a crash: re-clones at the last pushed commit recorded in the ledger |
+| `backlog` | BacklogSync | deterministic, ADO REST | Creates the project's epic if `context.ado.epicId` is null, otherwise adds stories under that epic. Each story has a status `added`, `changed`, `unchanged` or `retired`. BacklogSync looks the story up by `bgx-key:{storyKey}` under the epic before creating, creates `added`, updates `changed`, leaves `unchanged`, closes `retired`, and tags created or changed items `bgx-wi:{workItemId}`, so a retry or a later work item never duplicates |
 | `dependencies` | DependencyManager | deterministic | Adds the packages the techspec lists, only from the template's allowlist, at pinned versions, with `npm install --save-exact --ignore-scripts` and `dotnet add package`, then commits the lock files. CodeWriter may not edit `package.json`, `package-lock.json` or package references; CodeReviewer rejects it if it does |
 | `phase-{k}` | PhaseRunner | mixed | For each techspec phase: TestWriter (LLM) writes the tests first; CodeWriter (LLM) writes one file at a time from the file plan, the code-state references and the file's current content; BuildVerifier runs `dotnet build`, `dotnet test`, `npm ci --ignore-scripts`, `ng build`, `ng test --watch=false`; FixLoop (LLM) repairs from compiler and test output, at most 3 times per phase; PhaseCommitter commits "phase k: {title}" with the `Bgx-Task` and `Bgx-Phase` trailers, pushes, and records the commit in the ledger |
 | `review` | CodeReviewer | deterministic + LLM | Deterministic checks first and they cannot be overridden by the LLM: secret scan, banned APIs, dependency allowlist, no edits to package manifests, file-plan conformance, acceptance coverage. Then an LLM review against the techspec. Blockers go back through FixLoop, BuildVerifier re-runs, and a "review fixes" commit is pushed (2 rounds); still blocked means LoopLimit. Writes `review.json` |
@@ -773,13 +777,13 @@ Context management: CodeWriter never receives the whole repository. It receives 
 
 ### 8.4 Testing agent
 
-**Topic** `agenthub.testing.agent` · **Host** builder · **Inputs** `techSpec`, `review`; `context.repo` with `headCommit` and `pullRequestId` · **Outputs** `test-results.json` · **Side effects** none outside the builder workspace · **Auto-advance** · **Token cap** 200k.
+**Topic** `agenthub.testing.agent` · **Host** builder · **Inputs** `techSpec`, `review`; `context.repo` with `headCommit` and `pullRequestId` · **Outputs** `test-results.json`; `outputs.headCommit` is the commit that was cloned and tested · **Side effects** none outside the builder workspace · **Auto-advance** · **Token cap** 200k.
 
 | Sub-step | Subagent | Kind | Does |
 |---|---|---|---|
 | `workspace` | WorkspaceManager | deterministic | Clones the work branch at `headCommit` |
 | `suites` | SuiteRunner | deterministic | `dotnet test` (TRX) and `ng test --watch=false` (Vitest, JUnit reporter) |
-| `acceptance` | AcceptanceRunner | deterministic | Starts the BE on localhost with `Llm:Provider=Fixture`, runs every acceptance check from the techspec, checks status codes and response shapes (for LLM endpoints the shape, not the text) |
+| `acceptance` | AcceptanceRunner | deterministic | Starts the BE on localhost with `Llm:Provider=Fixture`, runs every acceptance check from the techspec, checks status codes, response shapes, and expected body values where the check has them (for LLM endpoints the shape only) |
 | `analyse` | FailureAnalyst | LLM, only on failure | Summarises each failure and proposes whether the code or the spec is wrong. Phase 0 always routes to Implementation; the proposal is kept for the North Star verification step |
 | `publish` | artifact writer | deterministic | `test-results.json` |
 
@@ -815,7 +819,7 @@ The agent runs twice per work item. The **Deploy** action deploys the tested hea
 | `deploy` | Deployer | deterministic | Kudu OneDeploy (`/api/publish?type=zip`) with an Entra bearer token from the builder identity; waits for the deployment to report success |
 | `smoke` | SmokeValidator | deterministic | BE `/health` and one smoke request from the techspec; FE index returns 200; retries with back-off for up to 5 minutes |
 | `summary` | SummaryWriter | deterministic + one short LLM call | `completion-summary.json`: FE and BE URLs, resources, deployed commit, how to run locally, what changed |
-| `finalize` | Finalizer (Finalize action only) | deterministic, ADO REST | Completes the PR with `PATCH status=completed`, `lastMergeSourceCommit` = the deployed commit (ADO itself refuses if the head moved), `completionOptions.mergeStrategy = noFastForward` (the tested commit becomes an ancestor of `main`), `transitionWorkItems = true`, `deleteSourceBranch = false`. Polls until `status = completed` and records `lastMergeCommit`. A moved head, `mergeStatus = conflicts` or `failure` returns HumanActionRequired instead of merging untested code. Phase 0 repos have no branch policy on `main`, so no bypass permission is needed |
+| `finalize` | Finalizer (Finalize action only) | deterministic, ADO REST | Completes the PR with `PATCH status=completed`, `lastMergeSourceCommit` = `context.repo.headCommit`, which buildgenix-api set from the Deploy result's `outputs.headCommit` (`deployedCommit`) (ADO itself refuses if the head moved), `completionOptions.mergeStrategy = noFastForward` (the tested commit becomes an ancestor of `main`), `transitionWorkItems = true`, `deleteSourceBranch = false`. Polls until `status = completed` and records `lastMergeCommit`. A moved head, `mergeStatus = conflicts` or `failure` returns HumanActionRequired instead of merging untested code. Phase 0 repos have no branch policy on `main`, so no bypass permission is needed |
 
 ```mermaid
 flowchart TD
@@ -846,7 +850,7 @@ The DesignValidator rejects any deployment plan that does not follow: app names 
 | Service Bus deliveries | 5 | Last delivery publishes one Failed result, then dead-letters |
 | LLM repair attempts per step | 2 | Step fails, which the handler maps to a fix loop or LoopLimit |
 | PRD drafts per run | 3 | LoopLimit |
-| Design revisions per run | 3 | LoopLimit |
+| Design attempts per run (first pass included, r = 0 to 2) | 3 | LoopLimit |
 | Fix attempts per implementation phase | 3 | LoopLimit |
 | Code review fix rounds | 2 | LoopLimit |
 | Test route-back loops per work item | 3 | buildgenix-api raises LoopLimit |
@@ -902,7 +906,7 @@ The exact Dockerfile is part of build slice 1. The image is pulled from `bgxdeva
 
 ### 9.2 How shell work runs
 
-Workers call `git`, `dotnet`, `npm`, `ng` and `graphify` through `System.Diagnostics.Process` inside `/tmp/bgx/{workItemId}/{taskId}/`. Every command has a timeout, captured stdout and stderr (summarised into ActivityLog and the verbose channel), and an exit-code check. Workspaces are deleted at the end of a run. NuGet, npm and dotnet caches are per run, inside the run's workspace (`NUGET_PACKAGES=/tmp/bgx/{workItemId}/{taskId}/cache/nuget`, `npm_config_cache=.../cache/npm`), deleted with it, and on local container disk (`WEBSITES_ENABLE_APP_SERVICE_STORAGE=false`), not the network-backed `/home`. A shared cache would let one project's code plant a package that another project's build then trusts; the speed cost is recovered by the Azure Artifacts feed if open item 5 chooses it. Timeouts: git 5 min, restore 10 min, build 10 min, unit tests 15 min, acceptance 10 min, Graphify 10 min, OneDeploy 15 min. Every command runs in its own process group so a timeout kills its children too, and the acceptance run binds the BE to a free port chosen at run time. At the end of every run, success or not, the worker kills every process owned by the run's sandbox user (`pkill -KILL -u sbx-impl`) and checks none remain before that worker takes its next message, so nothing started by generated code survives into another run.
+Workers call `git`, `dotnet`, `npm`, `ng` and `graphify` through `System.Diagnostics.Process` inside `/tmp/bgx/{workItemId}/{taskId}/`. Every command has a timeout, captured stdout and stderr (summarised into ActivityLog and the verbose channel), and an exit-code check. Workspaces are deleted at the end of a run. NuGet, npm and dotnet caches are per run, inside the run's workspace (`NUGET_PACKAGES=/tmp/bgx/{workItemId}/{taskId}/cache/nuget`, `npm_config_cache=.../cache/npm`), deleted with it, and on local container disk (`WEBSITES_ENABLE_APP_SERVICE_STORAGE=false`), not the network-backed `/home`. A shared cache would let one project's code plant a package that another project's build then trusts; the speed cost is recovered by the Azure Artifacts feed if open item 5 chooses it. Timeouts: git 5 min, restore 10 min, build 10 min, unit tests 15 min, acceptance 10 min, Graphify 10 min, OneDeploy 15 min. Every command runs in its own process group so a timeout kills its children too, and the acceptance run binds the BE to a free port chosen at run time. At the end of every run, success or not, the worker kills every process owned by the run's sandbox user (`pkill -KILL -u` the run's sandbox user (`sbx-impl`, `sbx-test` or `sbx-deploy`)) and checks none remain before that worker takes its next message, so nothing started by generated code survives into another run.
 
 ### 9.3 Why generated code cannot use the platform's identity
 
@@ -910,9 +914,9 @@ Generated code and its tests run inside the builder, which has an identity with 
 
 1. **Environment allowlist, not a denylist.** Every child process starts from an empty environment and receives only `PATH`, `HOME=/tmp/bgx/{run}/home`, `DOTNET_CLI_TELEMETRY_OPTOUT=1`, `NUGET_PACKAGES`, `npm_config_cache` and named tool variables. No identity variable, connection string or key can leak because nothing is inherited.
 2. **Different users.** The host process runs as root inside the container. Build and test processes run as a per-agent sandbox user (`sbx-impl`, `sbx-test`, `sbx-deploy`), started through `setpriv --reuid=<user> --regid=<user> --clear-groups --no-new-privs`; git runs as its own user `bgx-git`. Linux only lets the same user (or root) read `/proc/{pid}/environ`, so generated code cannot read the host's or git's variables, and because the builder runs at most one task per agent type, two concurrent runs never share a sandbox user. Each run's workspace `/tmp/bgx/{workItemId}/{taskId}/` is mode 0770, owned by `bgx-git` with the run's sandbox user as group, so another run's code cannot read or alter it; the deploy package is built inside the deploy run's own workspace. (`ProcessStartInfo.UserName` does not work on Linux, which is why `setpriv` is used.)
-3. **Git credentials only to git, and git ignores the repository's own hooks and config.** git runs as `bgx-git` and receives its ADO token through `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_0=http.extraHeader` and `GIT_CONFIG_VALUE_0=Authorization: Bearer ...`, never on build or test processes, refreshed before every push because an Entra token lives about an hour. Every git call also sets `GIT_CONFIG_NOSYSTEM=1` and `-c core.hooksPath=/dev/null -c core.fsmonitor=false -c credential.helper= -c protocol.file.allow=never`. The git directory lives outside the working tree, at `/tmp/bgx/{workItemId}/{taskId}/gitdir`, owned by `bgx-git` with mode 0700, and every call uses `--git-dir` and `--work-tree`, so generated code cannot read or rewrite `.git/config`, remotes or hooks. The token header is scoped to the ADO host only (`http.https://dev.azure.com/.extraHeader`), so even a remote URL planted elsewhere would never receive it. Each control is a slice 1 isolation test case: rewrite a remote, plant a hook, start a background process, poison a cache entry, then show none of them reaches the next git call or the next run.
+3. **Git credentials only to git, and git ignores the repository's own hooks and config.** git runs as `bgx-git` and receives its ADO token through `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_0=http.https://dev.azure.com/.extraHeader` and `GIT_CONFIG_VALUE_0=Authorization: Bearer ...`, never on build or test processes, refreshed before every push because an Entra token lives about an hour. Every git call also sets `GIT_CONFIG_NOSYSTEM=1` and `-c core.hooksPath=/dev/null -c core.fsmonitor=false -c credential.helper= -c protocol.file.allow=never`. The git directory lives outside the working tree, at `/tmp/bgx/{workItemId}/{taskId}/gitdir`, owned by `bgx-git` with mode 0700, and every call uses `--git-dir` and `--work-tree`, so generated code cannot read or rewrite `.git/config`, remotes or hooks. The token header is scoped to the ADO host only (`http.https://dev.azure.com/.extraHeader`), so even a remote URL planted elsewhere would never receive it. Each control is a slice 1 isolation test case: rewrite a remote, plant a hook, start a background process, poison a cache entry, then show none of them reaches the next git call or the next run.
 
-Supply-chain controls sit next to these: `npm ci --ignore-scripts`, packages only from the template allowlist (DependencyManager), and stdout and stderr passed through the secret redactor before they reach ActivityLog, RunLog or the browser. Slice 1 ends with an isolation test: a child process runs `env`, `cat /proc/1/environ`, `cat /proc/{hostPid}/environ` and a request to the identity endpoint, and every one must fail or show no identity data. In the North Star each run gets its own Container Apps Job with no platform identity at all.
+Supply-chain controls sit next to these: `npm ci --ignore-scripts`, packages only from the template allowlist (DependencyManager), and stdout and stderr passed through the secret redactor before they reach ActivityLog, RunLog or the browser. Slice 1 ends with an isolation test: a child process runs `env`, `cat /proc/1/environ`, `cat /proc/{hostPid}/environ` and a request to the identity endpoint, and every one must fail or show no identity data. The same test, as `sbx-impl`, calls the host's own port `http://127.0.0.1:8080/api/connectivity/healthy` and must get 404, because the builder deployment maps no harness route. In the North Star each run gets its own Container Apps Job with no platform identity at all.
 
 ### 9.4 Long runs and restarts
 
@@ -920,7 +924,7 @@ Implementation is the long one: tens of minutes for the Phase 0 apps, with a har
 
 Before deploying a new builder image, operators check the builder has no run in flight (the Activity view lists active runs); otherwise the run costs a redelivery and a rebuild.
 
-Container settings: `WEBSITES_PORT=8080`, `WEBSITES_CONTAINER_START_TIME_LIMIT=600` (the image is several GB), `WEBSITES_CONTAINER_STOP_TIME_LIMIT=60`, health check path `/health/live` (process up only; `/health/ready` with dependencies stays for diagnostics, so a storage blip never restarts a run). On `ApplicationStopping` the workers stop receiving and abandon in-flight messages, so redelivery is immediate instead of waiting for the lock to expire. The same `/health/live` path is used on the core deployment.
+Container settings: `WEBSITES_PORT=8080`, `WEBSITES_CONTAINER_START_TIME_LIMIT=600` (the image is several GB), `WEBSITES_CONTAINER_STOP_TIME_LIMIT=60`, health check path `/health/live` (process up only; `/health` (dependencies; renamed `/health/ready` in slice 2) stays for diagnostics, so a storage blip never restarts a run). On `ApplicationStopping` the workers stop receiving and abandon in-flight messages, so redelivery is immediate instead of waiting for the lock to expire. The same `/health/live` path is used on the core deployment.
 
 ### 9.5 What must be proven before agents depend on it
 
@@ -946,7 +950,7 @@ The builder image runs under Docker Compose with Azurite and the Service Bus emu
 
 ### 9.7 Test seams
 
-Every deployment sets `ASPNETCORE_ENVIRONMENT` explicitly: `Local` on a laptop, `AzureDev` for the Phase 0 platform in Azure, `Production` reserved for the future production platform (ASP.NET Core falls back to `Production` when the variable is unset, which would silently disable the seams). Two configuration switches exist only for tests. They load only when `BuildGenix:AllowTestSeams=true` and the environment is not `Production`, so the Azure evidence of slice 11 can use them on `AzureDev`:
+Every deployment sets `ASPNETCORE_ENVIRONMENT` explicitly: `Development` on a laptop (what `launchSettings.json` sets, so user secrets load), `AzureDev` for the Phase 0 platform in Azure, `Production` reserved for the future production platform (ASP.NET Core falls back to `Production` when the variable is unset, which would silently disable the seams). Two configuration switches exist only for tests. They load only when `BuildGenix:AllowTestSeams=true` and the environment is not `Production`, so the Azure evidence of slice 11 can use them on `AzureDev`:
 
 - `Agents:Fixture:Scenario` makes the Fixture LLM return scripted replies per step. Example 2's float bug in Implementation revision 1 is a script, so the route-back loop is reproducible on every run. Real-model runs (Ollama, Gateway) prove the happy path; they are not relied on to make a specific mistake.
 - `Agents:Fixture:Signal` makes a named step return `Question`, `LoopLimit` or `BudgetExceeded` on demand, so every row of section 6.3 has a deterministic test.
@@ -1097,10 +1101,10 @@ sequenceDiagram
     CORE->>LLM: DesignPlanner
     LLM-->>CORE: 3 phases, file plan (14 files), API GET /api/thought
     CORE->>AHT: EffectLedger LLM 110
-    loop 8 sections
+    loop 9 sections for fe-be-llm, 8 for fe-be
         CORE->>LLM: SectionWriter section s
         CORE->>AHT: EffectLedger LLM 130 + s (revision 0)
-        CORE->>EVT: SubStepCompleted write (section s of 8)
+        CORE->>EVT: SubStepCompleted write (section s of 9)
     end
     CORE->>CORE: DesignValidator: every AC has a check,<br/>paths in template, names valid
     CORE->>LLM: DesignCritic
@@ -1269,7 +1273,7 @@ sequenceDiagram
 1. Intake classifies `fe-be` and writes intake v1.0. Implement now.
 2. The PRD agent writes PRD v1.0. The user rejects it: "inputs can be decimals; show an error for non-numeric input".
 3. buildgenix-api writes `feedback-prd.json`, creates a redraft task (new `taskId`, output revision 2), and the PRD agent writes PRD v1.1 addressing both points. The user approves.
-4. The Design agent writes design v1.0: `POST /api/calculator/add` with `{a, b}` as decimals, validation returning 400 with a message, an Angular form with two inputs and a result.
+4. The Design agent writes design v1.0. Its acceptance checks are records: `ac-add-decimals` POST `/api/calculator/add` body `{a:0.1,b:0.2}` status 200 shape `{result:number}` expected body `{result:0.3}`; `ac-add-integers` body `{a:2,b:3}` status 200 expected body `{result:5}`; `ac-add-non-numeric` body `{a:"x",b:2}` status 400 shape `{error:string}`.
 5. Implementation creates repo `bgx-calculator`, implements two phases, opens the PR.
 6. Testing finds one acceptance check failing: `0.1 + 0.2` returns `0.30000000000000004`, the techspec expects `0.3`. It reports Completed with RouteBack.
 7. buildgenix-api writes `feedback-implementation.json` with the failing check and publishes Implementation revision 2 with `loopIndex 1`. Implementation fixes the BE to use `decimal`, pushes, updates the PR.
@@ -1305,7 +1309,7 @@ sequenceDiagram
     PRD->>BLOB: cal/wi1/v2/prd.json, prd.md (label v1.1)
     PRD-->>API: Completed
     U->>WEB: Approve PRD v1.1
-    API->>SD: agenthub.system-design.agent T-SD-1:3 {prd v2}
+    API->>SD: agenthub.system-design.agent T-SD-1:3<br/>artifacts intakeSummary and prd v2, blobPrefix cal/wi1/v1/
     SD->>BLOB: cal/wi1/v1/techspec.json, system-design.md
     SD-->>API: Completed
     U->>WEB: Approve design v1.0
@@ -1314,7 +1318,7 @@ sequenceDiagram
     IM->>BLOB: cal/wi1/v1/review.json, code-state.json, code-graph.json
     IM-->>API: Completed {repoUrl, headCommit, pullRequestId}
     API->>TE: agenthub.testing.agent T-TE-1:4
-    TE->>TE: suites green, acceptance: add(0.1, 0.2) = 0.30000000000000004, expected 0.3
+    TE->>TE: suites green. ac-add-decimals returns the long float and expected 0.3 so FAILED
     TE->>BLOB: cal/wi1/v1/test-results.json (1 failed)
     TE-->>API: Completed + signal RouteBack IMPLEMENTATION
     API->>BLOB: cal/wi1/v2/feedback-implementation.json (failing check, output)
@@ -1382,8 +1386,8 @@ sequenceDiagram
     API->>BGT: Artifacts prd rev 1, ApprovalGates GATE_v0001_PRD Pending, AwaitingApproval
     U->>WEB: Approve PRD v2.0
     API->>BGT: gate Approved, Approvals row, inputVersion 2
-    API->>SD: T-SD-1:2 {prd wi2 v1, baselineTechSpec cal/wi1/v1,<br/>baselineCodeState cal/wi1/v2/code-state.json}
-    SD->>BLOB: read code-state.json
+    API->>SD: T-SD-1:2 artifacts intakeSummary, prd wi2 v1,<br/>baselineTechSpec cal/wi1/v1/techspec.json, baselineCodeState cal/wi1/v2/code-state.json
+    SD->>BLOB: read prd, intake summary, baseline techspec, code-state.json
     SD->>SD: RepoContextBuilder: CalculatorController.Add,<br/>CalculatorService.Add, CalculatorComponent, tests
     SD->>SD: DesignPlanner: modify 4 source + 2 test files, create 0
     SD->>SD: DesignValidator: modify targets exist, add checks carried forward
@@ -1534,7 +1538,7 @@ sequenceDiagram
 |---|---|
 | buildgenix-api (system-assigned) | Storage Table Data Contributor scoped to each buildgenix table; Storage Blob Data Contributor on `artifacts`; Service Bus Data Sender on the `agenthub.*` topics, Data Receiver on `buildgenix.*` and, scoped per subscription, on the dead-letter sub-queue of each task subscription; Key Vault Secrets User on the gateway secret it needs for Intake |
 | agenthub-api core (system-assigned) | Table Data Contributor scoped to EffectLedger, ActivityLog, AgProcessedEvents only; Blob Data Contributor on `artifacts` and `agenthub-ledger`; Blob Data Reader on `templates`; Service Bus Data Receiver on its own topics, Data Sender on `buildgenix.*` and on `agenthub.healthy.agent` (the HEALTHY REST endpoint publishes its task); Key Vault Secrets User on the gateway secrets it uses (secret-scoped role assignments, not the whole vault) |
-| agenthub-api builder (user-assigned `id-bgx-builder`) | Everything the core identity has; AcrPull on `bgxdevacr`; an Azure DevOps user with Contributor rights in a dedicated ADO project for generated repos (open item 6), not in the whole organisation; Contributor on `rg-bgx-sandbox-dev` only; Managed Identity Operator on `id-bgx-sandbox-apps` (it can attach that identity but cannot grant roles) |
+| agenthub-api builder (user-assigned `id-bgx-builder`) | Everything the core identity has; AcrPull on `bgxdevacr`; an Azure DevOps user in the custom `BGX Agents` group (not Contributors) in a dedicated project (open item 6): Contribute, Create branch, Contribute to pull requests, and work item edit only. No Creator role on environments or service connections, no service hook rights, no Manage permissions, Edit policies or Bypass policies. Contributor on `rg-bgx-sandbox-dev` only; Managed Identity Operator on `id-bgx-sandbox-apps` (it can attach that identity but cannot grant roles) |
 | `id-bgx-sandbox-apps` | Key Vault Secrets User on `kv-bgx-sandbox-dev` |
 
 Table-scoped role assignments turn the ownership rule (D-CL-7) into an Azure guarantee: if agenthub code ever tried to write `WorkItems`, Azure returns 403. Because a table-scoped identity cannot create tables, every table, container, topic and subscription is created by the infrastructure script in slice 1, not at host start; hosts only check their tables with a point read of a known `_meta` row (listing tables needs account-level rights a table-scoped identity does not have). Slice 1 verifies this works with the scoped roles.
@@ -1544,13 +1548,15 @@ What goes to which model, all through the AI Gateway (APIM), which meters and lo
 | Step | Data sent | Endpoint |
 |---|---|---|
 | Intake | The user's chat and attachments text | APIM chat |
-| PRD, System Design | Intake summary, PRD, baseline documents, code-state symbol names and signatures, template manifest, standards pack | APIM chat |
-| Implementation, Testing | Techspec, one file plan entry, signatures, the current content of the one file being written, compiler and test output after redaction | APIM chat |
+| PRD, System Design | Intake summary, PRD, baseline documents, code-state symbol names and signatures, template manifest, standards pack, reviewer feedback and answers to questions | APIM chat |
+| Implementation | Techspec, one file plan entry, signatures, the current content of the one file being written, compiler and test output after redaction | APIM chat |
+| Implementation (CodeReviewer) | Techspec, PRD acceptance criteria, standards pack, the diff of each changed symbol, deterministic findings | APIM chat |
+| Testing | Failing test names and output after redaction, the acceptance criteria they trace to | APIM chat |
 | Deployment | The completion facts for the summary blurb | APIM chat |
 
 The Responses API path for codex models (`ai-gateway.md` §4) goes straight to Azure OpenAI and bypasses APIM, so Phase 0 does not use it (open item 7).
 
-Audit trail, kept for the life of the project: Blob artifacts (every document version, never overwritten), the Artifacts registry, WorkItemEvents and Approvals (every human decision with the revision shown), and ADO history (every commit, PR and work item). Diagnostic records with shorter retention (section 5.1): ActivityLog (every agent step, 90 days) and EffectLedger (every side effect with inputs and outputs, 30 days after the work item ends). Storage Blob Data Contributor includes delete; in Phase 0 that is accepted because no code path deletes blobs, and versioning plus 14-day soft delete recover any mistake. North Star replaces it with a custom role without delete and an ABAC condition limiting writes to the task's `blobPrefix`.
+Audit trail, kept for the life of the project: Blob artifacts (every document version, never overwritten), the Artifacts registry, WorkItemEvents and Approvals (every human decision with the revision shown), and ADO history (every commit, PR and work item). Diagnostic records with shorter retention (section 5.1): ActivityLog (every agent step, 90 days) and EffectLedger rows and `agenthub-ledger` blobs, deleted by agenthub 30 days after the newest ledger row of that work item (agenthub never reads buildgenix state). Storage Blob Data Contributor includes delete; in Phase 0 that is accepted because no code path deletes blobs, and versioning plus 14-day soft delete recover any mistake. North Star replaces it with a custom role without delete and an ABAC condition limiting writes to the task's `blobPrefix`.
 
 ## 14. Phase 0 build order
 
@@ -1560,14 +1566,14 @@ Unless a row says otherwise, exits for slices 2 to 10 are measured locally (Dock
 
 | Slice | What | Done when (measured) |
 |---|---|---|
-| 1 | Infrastructure script (tables, containers, topics, subscriptions, identities, role assignments), builder image, ACR, builder App Service, egress and isolation proof | Every endpoint in 9.5 answers from inside the container; `npm ci --ignore-scripts`, `ng build`, `ng test`, `dotnet test` and `graphify extract . --code-only` on the `fe-be` template exit 0, with times recorded; the 9.3 isolation test shows no identity data; a scoped identity reads and writes its tables and gets 403 on a foreign one |
+| 1 | Infrastructure script (tables, containers, topics, subscriptions, identities, role assignments), builder image, ACR, builder App Service, egress and isolation proof | Every endpoint in 9.5 answers from inside the container; `npm ci --ignore-scripts`, `ng build`, `ng test`, `dotnet test` and `graphify extract . --code-only` on the `fe-be` template exit 0, with times recorded; the 9.3 isolation test shows no identity data; a scoped identity reads and writes its tables and gets 403 on a foreign one; `docs/ops/phase-0-runbook.md` exists and was walked once; the dead-letter, builder-restart and gateway-429 alerts exist with a named action group; the builder image is built with pinned tools and referenced by digest; no deployment slots exist on the Phase 0 hosts |
 | 2 | Contract v2 with golden JSON tests; topic rename by configuration; shared `AgentDispatcher` extracted from HEALTHY (MIG-7); Service Bus on managed identity; per-worker concurrency; deadline; resilience | HEALTHY passes end to end on `agenthub.healthy.agent` and `buildgenix.agent-results`; each `CrashAt` point recovers with exactly one result |
 | 3 | buildgenix orchestration: task publisher with PendingMessage and resender, results consumer, events consumer with the guards of 3.9, dead-letter watcher, watchdog, the new columns and `~BASELINE` row, StageStatuses, ClientEvents, RunLog, WorkItemTelemetry, PendingApprovals, SignalR (`StageProgress`, `HighLevelSummary`, `VerboseLog`, `WorkItemStateChanged`), terminal `~ACTIVE` release (MIG-6) | A HEALTHY run published from buildgenix-api changes the browser within 2 seconds of each event; a forced dead-letter shows `Stuck`; a silent run with `RunningSilenceMinutes` set to 1 shows `Stuck` within 2 minutes; an out-of-order event does not change status |
 | 4 | Intake and human decisions: Conversations table and routes, the four Intake steps, summary revisions, Implement now binding, gate decisions (ETag, Approvals, PipelineVersion, feedback files), Request changes, `/answer`, retry and Stop (section 6.3) | A chat produces `intake-summary.json` revision 1; Implement now publishes `T-PRD-1:1`; Reject writes `feedback-prd.json` and publishes a redraft; an answer republishes the same `taskId` with `inputVersion + 1`; Stop writes `control/cancelled.json` and releases `~ACTIVE`, and a task republished afterwards ends `Failed` with `errorCode` `Cancelled` and performs no external effect (HEALTHY stands in for the agents) |
 | 5 | Templates `fe-be` and `fe-be-llm` with manifests and dependency allowlists; standards pack v1 | Both templates build and test in the builder in slice 1's measured time or less |
 | 6 | PRD agent | The three example prompts produce PRDs that pass PrdCritic on Fixture (20 of 20) and on Ollama; a scripted reject produces v1.1 that addresses every feedback point |
 | 7 | System Design agent | Examples 1 to 3 write `techspec.json` and `system-design.md` that pass the DesignValidator row in section 8.2; example 3 is modify-only and the add checks are still present |
-| 8 | Implementation agent | Example 2 on Fixture produces a green branch and a PR; `CrashAt mid-phase:2` resumes without a second repo, epic, story or PR; a `Fixture:Signal LoopLimit` in phase 2 followed by a retry runs in `Continue` mode, keeps the phase 1 commit and builds phases 2 and 3 |
+| 8 | Implementation agent | Example 2 on Fixture (automated) and on Ollama (Manual QA) produces a green branch and a PR; `CrashAt mid-phase:2` resumes without a second repo, epic, story or PR; a `Fixture:Signal LoopLimit` in phase 2 followed by a retry runs in `Continue` mode, keeps the phase 1 commit and builds phases 2 and 3 |
 | 9 | Testing agent | Example 2's scripted float bug routes back once and passes on revision 2 |
 | 10 | Deployment agent with Finalize | Example 2 live in DEV; smoke passes; Accept merges with `noFastForward`; `~BASELINE` moves in one transaction |
 | 11 | Full runs | Examples 1, 2 and 3 end to end in Azure on the Gateway, with Manual QA evidence for every row of sections 6.3 and 11.3 |
@@ -1578,6 +1584,7 @@ Unless a row says otherwise, exits for slices 2 to 10 are measured locally (Dock
 |---|---|
 | Builder cannot reach package feeds from Azure | Slice 1 proves egress first; fallback is an Azure Artifacts feed with upstream sources |
 | Generated code reaches platform resources | Environment allowlist, one sandbox user per builder agent, git as its own user, least-privilege builder identity, isolation test in slice 1 (section 9.3); North Star per-run job without platform identity |
+| Builder image goes stale or carries CVEs | Monthly and on-CVE rebuild by the owner named in open item 17; deploy only when no run is in flight (section 9.4) |
 | Implementation run exceeds its lock | Handler deadline below the 4-hour cap; phases are small for Phase 0 apps; North Star splits phases into separate jobs |
 | Ledger row too large for Table Storage | Spill above 30,000 characters to `agenthub-ledger` blob with hash |
 | Graphify output format changes | Version pinned in the image; CodeStateBuilder normalises into our schema, so a change touches one class |
@@ -1597,7 +1604,7 @@ Unless a row says otherwise, exits for slices 2 to 10 are measured locally (Dock
 3. Confirm "DEV" and the prompt's "Sandbox" are the same pre-created resource group, and its name.
 4. Which key the generated "thought of the day" app uses for LLM calls in DEV, and who approves it.
 5. Package egress from the builder (public feeds or an Azure Artifacts upstream feed).
-6. An ADO organisation admin adds `id-bgx-builder` as a user, with Contributor rights only in a dedicated ADO project for generated repos (name to confirm). Fallback: a PAT in Key Vault scoped to Code and Work Items read and write, 90-day expiry, a named owner and a rotation reminder.
+6. An ADO organisation admin adds `id-bgx-builder` as a user in the custom `BGX Agents` group (not Contributors) in a dedicated project (name to confirm), with Contribute, Create branch, Contribute to pull requests and work item edit only. Fallback: a token for a dedicated non-personal service account whose only rights are in that project (a token cannot itself be limited to one project), scoped to Code and Work Items, kept in Key Vault, 90-day expiry, a named owner and a rotation reminder.
 7. Model per agent. Recommendation: `opus` for PRD and System Design, `5.4` for code writing, review and failure analysis, all through APIM chat; Ollama locally. The codex models need the Responses API, which bypasses APIM; using them waits for a governance decision.
 8. Owner of the standards pack content.
 9. AI Gateway Consumer ID (OPEN-I2-6).
@@ -1606,6 +1613,9 @@ Unless a row says otherwise, exits for slices 2 to 10 are measured locally (Dock
 12. ACR and Key Vault names are global; `bgxdevacr` and `kv-bgx-sandbox-dev` need an availability check when slice 1 creates them. With dummy auth (D-CL-9) approvals cannot be attributed to a person; SSO is the fix and is outside Phase 0.
 13. Who may open the BuildGenix screen in Phase 0 (with dummy auth anyone who can reach it can approve). Recommendation: buildgenix-web and buildgenix-api restricted to the corporate network and a named pilot group until SSO.
 14. What users may type into Intake: the screen tells users not to paste personal data or secrets, the secret scan blocks secret shapes, but a data-classification rule for what may go to the models needs an owner (the old dump's docket item D4).
+15. Who may raise a work item's token budget, and whether a raise needs a second person.
+16. How long approvals and work item history are kept once a project is closed, and what closing a project means.
+17. Who receives the Phase 0 alerts, who removes old DEV apps and leftover backlog items, and who rebuilds the builder image monthly and on a critical base-image CVE.
 
 ### 16.2 Decision-log changes this design introduces
 
