@@ -131,14 +131,21 @@ BlobStorage__Provider=Azure \
 BlobStorage__ConnectionString="$AZURITE_CS" \
 BlobStorage__ContainerName=agenthub-artifacts \
 Llm__Provider=Ollama \
+Llm__FallbackProvider=Gateway \
 Llm__Ollama__BaseUrl=http://127.0.0.1:11434 \
 Llm__Ollama__DefaultModel=llama3.2:1b \
+Llm__Gateway__ChatEndpoint="${Llm__Gateway__ChatEndpoint:-https://cc-sb-ts-aigw-apim.azure-api.net/ai/chat/completions}" \
+Llm__Gateway__DefaultModelAlias=openai \
+Llm__Gateway__SubscriptionKey="${AIGW_SUBSCRIPTION_KEY:-}" \
 OLLAMA_BASE_URL=http://127.0.0.1:11434 \
 OLLAMA_MODEL=llama3.2:1b \
 Workers__Pipeline__Enabled=true \
 Workers__Pipeline__InProcessOnly=true \
 dotnet run --project src/AgentHub.WebApi --no-launch-profile
 ```
+
+> With `FallbackProvider=Gateway`, both clients are registered. Stage calls use Ollama unless you pass `gateway:…` ModelIds or Ollama fails. Set `AIGW_SUBSCRIPTION_KEY` for real APIM (or point `ChatEndpoint` at `poc/scripts/gateway-stub.py` for a local smoke).
+
 
 Wait until logs show table storage ready, e.g. `AgentHub table storage ready`.
 
@@ -316,8 +323,41 @@ Header: `X-User-Id: dummy-user` and `Content-Type: application/json`.
 
 ---
 
-## AI Gateway (question only — not required for this POC)
+## AI Gateway alongside Ollama
 
-AgentHub already has an `Llm:Provider=Gateway` client (`GatewayLlmClient`) that talks to the AI Gateway chat endpoint with `Ocp-Apim-Subscription-Key` / `AIGW_SUBSCRIPTION_KEY`.
+AgentHub supports **both** providers in one process via `Llm:FallbackProvider`.
 
-Today the host registers **one** LLM provider at a time (`Fixture` **or** `Ollama` **or** `Gateway`). You can point the pipeline at the Gateway by setting `Llm__Provider=Gateway` plus the subscription key; the generated Hello World app can still call Ollama independently. True dual-active routing inside one agent process (Gateway + Ollama with fallback) is **not** wired yet — that would be a small follow-up, not part of this POC runbook.
+| Setting | Meaning |
+|---|---|
+| `Llm__Provider=Ollama` | Primary (used for stage LLM calls by default) |
+| `Llm__FallbackProvider=Gateway` | Registers Gateway alongside; used on primary failure or explicit route |
+| ModelId `ollama:llama3.2:1b` | Force Ollama |
+| ModelId `gateway:openai` | Force AI Gateway (alias after the prefix) |
+
+### Enable alongside mode (with real AI Gateway)
+
+```bash
+export AIGW_SUBSCRIPTION_KEY='<from Key Vault — never commit>'
+
+# AgentHub extras on top of the Azurite env from step 3–4:
+Llm__Provider=Ollama \
+Llm__FallbackProvider=Gateway \
+Llm__Gateway__ChatEndpoint=https://cc-sb-ts-aigw-apim.azure-api.net/ai/chat/completions \
+Llm__Gateway__DefaultModelAlias=openai \
+Llm__Gateway__SubscriptionKey="$AIGW_SUBSCRIPTION_KEY" \
+# ...plus the usual Table/Blob/Ollama vars
+```
+
+### Smoke both providers
+
+```bash
+# Optional local OpenAI-shaped stub when you do not have the APIM key yet:
+python3 poc/scripts/gateway-stub.py   # listens on :43190
+# point Llm__Gateway__ChatEndpoint=http://127.0.0.1:43190/ai/chat/completions
+# and Llm__Gateway__SubscriptionKey=poc-local-stub-key
+
+./poc/scripts/smoke-llm.sh
+# POST /api/pipeline/llm-smoke  provider=primary|ollama|gateway
+```
+
+Expected: `composite` reports `ollama+gateway`, and each provider returns `ok:true`.

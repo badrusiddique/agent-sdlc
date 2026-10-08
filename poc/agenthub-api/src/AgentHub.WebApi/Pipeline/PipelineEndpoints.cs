@@ -1,6 +1,9 @@
 using AgentHub.Agents.Pipeline;
+using AgentHub.Core.Abstractions;
 using AgentHub.Core.Models;
+using AgentHub.Infrastructure.Llm;
 using AgentHub.WebApi.Infrastructure;
+using Microsoft.Extensions.Options;
 
 namespace AgentHub.WebApi.Pipeline;
 
@@ -15,6 +18,13 @@ public static class PipelineEndpoints
             .WithName("DispatchPipelineTask")
             .WithSummary("In-process dispatch of one pipeline stage task (POC / InProcessOnly).")
             .Produces<AgentResult>(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status500InternalServerError);
+
+        group.MapPost("/llm-smoke", LlmSmokeAsync)
+            .WithName("PipelineLlmSmoke")
+            .WithSummary("Smoke-test the configured LLM provider(s). Use provider=ollama|gateway|primary.")
+            .Produces(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status500InternalServerError);
 
@@ -62,4 +72,73 @@ public static class PipelineEndpoints
                 statusCode: StatusCodes.Status500InternalServerError)
         };
     }
+
+    private static async Task<IResult> LlmSmokeAsync(
+        LlmSmokeRequest? body,
+        ILlmClient llm,
+        IOptions<LlmOptions> llmOptions,
+        CancellationToken cancellationToken)
+    {
+        var provider = (body?.Provider ?? "primary").Trim().ToLowerInvariant();
+        var opts = llmOptions.Value;
+        string? modelId = body?.ModelId;
+        modelId = provider switch
+        {
+            "ollama" => string.IsNullOrWhiteSpace(modelId)
+                ? $"{CompositeLlmClient.OllamaPrefix}{opts.Ollama.DefaultModel}"
+                : modelId.StartsWith(CompositeLlmClient.OllamaPrefix, StringComparison.OrdinalIgnoreCase)
+                    ? modelId
+                    : CompositeLlmClient.OllamaPrefix + modelId,
+            "gateway" => string.IsNullOrWhiteSpace(modelId)
+                ? $"{CompositeLlmClient.GatewayPrefix}{opts.Gateway.DefaultModelAlias}"
+                : modelId.StartsWith(CompositeLlmClient.GatewayPrefix, StringComparison.OrdinalIgnoreCase)
+                    ? modelId
+                    : CompositeLlmClient.GatewayPrefix + modelId,
+            "primary" => modelId,
+            _ => null
+        };
+
+        if (modelId is null && provider is not "primary")
+        {
+            return ApiProblems.ValidationFailed("provider must be ollama, gateway, or primary.");
+        }
+
+        try
+        {
+            var result = await llm.CompleteAsync(
+                    new LlmCompletionRequest(
+                        SystemPrompt: "You are a connectivity probe. Reply with one short sentence.",
+                        UserPrompt: body?.Prompt ?? "Say hello from the LLM provider under test.",
+                        ModelId: modelId,
+                        ReasoningEffort: null),
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            return Results.Ok(new
+            {
+                ok = true,
+                composite = llm.ProviderName,
+                requestedProvider = provider,
+                modelId = result.ModelId,
+                text = result.Text
+            });
+        }
+        catch (Exception ex)
+        {
+            return Results.Problem(
+                detail: ex.Message,
+                statusCode: StatusCodes.Status500InternalServerError,
+                title: $"LLM smoke failed for provider={provider}");
+        }
+    }
+}
+
+public sealed class LlmSmokeRequest
+{
+    /// <summary>ollama | gateway | primary</summary>
+    public string? Provider { get; set; }
+
+    public string? ModelId { get; set; }
+
+    public string? Prompt { get; set; }
 }

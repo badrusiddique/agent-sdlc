@@ -4,8 +4,15 @@ public sealed class LlmOptions
 {
     public const string SectionName = "Llm";
 
-    /// <summary>Fixture | Ollama | Gateway</summary>
+    /// <summary>Primary provider: Fixture | Ollama | Gateway.</summary>
     public string Provider { get; set; } = "Fixture";
+
+    /// <summary>
+    /// Optional secondary provider used when the primary fails, or when the
+    /// request ModelId is explicitly prefixed (<c>ollama:</c> / <c>gateway:</c>).
+    /// Both Ollama and Gateway stay registered when this is set (alongside mode).
+    /// </summary>
+    public string? FallbackProvider { get; set; }
 
     public OllamaLlmOptions Ollama { get; set; } = new();
 

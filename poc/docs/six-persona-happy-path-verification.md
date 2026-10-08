@@ -35,7 +35,8 @@ Stage trail on every run:
 - `LocalComposeHost` rewrites compose host ports, waits on `/health`, uses distinct compose project names.
 - `ApplyImplementationHints` no longer dumps raw non-JSON LLM text into `ThoughtCopy.txt` (only explicit `thought` / `headline`).
 - Ollama used for pipeline stage LLM calls (`POST http://127.0.0.1:11434/api/chat` in AgentHub logs) and for the deployed Hello World thought endpoint (`source=ollama`).
-- **Condition:** Happy path only — no fault injection / CrashAt coverage in this POC.
+- AI Gateway registered alongside via `Llm:FallbackProvider=Gateway` (`CompositeLlmClient`); smoke + fallback verified; Gateway JSON body no longer empty.
+- **Condition:** Happy path only — no fault injection / CrashAt coverage in this POC. Live APIM requires `AIGW_SUBSCRIPTION_KEY` (stub used when key absent).
 
 ## 3. Senior QA — APPROVE
 

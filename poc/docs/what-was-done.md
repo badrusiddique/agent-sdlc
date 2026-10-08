@@ -28,6 +28,7 @@ All three examples reached **Completed / DONE** with live smoke checks. Hello Wo
 - CS0136 in `LocalComposeHost` (`healthy` renamed per branch).
 - `ApplyImplementationHints` no longer overwrites `ThoughtCopy.txt` with raw LLM JSON.
 - Ollama bound on all interfaces so Compose containers can call `host.docker.internal:11434`.
+- **AI Gateway alongside Ollama:** `CompositeLlmClient` + `Llm:FallbackProvider`, explicit `ollama:` / `gateway:` ModelId routing, `/api/pipeline/llm-smoke`, Gateway request body serialization fix (`StringContent` JSON). Verified Ollama e2e still green; Gateway path verified via local stub + fallback when Ollama is down. Real APIM needs `AIGW_SUBSCRIPTION_KEY`.
 
 ## Out of scope (intentional)
 

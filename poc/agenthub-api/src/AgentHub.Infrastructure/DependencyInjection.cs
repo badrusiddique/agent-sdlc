@@ -36,16 +36,35 @@ public static class DependencyInjection
         services.AddSingleton<ILlmClient>(sp =>
         {
             var opts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<LlmOptions>>().Value;
-            return opts.Provider.Trim().ToLowerInvariant() switch
+            var http = sp.GetRequiredService<IHttpClientFactory>();
+            var llmOpts = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<LlmOptions>>();
+            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<CompositeLlmClient>>();
+
+            var clients = new Dictionary<string, ILlmClient>(StringComparer.OrdinalIgnoreCase)
             {
-                "ollama" => new OllamaLlmClient(
-                    sp.GetRequiredService<IHttpClientFactory>().CreateClient("ollama"),
-                    sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<LlmOptions>>()),
-                "gateway" => new GatewayLlmClient(
-                    sp.GetRequiredService<IHttpClientFactory>().CreateClient("aigw"),
-                    sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<LlmOptions>>()),
-                _ => new FixtureLlmClient()
+                ["fixture"] = new FixtureLlmClient(),
+                ["ollama"] = new OllamaLlmClient(http.CreateClient("ollama"), llmOpts),
+                ["gateway"] = new GatewayLlmClient(http.CreateClient("aigw"), llmOpts)
             };
+
+            var primary = string.IsNullOrWhiteSpace(opts.Provider) ? "fixture" : opts.Provider.Trim();
+            var fallback = string.IsNullOrWhiteSpace(opts.FallbackProvider)
+                ? null
+                : opts.FallbackProvider.Trim();
+
+            // Single-provider mode (unchanged behavior) when no fallback is configured.
+            if (fallback is null)
+            {
+                return primary.ToLowerInvariant() switch
+                {
+                    "ollama" => clients["ollama"],
+                    "gateway" => clients["gateway"],
+                    _ => clients["fixture"]
+                };
+            }
+
+            // Alongside mode: both (or all) providers registered; route + fallback.
+            return new CompositeLlmClient(clients, primary, fallback, logger);
         });
 
         services.AddSingleton<IArtifactBlobStore>(sp =>

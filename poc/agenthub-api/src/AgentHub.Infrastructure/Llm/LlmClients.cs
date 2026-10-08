@@ -1,4 +1,6 @@
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
 using AgentHub.Core.Abstractions;
 using Microsoft.Extensions.Options;
 
@@ -112,26 +114,26 @@ public sealed class GatewayLlmClient : ILlmClient
         httpRequest.Headers.TryAddWithoutValidation("X-AIGW-Model", model);
         // ai-gateway.md: aliases 5.1 / 5.4 require max_completion_tokens; others may use max_tokens.
         // Never send temperature (reasoning models reject it).
-        object body = UsesMaxCompletionTokens(model)
-            ? new
+        // Use explicit UTF-8 JSON bytes — JsonContent.Create(object) can emit an empty body
+        // when the payload is boxed / inferred poorly under IHttpClientFactory.
+        var messages = new[]
+        {
+            new Dictionary<string, string> { ["role"] = "system", ["content"] = request.SystemPrompt },
+            new Dictionary<string, string> { ["role"] = "user", ["content"] = request.UserPrompt }
+        };
+        var payload = UsesMaxCompletionTokens(model)
+            ? (object)new Dictionary<string, object?>
             {
-                messages = new object[]
-                {
-                    new { role = "system", content = request.SystemPrompt },
-                    new { role = "user", content = request.UserPrompt }
-                },
-                max_completion_tokens = 256
+                ["messages"] = messages,
+                ["max_completion_tokens"] = 256
             }
-            : new
+            : new Dictionary<string, object?>
             {
-                messages = new object[]
-                {
-                    new { role = "system", content = request.SystemPrompt },
-                    new { role = "user", content = request.UserPrompt }
-                },
-                max_tokens = 256
+                ["messages"] = messages,
+                ["max_tokens"] = 256
             };
-        httpRequest.Content = JsonContent.Create(body);
+        var json = JsonSerializer.Serialize(payload);
+        httpRequest.Content = new StringContent(json, Encoding.UTF8, "application/json");
 
         using var response = await _http.SendAsync(httpRequest, cancellationToken).ConfigureAwait(false);
         var raw = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
