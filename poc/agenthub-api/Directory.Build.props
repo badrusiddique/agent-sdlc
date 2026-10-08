@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AzureDataTablesVersion>12.13.0</AzureDataTablesVersion>
+    <MicrosoftExtensionsVersion>10.0.12</MicrosoftExtensionsVersion>
+  </PropertyGroup>
+</Project>

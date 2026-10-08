@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hello World</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 40rem; }
+    button { padding: 0.5rem 1rem; }
+    #out { margin-top: 1rem; padding: 1rem; background: #f4f4f5; border-radius: 8px; }
+  </style>
+</head>
+<body>
+  <h1>{{HEADLINE}}</h1>
+  <p>Angular-style SPA shell calling a .NET 10 API for a thought of the day.</p>
+  <button id="btn" type="button">Get thought</button>
+  <div id="out">Waiting…</div>
+  <script>
+    document.getElementById('btn').addEventListener('click', async () => {
+      const r = await fetch('/api/thought');
+      const j = await r.json();
+      document.getElementById('out').textContent = j.thought + ' (' + j.source + ')';
+    });
+  </script>
+  <!-- {{EXTRA_UI}} -->
+</body>
+</html>

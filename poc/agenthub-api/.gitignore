@@ -1,0 +1,11 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+*.swp
+.env
+TestResults/
+*.log
+.idea/
+.DS_Store

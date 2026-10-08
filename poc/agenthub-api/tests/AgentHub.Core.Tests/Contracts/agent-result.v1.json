@@ -1,0 +1,19 @@
+{
+  "workItemId": "wi-contract-1",
+  "taskId": "task-contract-1",
+  "stage": "HEALTHY",
+  "status": "Completed",
+  "correlationId": "corr-contract-1",
+  "inputVersion": 1,
+  "runId": "task-contract-1:1:1",
+  "stateContextId": "proj-contract-1:wi-contract-1",
+  "durationMs": 42,
+  "artifacts": {
+    "healthy": "proj-contract-1/wi-contract-1/v1/healthy-result.json"
+  },
+  "tokenUsage": {
+    "input": 12,
+    "output": 28,
+    "modelId": "fixture-healthy"
+  }
+}

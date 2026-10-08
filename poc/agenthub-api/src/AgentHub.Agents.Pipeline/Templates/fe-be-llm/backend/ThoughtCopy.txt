@@ -1,0 +1,1 @@
+Ship a small working slice before you invent a platform.

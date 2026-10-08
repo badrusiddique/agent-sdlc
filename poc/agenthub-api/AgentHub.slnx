@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgentHub.Core/AgentHub.Core.csproj" />
+    <Project Path="src/AgentHub.Data/AgentHub.Data.csproj" />
+    <Project Path="src/AgentHub.Infrastructure/AgentHub.Infrastructure.csproj" />
+    <Project Path="src/AgentHub.Agents.Healthy/AgentHub.Agents.Healthy.csproj" />
+    <Project Path="src/AgentHub.Agents.Pipeline/AgentHub.Agents.Pipeline.csproj" />
+    <Project Path="src/AgentHub.Hosting/AgentHub.Hosting.csproj" />
+    <Project Path="src/AgentHub.WebApi/AgentHub.WebApi.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgentHub.WebApi.Tests/AgentHub.WebApi.Tests.csproj" />
+    <Project Path="tests/AgentHub.Agents.Healthy.Tests/AgentHub.Agents.Healthy.Tests.csproj" />
+    <Project Path="tests/AgentHub.Agents.Pipeline.Tests/AgentHub.Agents.Pipeline.Tests.csproj" />
+    <Project Path="tests/AgentHub.Core.Tests/AgentHub.Core.Tests.csproj" />
+  </Folder>
+</Solution>

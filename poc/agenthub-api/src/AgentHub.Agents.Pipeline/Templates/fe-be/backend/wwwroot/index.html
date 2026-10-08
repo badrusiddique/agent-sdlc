@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calculator</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; max-width: 40rem; }
+    input, button { margin: 0.25rem; padding: 0.4rem 0.6rem; }
+    #out { margin-top: 1rem; font-size: 1.25rem; }
+  </style>
+</head>
+<body>
+  <h1>{{HEADLINE}}</h1>
+  <p>Calculator (Angular-style shell + .NET 10 API). No LLM in this app.</p>
+  <label>a <input id="a" type="number" value="2" /></label>
+  <label>b <input id="b" type="number" value="3" /></label>
+  <button id="addBtn" type="button">a + b</button>
+  <div id="out">Waiting…</div>
+  <script>
+    document.getElementById('addBtn').addEventListener('click', async () => {
+      const a = Number(document.getElementById('a').value);
+      const b = Number(document.getElementById('b').value);
+      const r = await fetch(`/api/add?a=${a}&b=${b}`);
+      const j = await r.json();
+      document.getElementById('out').textContent = String(j.result);
+    });
+  </script>
+  <!-- {{EXTRA_UI}} -->
+</body>
+</html>

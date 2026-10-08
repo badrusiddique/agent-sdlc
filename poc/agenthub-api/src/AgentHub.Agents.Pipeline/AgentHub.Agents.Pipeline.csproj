@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>AgentHub.Agents.Pipeline</RootNamespace>
+    <Description>POC pipeline walker agent (Healthy-shaped). Depends on AgentHub.Core only.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="$(MicrosoftExtensionsVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentHub.Core\AgentHub.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Prompts\pipeline-system.txt">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <EmbeddedResource Include="Prompts\pipeline-system.txt" />
+    <Compile Remove="Templates\**\*" />
+    <None Include="Templates\**\*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <Content Remove="Templates\**\*" />
+  </ItemGroup>
+
+</Project>
