@@ -17,7 +17,7 @@ BuildGenix takes a feature request written in a chat and carries it through requ
 
 Phase 0 proves this end to end on three small examples: a Hello World app with an AI-written thought of the day, a calculator that adds (with a rejected requirements draft and a failing test that is sent back and fixed), and an update that makes it subtract. Today a test agent, the messaging and the first record tables exist; none of the five pipeline agents is built yet.
 
-The main risks we are asking you to accept for Phase 0 are these. Code merges without a person reading it. Approvals cannot yet be tied to a named person, because sign-in is a placeholder. The build machine runs AI-written code on the same machine and network as a powerful identity, with controls that keep that code away from the identity's credentials but not off the network (section 13).
+The main risks we are asking you to accept for Phase 0 are these. Code merges without a person reading it. Approvals cannot yet be tied to a named person, because sign-in is a placeholder. The build machine runs AI-written code on the same machine and network as a powerful identity, with controls that keep that code away from the identity's credentials but not off the network (section 13). All generated apps in DEV share one AI key and one hosting plan, so one faulty app can affect the others (section 11).
 
 Costs have not been measured, and this document does not estimate them; section 13.7 lists what will cost money, and the first full runs will give real figures. Phase 0 is finished when the three examples are accepted in DEV and every stop and failure path has evidence (section 14). The decisions and actions we need are listed next.
 
@@ -47,20 +47,22 @@ Costs have not been measured, and this document does not estimate them; section 
 1. Code written by the AI is merged to main after automated review, tests and a person's acceptance of the running app, with no person reading the code (section 13.6).
 2. Sign-in is a placeholder in Phase 0, so approvals cannot be tied to a named person, and the person who asked for a change can also approve it (section 13.3).
 3. The build machine needs a container registry, an exception to the earlier rule not to use one, limited to this one machine (section 12).
+4. Generated code runs on the same machine and network as the build host, which holds the platform's Azure DevOps and DEV sandbox rights. It cannot take the host's access token, but it can reach anything on the network that the host can reach (section 13.4).
+5. All generated apps share one AI key and one hosting plan in DEV, so one faulty or leaky app can affect all of them (section 11).
 
 **To decide** (leadership, with security where noted):
 
-4. Who may open the BuildGenix screen in Phase 0, since anyone who can open it can approve, accept and raise a budget. The design recommends the corporate network and a named pilot group until real sign-in arrives (security). With it, who may raise a work item's token budget (section 13.2).
-5. What users may type or attach in the intake chat, since it is sent to the AI model and kept with the documents (security; section 13.5).
-6. How long approvals and work item history are kept once a project is closed, and what closing a project means (section 13.3).
-7. Who owns the content of the platform standards pack, who receives the Phase 0 alerts, and who removes old DEV apps and leftover backlog items (sections 11 and 13.6).
+6. Who may open the BuildGenix screen in Phase 0, since anyone who can open it can approve, accept and raise a budget. The design recommends the corporate network and a named pilot group until real sign-in arrives (security). With it, who may raise a work item's token budget (section 13.2).
+7. What users may type or attach in the intake chat, since it is sent to the AI model and kept with the documents (security; section 13.5).
+8. How long approvals and work item history are kept once a project is closed, and what closing a project means (section 13.3).
+9. Who owns the content of the platform standards pack, who receives the Phase 0 alerts, who removes old DEV apps and leftover backlog items, and who rebuilds the build machine image (sections 11, 12 and 13.6).
 
 **To ask of other teams**, with the step in section 14 that each one blocks:
 
-8. Platform team: package downloads from the build machine (step 1) and the sandbox resource group and its name (step 1).
-9. AI Gateway team: the consumer ID for live AI runs (every AI run in Azure, from the first agent on) and the key the generated apps use (before the Deploy agent).
-10. Azure DevOps organisation administrator: add the build machine's identity to a dedicated project for generated code (before the Build agent).
-11. Network team: the corporate address ranges allowed to open the DEV apps (before the Deploy agent).
+10. Platform team: package downloads from the build machine (step 1) and the sandbox resource group and its name (step 1).
+11. AI Gateway team: the consumer ID for live AI runs (every AI run in Azure, from the first agent on) and the key the generated apps use (before the Deploy agent).
+12. Azure DevOps organisation administrator: add the build machine's identity to a dedicated project for generated code, with the limited rights described in section 13.8, item 6 (before the Build agent).
+13. Network team: the corporate address ranges allowed to open the DEV apps (before the Deploy agent).
 
 Badru's own confirmations (section 13.8, items 1, 2, 7 and 11) do not need anything from you. The full list, with owners, is in section 13.8.
 
@@ -605,7 +607,7 @@ sequenceDiagram
 11. **Deploy.** Screen: "Deploying to DEV". The Deploy agent creates the two DEV apps, deploys the tested commit and checks that both respond.
 12. **Gate 3 and finishing.** Screen: "Waiting on you: check the DEV app". The user opens the DEV app, adds two numbers, tries letters, sees the error message, and accepts. The screen shows "Finishing: merging to main", the code is merged into main, and the work item completes.
 
-The rounding mistake is scripted in the test setup so that it happens on every run. A real AI model cannot be relied on to make a specific mistake, so this is how the send-back loop is proven.
+The rounding mistake is not left to chance. In the test setup the Build agent's model is given a scripted answer that uses ordinary floating point, so the first build always has the bug. The Test agent is not scripted: it runs the real code and reports the real wrong answer. A real model cannot be relied on to make a specific mistake, so this is how the send-back loop is proven.
 
 ```mermaid
 sequenceDiagram
@@ -761,8 +763,8 @@ Phase 0 is deliberately small: it proves that the whole chain works end to end b
 | Area | Phase 0 now | Later (design target, not committed) |
 |---|---|---|
 | Build host | One App Service container, where each of the three builder agents runs one job at a time | A separate short-lived job for each run. The agent's job has its own narrowly scoped identity; the generated code runs in a second, separate job that has no platform identity and can only reach the package sources |
-| Code review | A helper step inside the Build agent | Its own agent, with an human review floor beyond DEV |
-| Approval gates | PRD, design and DEV acceptance | PRD, System Design and Code Review can be added per project. Three floors stay on: DEV acceptance before any merge, a human reading the diff before the work leaves DEV, and a human Production approval. Config cannot turn those floors off |
+| Code review | A helper step inside the Build agent | Its own agent, with a human review floor beyond DEV |
+| Approval gates | PRD, design and DEV acceptance | PRD and System Design gates are on by default and can be switched off per project. Floors stay on: DEV acceptance before any merge, a human reading the diff before the work leaves DEV, and a human Production approval. Config cannot turn those floors off |
 | Who signs in and approves | A placeholder user; approvals cannot be tied to a person, and the requester can approve their own work | Sign-in with the organisation's identity, and the person approving a gate cannot be the person who asked for the change |
 | Deployment | The Deploy agent deploys directly into one DEV sandbox | Azure DevOps pipelines from the template. The pull request build tests the commit and deploys it to a Sandbox. The Deploy agent then asks the pipeline to deploy that same tested commit to DEV. After a person accepts it, the pull request is merged, and the merged build is promoted to System Test, Stage and Production, each with its own approvals in Azure DevOps. Production approval stays with people |
 | When tests fail | The work goes back to the Build agent, up to the loop limit | A check that proposes whether the PRD or the code should change |
@@ -941,7 +943,7 @@ Phase 0 is built in this order, each step proving the ground the next one stands
 6. **The five agents, in pipeline order:** the Requirements agent and the Design agent on the core host, then the Build agent, the Test agent and the Deploy agent on the builder host.
 7. **Full runs:** the three examples end to end in Azure, through the AI Gateway: Hello World, Calculator add, Calculator subtract.
 
-Each step starts only with Badru's go-ahead and ends with a review, automated tests and manual testing on real resources.
+Each step starts only with Badru's go-ahead and ends with a review, automated tests and manual testing on real resources. A run that uses the scripted model is an automated test, never manual test evidence. Manual testing uses a real local model on an engineer's machine and the AI Gateway in Azure.
 
 Some open items block early steps, not only later ones. Package downloads (item 5) and the sandbox resource group and its name (item 3) are needed for step 1, because the build machine must download packages and the setup script needs the resource group. The two confirmations on the return queues (items 1 and 2) are needed for step 2. The AI Gateway consumer ID (item 9) is needed before any AI call can run in Azure, and the model choice (item 7) before the first agent. The Azure DevOps identity (item 6) is needed before the Build agent can create a repository. The AI key for generated apps (item 4) and the corporate address ranges (item 10) are needed before the Deploy agent.
 
