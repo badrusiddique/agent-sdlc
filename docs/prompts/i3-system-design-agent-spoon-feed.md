@@ -8,9 +8,9 @@
 
 **This pass:** Badru asked for the first piece of the System Design agent, described in Part A. That piece is the work to do. The rest of this file stays for a later pass.
 
-**Authority:** `docs/architecture/phase-0-implementation-guide.md` sections 3, 5.1, 6.3 and 8.2. If Part A and the guide differ, stop and ask.
+**Authority for this pass:** Part A below. It already contains the Phase 0 rules this piece needs. Do not search for another architecture document. Sections 0 to 14 are a later pass.
 
-**Manual QA:** Azurite, the Service Bus emulator, and a real model. A Fixture run is not a Manual QA pass. See `docs/manual-e2e-means-actual.md`.
+**Manual QA:** Azurite, the Service Bus emulator, and a real model. A Fixture run is not a Manual QA pass.
 
 ---
 
@@ -20,7 +20,123 @@ Do this. Stop when the done list at the end of Part A is true. Do not build Desi
 
 ### A1. What "done" is
 
-A person sends one System Design task. A new worker in agenthub-api calls the model once with a fixed prompt, writes `system-design.md` into blob storage, and publishes one result. buildgenix-api moves the work item to "waiting for review". If the person asks for changes, buildgenix-api sends a new task and the agent writes a new version file. The previous file stays. If the person approves, buildgenix-api marks the design stage approved and does not call the agent again.
+A person sends one System Design task. A new worker in agenthub-api calls the model once with a fixed prompt, writes `system-design.md` into blob storage, and publishes one result. buildgenix-api sets the work item to `AwaitingApproval`. If the person asks for changes, buildgenix-api sends a new task and the agent writes a new version file. The previous file stays. If the person approves, buildgenix-api marks the design gate approved and does not call the agent again. This pass does not start Implementation, Testing, or Deployment.
+
+### A1b. Phase 0 rules this piece must follow
+
+These are locked. Do not invent replacements.
+
+1. buildgenix-api is the only orchestrator. It publishes the task. The agent never calls another agent, never publishes `agenthub.implementation.agent` or any other task topic, and never reads or writes a buildgenix table (D-AS-2, D-AS-4).
+2. The agent reports by publishing one `AgentResult` and progress `AgentEvent` messages. buildgenix-api is the only writer of work-item state.
+3. The result goes on a Service Bus topic, not as the agent's HTTP call. If buildgenix-api is restarting when the model call finishes, a REST call is lost. The topic keeps the result until buildgenix-api is back. `POST /api/internal/sdlc-results` is the same apply function, for a manual curl only. The agent does not call it.
+4. `AgentResult.Status` is only `Completed`, `HumanActionRequired`, or `Failed`. There is no fourth status. Cancel is `Failed` with `errorCode` `Cancelled`.
+5. Failed `errorCode` is only one of: `MissingInput`, `InvalidInput`, `GuardrailBlocked`, `BuildEnvironment`, `ExternalService`, `DeadlineExceeded`, `Cancelled`, `Unhandled`.
+6. Task Service Bus `MessageId` is `{taskId}:{inputVersion}`. Result `MessageId` is `result:{taskId}:{inputVersion}`. Event `MessageId` is `{taskId}:{inputVersion}:{deliveryCount}:{seq}`. `runId` is `{taskId}:{inputVersion}:{deliveryCount}`. `stateContextId` is `{projectId}:{workItemId}`.
+7. `taskId` changes when the stage is redrafted. `inputVersion` rises on every human input (approve, reject, answer). A redelivery keeps both. `outputRevision` is the blob folder number. Do not copy it from `inputVersion`.
+8. Blob container is `artifacts`. Path is `{projectId}/{workItemId}/v{outputRevision}/system-design.md`. The agent writes only under `blobPrefix` from the message. It does not compute that prefix. The one path it may compute is the cancel marker `{projectId}/{workItemId}/control/cancelled.json` in the same container.
+9. Files are write-once. A redraft writes a new folder. It does not overwrite `v1`.
+10. EffectLedger is write-once `Add`. HTTP 409 means the row is already committed. No replace. No failed ledger rows. Row key is `{taskId}_{intentKind}_{ordinal:D6}`. Partition key is `workItemId`. This slice uses intent `LLM` ordinal `110` for the model call and intent `WriteArtifact` ordinal `201` for `system-design.md`.
+11. Crash order: if `AgProcessedEvents` already has the task `MessageId`, complete and do nothing. Otherwise run the handler, publish the result, publish the terminal event, mark `AgProcessedEvents`, then complete the Service Bus message. Never mark before the result is published.
+12. Worker settings for this agent: lock renewal `01:00:00`, handler deadline `00:48:00` (60 minutes minus 12, using the rule min(cap minus 10 minutes, 80 percent of the cap)). `MaxDeliveryCount` 5. `MaxConcurrentCalls` 1. `PrefetchCount` 0. `AutoCompleteMessages` false. Subscription `LockDuration` `PT5M`. `DeadLetteringOnMessageExpiration` true. On the deadline publish `Failed` / `DeadlineExceeded` and complete. Do not abandon. On the 5th delivery of an unknown exception publish `Failed` / `Unhandled` and complete. Earlier deliveries abandon so Service Bus retries.
+13. No temperature. Model id and reasoning effort come from `config` on the message. Do not hard-code `opus`. Local proof uses `Llm:Provider=Ollama`. Azure uses `Llm:Provider=Gateway` with header `Ocp-Apim-Subscription-Key` and `X-AIGW-Model`, the same client HEALTHY already has. If the Gateway key is missing, the Ollama run can still pass and the Gateway run is recorded BLOCKED. Do not invent a consumer id.
+14. Design stage token cap in the full design is 500000. This first piece stops the one call if `config.budget.stageMaxTokens` is present and the call would exceed it, and returns `HumanActionRequired` with `signal.kind` `BudgetExceeded`. If the field is absent, still make the one call.
+15. A human may reject this stage 3 times. The 4th reject is not sent to the agent. buildgenix-api sets `HumanActionRequired`. Count rejects per stage. A test route-back is not this counter. This piece has no test route-back.
+16. Today's `WorkItemStatuses` in `buildgenix-api` are `Queued`, `AwaitingApproval`, `HumanActionRequired`, `Failed`, `Completed`. There is no `Running` constant yet. Add `Running` next to those constants. `AgentStarted` may set `Running` only when the current status is `Queued`. A result may be applied only when the status is `Queued` or `Running`. Apply with the row ETag. Set `CurrentStage` to `SYSTEM_DESIGN` while this task is current. Store `CurrentTaskId` and `CurrentInputVersion` from the task so a late result for an older task is ignored.
+
+### A1c. Messages, copied here so you do not need another document
+
+Task published by buildgenix-api (or by the Development harness) to `agenthub.system-design.agent`. Service Bus `MessageId` equals `taskId` + `:` + `inputVersion`.
+
+```json
+{
+  "contractVersion": "2.0",
+  "workItemId": "wi-sd-1",
+  "projectId": "proj-sd-1",
+  "stage": "SYSTEM_DESIGN",
+  "taskId": "task-sd-1",
+  "correlationId": "corr-sd-1",
+  "causationId": "harness",
+  "inputVersion": 1,
+  "pipelineVersion": 1,
+  "loopIndex": 0,
+  "outputRevision": 1,
+  "blobPrefix": "proj-sd-1/wi-sd-1/v1/",
+  "stateContextId": "proj-sd-1:wi-sd-1",
+  "artifacts": {},
+  "humanAnswer": null,
+  "config": {
+    "modelId": null,
+    "reasoningEffort": "low",
+    "budget": { "stageMaxTokens": 500000, "workItemRemainingTokens": 3000000 },
+    "limits": { "maxRevisions": 3, "maxFixAttempts": 3 }
+  },
+  "requestText": "Design a calculator page with one add endpoint."
+}
+```
+
+`requestText` is the only extra field for this first piece. Put it on `TaskMessage` as an optional string so old HEALTHY JSON still deserializes. The user prompt is `requestText`, plus `humanAnswer` when a question was answered, plus the text of `artifacts.feedback` when this is a redraft. Do not require `prd` or `intakeSummary` in this piece. Those files arrive in the later pass.
+
+Result the agent publishes to `buildgenix.agent-results`. Service Bus `MessageId` is `result:{taskId}:{inputVersion}`.
+
+```json
+{
+  "contractVersion": "2.0",
+  "workItemId": "wi-sd-1",
+  "projectId": "proj-sd-1",
+  "taskId": "task-sd-1",
+  "stage": "SYSTEM_DESIGN",
+  "status": "Completed",
+  "correlationId": "corr-sd-1",
+  "inputVersion": 1,
+  "outputRevision": 1,
+  "runId": "task-sd-1:1:1",
+  "stateContextId": "proj-sd-1:wi-sd-1",
+  "artifacts": {
+    "techSpecMd": "proj-sd-1/wi-sd-1/v1/system-design.md"
+  },
+  "outputs": {},
+  "signal": null,
+  "humanMessage": null,
+  "errorCode": null,
+  "errorMessage": null,
+  "tokenUsage": { "input": 0, "output": 0, "modelId": "llama3.2" },
+  "durationMs": 1
+}
+```
+
+`tokenUsage` comes from the model client. Ollama fields are `prompt_eval_count` and `eval_count`. If the client still returns 0, write 0. Do not invent a count.
+
+Progress event on `buildgenix.agent-events`. This piece publishes `AgentStarted`, then `SubStepCompleted` for `write`, then one terminal kind (`AgentCompleted`, `AgentFailed`, or `AgentHumanActionRequired`).
+
+```json
+{
+  "contractVersion": "2.0",
+  "eventId": "task-sd-1:1:1:1",
+  "workItemId": "wi-sd-1",
+  "taskId": "task-sd-1",
+  "stage": "SYSTEM_DESIGN",
+  "runId": "task-sd-1:1:1",
+  "kind": "AgentStarted",
+  "subStep": null,
+  "progress": null,
+  "tokens": null,
+  "message": "System Design started",
+  "level": "info",
+  "occurredAt": "2026-10-08T00:00:00Z"
+}
+```
+
+What buildgenix-api does with a System Design result in this piece:
+
+| Result | What to write |
+|---|---|
+| `Completed` | Save `artifacts.techSpecMd`. Set `Status` to `AwaitingApproval`. Set `CurrentStage` to `SYSTEM_DESIGN`. Do not approve. Do not publish another task. |
+| `Failed` | Set `Status` to `Failed`. Save `errorCode` and `errorMessage` on `LastError`. |
+| `HumanActionRequired` | Set `Status` to `HumanActionRequired`. Save `humanMessage`. |
+
+`AgentStarted` sets `Status` to `Running` only from `Queued`.
+
+A result whose `taskId` and `inputVersion` do not equal `CurrentTaskId` and `CurrentInputVersion` is stored in the processed-events table and does not move the work item.
 
 ### A2. Shape
 
@@ -48,15 +164,21 @@ Copy these HEALTHY files and rename them. Do not change HEALTHY behaviour:
 - `HealthyEndpoints.cs` becomes `POST /api/connectivity/system-design`, mapped only when the environment is `Development`
 - Add the topic and subscription to `agenthub-api/docker/servicebus-config.json`. Also add `buildgenix.agent-results` / `buildgenix-api` and `buildgenix.agent-events` / `buildgenix-api` if they are not there. Recreate the emulator container after the edit. Do not use `docker compose down -v`
 
-Handler steps, in order:
+Handler steps, in order. This is the whole agent. One model call. No sub-agent loop.
 
-1. Validate the message. Required: `Stage` = `SYSTEM_DESIGN`, `BlobPrefix` ending in `/`, and a non-empty user request (the harness body field `requestText`, stored on the task as `HumanAnswer` when that is the only text, or as artifact text you put in the user prompt). A bad message is `Failed` / `InvalidInput`.
-2. If `{projectId}/{workItemId}/control/cancelled.json` exists, return `Failed` / `Cancelled` and do not call the model.
-3. Call the model once. Run the existing guardrail on the input and on the markdown before the blob write. A block is `Failed` / `GuardrailBlocked`, then mark processed and complete. No retry. The HEALTHY guardrail blocks headings and long text. For this agent construct a separate `LocalGuardrailPipeline` with a higher character limit and headings allowed. Do not change the singleton HEALTHY uses.
-4. Write the markdown with a create-if-absent upload under `BlobPrefix`. Ledger the call and the write. A second delivery of the same message replays the ledger and does not call the model again.
-5. Publish `AgentResult` with `Status` = `Completed`, `Artifacts["techSpecMd"]` = the blob path, then the terminal event, then mark `AgProcessedEvents`, then complete the Service Bus message. Status is only `Completed`, `HumanActionRequired`, or `Failed`.
+1. Deserialize. Malformed JSON: dead-letter, no result.
+2. `Stage` must be `SYSTEM_DESIGN`. `BlobPrefix` must equal `{projectId}/{workItemId}/v{outputRevision}/`. `requestText` must be non-empty on the first version. A redraft (`outputRevision` greater than 1) must include `artifacts.feedback` or a non-empty `requestText`. Anything else: publish `Failed` / `InvalidInput`, terminal event, mark, complete.
+3. Dedup on the task `MessageId`. If `AgProcessedEvents` already has it, complete and stop.
+4. If `{projectId}/{workItemId}/control/cancelled.json` exists in container `artifacts`, publish `Failed` / `Cancelled`, mark, complete. Do not call the model.
+5. Publish `AgentStarted`.
+6. Call the model once. System prompt is the fixed file. User prompt is `requestText`, then `humanAnswer` if set, then the feedback file text if `artifacts.feedback` is set. Read that blob from container `artifacts`. Ledger intent `LLM` ordinal `110` before you would call again. A replay returns the stored text and does not call the model.
+7. Guardrail the user prompt and the markdown before the blob write. Use a System Design `LocalGuardrailPipeline` constructed with max input 400000, max output 200000, and headings allowed. Do not change the HEALTHY singleton (8000 / 4000, headings blocked). A block throws, the dispatcher publishes `Failed` / `GuardrailBlocked`, marks, and completes. No second model call.
+8. Write `{blobPrefix}system-design.md` with create-if-absent (`If-None-Match: *`). Content type `text/markdown`. Ledger intent `WriteArtifact` ordinal `201`. If the blob already exists and the ledger row exists, treat it as success. Do not overwrite.
+9. Publish the result JSON from section A1c with `status` `Completed` and `artifacts.techSpecMd` set to that path. Then publish `AgentCompleted`. Then mark `AgProcessedEvents`. Then complete the Service Bus message.
 
-`MessageId` on the task is `{taskId}:{inputVersion}`. Leave HEALTHY's result publisher alone.
+Leave HEALTHY's result publisher alone. It uses a different `MessageId`. Add a System Design publisher whose `MessageId` is `result:{taskId}:{inputVersion}`. Create the Service Bus client on first publish, not in the constructor, so the host still starts when `Enabled` is false.
+
+Harness `POST /api/connectivity/system-design`, mapped only when `ASPNETCORE_ENVIRONMENT` is `Development`. Body: `projectId`, `workItemId`, `taskId`, `inputVersion`, `outputRevision`, `correlationId`, `requestText`, optional `feedbackPath` and `humanAnswer`. The endpoint sets `blobPrefix` to `{projectId}/{workItemId}/v{outputRevision}/` itself. It publishes to `agenthub.system-design.agent` with `MessageId` `{taskId}:{inputVersion}`. Return 202. Return 400 on validation failure. Return 503 with no exception text if send fails. A Production host returns 404 for this route.
 
 ### A3. How buildgenix-api learns the state
 
@@ -64,25 +186,24 @@ The agent does not write buildgenix tables and does not call buildgenix-api as i
 
 `POST /api/internal/sdlc-results` in `InternalNotifyController` is still a stub that returns not-implemented. Replace that stub with one apply method, and call the same method from a Service Bus listener on `buildgenix.agent-results` / `buildgenix-api`. The HTTP route stays as a manual test door onto that method. It is not the path the agent uses.
 
-The apply method, for `stage` = `SYSTEM_DESIGN` only:
+The apply method, for `stage` = `SYSTEM_DESIGN` only. Use the statuses in section A1b item 16. Dedup key is the result `MessageId` (`result:{taskId}:{inputVersion}`), stored the same way buildgenix already stores processed messages (`SgProcessedEvents` or the table that repository already has). A repeat returns 200 and does not write the work item again.
 
-- Dedup on the result `MessageId`. A repeat is a 200 no-op.
-- Store the artifact path on the work item.
-- On `Completed`, set the work item to waiting for design review. Do not approve it.
-- On `Failed`, set the work item to `Failed` and record `errorCode` and `errorMessage`.
-- Ignore other stages in this pass (log them). Do not build the rest of the pipeline.
+- `Completed`: save `artifacts.techSpecMd` on the work item (add a nullable `TechSpecMdPath` column if none exists). Set `Status` to `AwaitingApproval`. Set `CurrentStage` to `SYSTEM_DESIGN`. Do not set `Completed`. Do not publish another agent.
+- `Failed`: set `Status` to `Failed` and `LastError` to `errorCode` plus `errorMessage`.
+- `HumanActionRequired`: set `Status` to `HumanActionRequired` and `HumanMessage` from the result.
+- Any other stage: log and return 200. Do not move the work item.
 
-Also listen to `buildgenix.agent-events` and apply `AgentStarted` (status running) and the terminal event. That is the "keep the state updated" path. Do not add a new public browser API.
+Also listen to `buildgenix.agent-events` / `buildgenix-api`. `AgentStarted` sets `Running` only from `Queued`. The terminal event does not move the status by itself if the result was already applied. Forward only: do not move `AwaitingApproval` back to `Running` because an old event arrives late. Do not add a browser API.
 
 ### A4. Changes and approval
 
 Both decisions are buildgenix-api actions. The agent does not decide them.
 
-**Changes.** The person sends feedback text. buildgenix-api writes `{projectId}/{workItemId}/v{next}/feedback-system-design.json`, creates a new `taskId`, sets `outputRevision` to the next number, sets `blobPrefix` to `.../v{next}/`, and publishes that task to `agenthub.system-design.agent`. The agent runs again and writes a new `system-design.md`. It must not overwrite the previous version. Put the feedback text in the user prompt.
+**Changes.** Allowed only when `Status` is `AwaitingApproval` and `CurrentStage` is `SYSTEM_DESIGN`. Body is `{ "feedback": "make the add endpoint return decimals" }`. buildgenix-api writes container `artifacts` blob `{projectId}/{workItemId}/v{next}/feedback-system-design.json` where `next` is the previous `outputRevision` plus 1. It creates a new `taskId`, sets `inputVersion` to the current value plus 1, sets `outputRevision` to `next`, sets `pipelineVersion` to the current value plus 1, sets `blobPrefix` to `{projectId}/{workItemId}/v{next}/`, sets `artifacts.feedback` to that blob path, copies `requestText` from the previous task, sets `Status` back to `Queued`, and publishes to `agenthub.system-design.agent` with `MessageId` `{newTaskId}:{newInputVersion}`. The agent writes `v{next}/system-design.md`. It must not change the previous file. After 3 rejects, do not publish. Set `Status` to `HumanActionRequired` and `HumanMessage` to the limit text.
 
-**Approve.** buildgenix-api marks the design gate approved and the design stage done. It does not publish another System Design task.
+**Approve.** Allowed only from `AwaitingApproval`. Set the design gate approved if `GatesController` already has a decision route. Use that route with stage `SYSTEM_DESIGN`. If it does not know `SYSTEM_DESIGN` yet, add that one stage to the existing decision action. Set the work item so the screen can show the design as approved. Do not set the whole pipeline `Completed` unless that is what the existing approve action already does for a final stage. Do not publish `agenthub.implementation.agent`. Do not call the model.
 
-Add two small internal or existing-gate routes if the catalog does not already have them: one for "request design changes" and one for "approve design". Reuse `GatesController` if a design gate row already exists. Do not invent a new work-item status beyond `Running`, waiting for review, `Failed`, and design-approved.
+Route names, if you add them: `POST /api/work-items/{workItemId}/system-design/changes` and `POST /api/work-items/{workItemId}/system-design/approve`. Both check the work item ETag. A wrong status returns 409.
 
 ### A5. Prove it
 
@@ -91,15 +212,15 @@ Add two small internal or existing-gate routes if the catalog does not already h
 3. Enable the worker with `Workers__SystemDesign__Enabled=true` and `Llm__Provider=Ollama`. Do not commit `Enabled=true`.
 4. POST the harness with a one-line request. Expect 202.
 5. Download `system-design.md`. The path matches `blobPrefix`. The result is on `buildgenix.agent-results`.
-6. The work item in buildgenix-api is waiting for review, not approved.
-7. Send a change. A second file appears under `v2/` (or the next revision). The first file is unchanged.
-8. Approve. The work item shows the design stage approved. No second model call happens.
+6. The work item `Status` is `AwaitingApproval` and `CurrentStage` is `SYSTEM_DESIGN`. It is not `Completed`.
+7. POST the changes route with one sentence of feedback. A new blob `v2/system-design.md` appears. `v1/system-design.md` is byte-for-byte unchanged. The new task has a new `taskId` and `outputRevision` 2.
+8. POST the approve route. The design is approved. The model is not called. No message is published to `agenthub.implementation.agent`.
 9. Publish the same `taskId` and `inputVersion` again. The run is a no-op.
 10. Write the evidence in `docs/qa/manual-qa-system-design-first-slice.md` with the commands and the blob paths. If Gateway was configured, record that run too. If not, write BLOCKED for Gateway and PASS for Ollama.
 
 ### A6. Stop
 
-Do not continue into section 0. Report the evidence path and stop.
+Do not continue into section 0 or anything after it. Report the evidence path and stop.
 
 ---
 
@@ -787,9 +908,5 @@ From guide section 16.1. The ones that touch this slice:
 ## 14. Paste block
 
 ```text
-Execute Part A only of docs/prompts/i3-system-design-agent-spoon-feed.md.
-Repo: https://github.com/badrusiddique/agent-sdlc only. Never ai-sdlc. Edit root agenthub-api and buildgenix-api. Do not edit poc/.
-Part A: a HEALTHY-shaped System Design worker on agenthub.system-design.agent, one fixed prompt, one model call, system-design.md under the message blob prefix, result on buildgenix.agent-results, buildgenix-api applies that result to the work item. A change request writes a new version file. Approve only updates buildgenix state.
-Do not implement sections 0 to 14.
-Done: the Part A5 checks, with evidence in docs/qa/manual-qa-system-design-first-slice.md. HEALTHY tests stay green.
+Open docs/prompts/i3-system-design-agent-spoon-feed.md from https://github.com/badrusiddique/agent-sdlc branch main. Execute only the section "Part A. First piece" through "A6. Stop". That section already contains the Phase 0 topics, message JSON, statuses, blob path, and error codes. Do not open another architecture document. Do not implement sections 0 to 14. Do not edit the poc folder. Edit root agenthub-api and buildgenix-api. Never use the ai-sdlc repo. Keep the HEALTHY tests green. Stop when docs/qa/manual-qa-system-design-first-slice.md records the checks in A5.
 ```
