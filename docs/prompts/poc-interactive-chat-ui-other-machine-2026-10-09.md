@@ -4,7 +4,7 @@
 
 **Date:** 2026-10-09  
 **Repo:** `https://github.com/badrusiddique/agent-sdlc` only. Never `ai-sdlc`.  
-**Source of this change (until it lands on GitHub `main`):** branch `cursor/buildgenix-chat-ui-1fa7` tip — use the latest commit on that branch after pull (steering + CONTINUE message fix included).  
+**Source of this change (until it lands on GitHub `main`):** branch `cursor/buildgenix-chat-ui-1fa7` tip **`b78191b`** or newer (steering + CONTINUE message fix + `verify-steering.sh` Aborted wait fix).  
 **Baseline already on the other machine:** GitHub `main` with the pre-phase-0 POC under `poc/` (one Pipeline agent + auto-approve `/run` + `verify-three.sh`). That work stays. This change **extends** it; it does not replace the System Design agent work.
 
 ---
@@ -286,17 +286,17 @@ Stop on FAIL. Report PASS/FAIL per row with URLs and evidence paths.
 
 ## 8. What was already verified on the cloud machine (do not re-claim without re-running)
 
-On 2026-10-09 against Azurite + Ollama `llama3.2:1b` (branch `cursor/buildgenix-chat-ui-1fa7`):
+On 2026-10-09 against Azurite + Ollama `llama3.2:1b` (branch `cursor/buildgenix-chat-ui-1fa7`, tip ≥ `b78191b`):
 
 | Suite | Result |
 |---|---|
 | `verify-three.sh` (Hello / add / subtract) | PASS — thought `source=ollama`; add 5; subtract 3 |
 | Azurite blobs + tables + AuditLog | PASS |
-| `verify-interactive.sh` | PASS |
-| `verify-steering.sh` | PASS — PAUSE at gate; STOP → Paused; CONTINUE message non-null + PRD returns; ABORT + fresh early ABORT |
+| `verify-interactive.sh` | PASS — PRD / SYSTEM_DESIGN / DEPLOY_DEV gates; Completed; add=5 |
+| `verify-steering.sh` | PASS — PAUSE at gate; STOP → Paused + revert INTAKE; CONTINUE message non-null + PRD returns; ABORT → Aborted; fresh early ABORT → Aborted; ends with `Steering verification OK` |
 | Playwright UI (Calculator add + 3 Approves) | PASS (`UI_VERIFY_PASS`) earlier same day |
 
-Evidence notes (cloud store): Project Context `internal/poc-reverify-azurite-2026-10-09.md`, `internal/buildgenix-chat-ui-verify-2026-10-09.md`.
+Evidence notes (cloud store): Project Context `internal/poc-reverify-azurite-2026-10-09.md`, `internal/buildgenix-chat-ui-verify-2026-10-09.md`, `internal/poc-steering-verify-2026-10-09.md`.
 
 The **other machine** must still fill V1–V10 itself (Gateway instead of Ollama if that is the house rule).
 

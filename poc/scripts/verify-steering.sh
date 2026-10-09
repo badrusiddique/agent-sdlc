@@ -26,7 +26,9 @@ wait_status() {
     curl -fsS "$BGX_URL/api/poc/pipeline/$WI/status" > "$OUT_DIR/status.json"
     val=$(python3 -c "import json; d=json.load(open('$OUT_DIR/status.json')); print(d.get('$field') or '')")
     failed=$(python3 -c "import json; print(json.load(open('$OUT_DIR/status.json')).get('failed'))")
-    if [ "$failed" = "True" ] || [ "$failed" = "true" ]; then
+    # Aborted sets failed=true; do not treat that as an unexpected failure when waiting for Aborted.
+    if { [ "$failed" = "True" ] || [ "$failed" = "true" ]; } && [ "$want" != "Aborted" ]; then
+      echo "unexpected failed while waiting $field=$want"
       cat "$OUT_DIR/status.json"
       exit 1
     fi
