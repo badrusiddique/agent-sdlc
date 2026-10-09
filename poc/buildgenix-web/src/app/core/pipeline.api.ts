@@ -9,6 +9,7 @@ import {
   PipelineEvent,
   PipelineStatus,
   StartResult,
+  SteerResult,
 } from './pipeline.models';
 
 @Injectable({ providedIn: 'root' })
@@ -52,6 +53,14 @@ export class PipelineApi {
     return this.http.post<void>(
       `${this.base}/${workItemId}/approve`,
       { feedback: feedback ?? null },
+      { headers: { 'X-User-Id': 'dummy-user' } },
+    );
+  }
+
+  steer(workItemId: string, command: string): Observable<SteerResult> {
+    return this.http.post<SteerResult>(
+      `${this.base}/${workItemId}/steer`,
+      { command },
       { headers: { 'X-User-Id': 'dummy-user' } },
     );
   }

@@ -71,7 +71,23 @@ public sealed record PocPipelineStatusDto(
     bool Failed,
     string? ErrorMessage,
     IReadOnlyList<PocStageStripItem> Stages,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    bool IsPaused = false,
+    bool CanResume = false,
+    string? LastApprovedStage = null,
+    string? SteerHint = null);
+
+public sealed class PocSteerRequest
+{
+    /// <summary>PAUSE | STOP | ABORT | CONTINUE</summary>
+    public string Command { get; set; } = string.Empty;
+}
+
+public sealed record PocSteerResult(
+    string WorkItemId,
+    string Command,
+    string Status,
+    string Message);
 
 public sealed record PocStageStripItem(
     string Id,

@@ -62,6 +62,7 @@ export class StudioPageComponent implements OnDestroy {
   activeTab: TabId = 'chat';
   busy = signal(false);
   approving = signal(false);
+  steering = signal(false);
   status = signal<PipelineStatus | null>(null);
   messages = signal<ChatMessage[]>([]);
   artifacts = signal<ArtifactListItem[]>([]);
@@ -74,22 +75,48 @@ export class StudioPageComponent implements OnDestroy {
   private pollSub?: Subscription;
   private startSub?: Subscription;
   private approveSub?: Subscription;
+  private steerSub?: Subscription;
   private seenEventIds = new Set<string>();
   private workItemId: string | null = null;
+
+  private static readonly SteerCommands = new Set(['PAUSE', 'STOP', 'ABORT', 'CONTINUE']);
 
   ngOnDestroy(): void {
     this.pollSub?.unsubscribe();
     this.startSub?.unsubscribe();
     this.approveSub?.unsubscribe();
+    this.steerSub?.unsubscribe();
   }
 
   useExample(example: ExamplePrompt): void {
     this.draft = example.text;
   }
 
+  hasActiveRun(): boolean {
+    return !!this.workItemId;
+  }
+
+  composerDisabled(): boolean {
+    const cmd = this.draft.trim().toUpperCase();
+    if (this.workItemId && StudioPageComponent.SteerCommands.has(cmd)) {
+      return this.steering();
+    }
+    return this.busy() && !this.status()?.isPaused;
+  }
+
   send(): void {
     const text = this.draft.trim();
-    if (!text || this.busy()) {
+    if (!text) {
+      return;
+    }
+
+    const steerCmd = text.toUpperCase();
+    if (this.workItemId && StudioPageComponent.SteerCommands.has(steerCmd)) {
+      this.sendSteer(steerCmd);
+      return;
+    }
+
+    if (this.busy() && !this.status()?.isPaused) {
       return;
     }
 
@@ -120,7 +147,7 @@ export class StudioPageComponent implements OnDestroy {
       {
         id: crypto.randomUUID(),
         role: 'system',
-        text: 'Starting the BuildGenix pipeline. You will see stage updates here, and you must approve PRD, System Design, and Deploy before the run finishes.',
+        text: 'Starting the BuildGenix pipeline. Approve at PRD, System Design, and Deploy. You can type PAUSE, STOP, or ABORT while it runs.',
         at: new Date(),
       },
     ]);
@@ -142,6 +169,43 @@ export class StudioPageComponent implements OnDestroy {
         this.error.set(err?.error?.error ?? err?.message ?? 'Failed to start pipeline');
       },
     });
+  }
+
+  sendSteer(command: string): void {
+    if (!this.workItemId || this.steering()) {
+      return;
+    }
+    this.error.set(null);
+    this.draft = '';
+    this.messages.update((list) => [
+      ...list,
+      { id: crypto.randomUUID(), role: 'user', text: command, at: new Date() },
+    ]);
+    this.steering.set(true);
+    this.steerSub?.unsubscribe();
+    this.steerSub = this.api.steer(this.workItemId, command).subscribe({
+      next: (result) => {
+        this.steering.set(false);
+        this.pushAgent(
+          result.message || `${result.command} accepted (${result.status}).`,
+          this.status()?.currentStage,
+          `Steer${result.command}`,
+        );
+        if (command === 'ABORT' || result.status === 'Aborted') {
+          this.resetToIdle('Work item aborted. Start a new request when ready.');
+          return;
+        }
+        this.refreshAll();
+      },
+      error: (err) => {
+        this.steering.set(false);
+        this.error.set(err?.error?.error ?? err?.message ?? 'Steer failed');
+      },
+    });
+  }
+
+  continuePipeline(): void {
+    this.sendSteer('CONTINUE');
   }
 
   approve(): void {
@@ -235,9 +299,16 @@ export class StudioPageComponent implements OnDestroy {
         this.ingestEvents();
         this.refreshArtifacts();
         this.refreshLogs();
+        if (status.isPaused) {
+          this.busy.set(false);
+        }
         if (status.isTerminal) {
           this.busy.set(false);
           this.pollSub?.unsubscribe();
+          if (status.status === 'Aborted') {
+            this.resetToIdle(status.steerHint ?? 'Aborted.');
+            return;
+          }
           if (status.failed) {
             this.pushAgent(
               status.errorMessage ?? 'Pipeline failed.',
@@ -247,6 +318,8 @@ export class StudioPageComponent implements OnDestroy {
           } else if (status.deployedUrl) {
             this.pushAgent(`Done. App is live at ${status.deployedUrl}`, 'DONE', 'Finalized');
           }
+        } else if (!status.isPaused) {
+          this.busy.set(true);
         }
       });
 
@@ -355,5 +428,14 @@ export class StudioPageComponent implements OnDestroy {
         el.scrollTop = el.scrollHeight;
       }
     });
+  }
+
+  private resetToIdle(message: string): void {
+    this.pollSub?.unsubscribe();
+    this.workItemId = null;
+    this.busy.set(false);
+    this.steering.set(false);
+    this.status.set(null);
+    this.pushAgent(message, undefined, 'Idle');
   }
 }

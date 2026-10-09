@@ -95,8 +95,13 @@ public sealed class PocPipelineOrchestrator
                 }
                 catch (OperationCanceledException)
                 {
-                    session.ErrorMessage = "Cancelled.";
-                    session.Item.Status = WorkItemStatuses.Failed;
+                    if (session.Item.Status != WorkItemStatuses.Aborted)
+                    {
+                        session.ErrorMessage = "Aborted.";
+                        session.Item.Status = WorkItemStatuses.Aborted;
+                        session.Item.UpdatedAt = DateTimeOffset.UtcNow;
+                    }
+
                     Bump(session);
                 }
                 catch (Exception ex)
@@ -155,6 +160,23 @@ public sealed class PocPipelineOrchestrator
 
         session.ApprovalGate.TrySetResult(true);
         await Task.CompletedTask.ConfigureAwait(false);
+    }
+
+    public async Task<PocSteerResult> SteerAsync(
+        string workItemId,
+        string command,
+        CancellationToken cancellationToken = default)
+    {
+        var session = RequireSession(workItemId);
+        var cmd = command.Trim().ToUpperInvariant();
+        return cmd switch
+        {
+            "PAUSE" => await RequestPauseAsync(session, cancellationToken).ConfigureAwait(false),
+            "STOP" => await RequestStopAsync(session, cancellationToken).ConfigureAwait(false),
+            "ABORT" => await RequestAbortAsync(session, cancellationToken).ConfigureAwait(false),
+            "CONTINUE" => await RequestContinueAsync(session, cancellationToken).ConfigureAwait(false),
+            _ => throw new InvalidOperationException("Command must be PAUSE, STOP, ABORT, or CONTINUE.")
+        };
     }
 
     public PocPipelineStatusDto GetStatus(string workItemId)
@@ -235,6 +257,263 @@ public sealed class PocPipelineOrchestrator
         _sessions.TryGetValue(workItemId, out var session)
             ? session
             : throw new InvalidOperationException($"Unknown work item {workItemId}.");
+
+    private async Task<PocSteerResult> RequestPauseAsync(PipelineSession session, CancellationToken cancellationToken)
+    {
+        if (WorkItemStatuses.IsTerminal(session.Item.Status))
+        {
+            throw new InvalidOperationException("Pipeline is already finished.");
+        }
+
+        if (session.Item.Status == WorkItemStatuses.Paused)
+        {
+            return new PocSteerResult(session.Item.WorkItemId, "PAUSE", session.Item.Status, "Already paused.");
+        }
+
+        session.PauseRequested = true;
+        session.SteerHint = session.Item.Status == WorkItemStatuses.AwaitingApproval
+            ? "PAUSE noted. Approve to pass this gate (then the run will pause), or STOP/ABORT now."
+            : "PAUSE requested — will pause after the current stage finishes. Then type CONTINUE, STOP, or ABORT.";
+        await AppendEventAsync(
+                session,
+                session.Item.CurrentStage,
+                session.Item.Status,
+                "SteerPauseRequested",
+                session.SteerHint,
+                session.Item.CurrentTaskId,
+                cancellationToken)
+            .ConfigureAwait(false);
+        Bump(session);
+
+        return new PocSteerResult(
+            session.Item.WorkItemId,
+            "PAUSE",
+            session.Item.Status,
+            session.SteerHint ?? "PAUSE accepted.");
+    }
+
+    private async Task<PocSteerResult> RequestStopAsync(PipelineSession session, CancellationToken cancellationToken)
+    {
+        if (WorkItemStatuses.IsTerminal(session.Item.Status))
+        {
+            throw new InvalidOperationException("Pipeline is already finished.");
+        }
+
+        session.StopRequested = true;
+        session.PauseRequested = false;
+        var last = session.LastApprovedStage ?? "INTAKE";
+        session.SteerHint =
+            $"STOP requested — after the current stage (if running), revert to last approved ({last}) and wait for you.";
+        await AppendEventAsync(
+                session,
+                session.Item.CurrentStage,
+                session.Item.Status,
+                "SteerStopRequested",
+                session.SteerHint,
+                session.Item.CurrentTaskId,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (session.ApprovalGate is { Task.IsCompleted: false })
+        {
+            session.PendingGate = null;
+            session.PendingGateLabel = null;
+            session.ApprovalGate.TrySetResult(false);
+        }
+        else if (session.Item.Status is WorkItemStatuses.Queued or WorkItemStatuses.Paused
+                 or WorkItemStatuses.HumanActionRequired or WorkItemStatuses.AwaitingApproval)
+        {
+            await ApplyStopAndPauseAsync(session, cancellationToken).ConfigureAwait(false);
+        }
+
+        Bump(session);
+        return new PocSteerResult(session.Item.WorkItemId, "STOP", session.Item.Status, session.SteerHint);
+    }
+
+    private async Task<PocSteerResult> RequestAbortAsync(PipelineSession session, CancellationToken cancellationToken)
+    {
+        session.AbortRequested = true;
+        session.PauseRequested = false;
+        session.StopRequested = false;
+        session.SteerHint = "ABORT — discarding this work item and returning to idle chat.";
+        session.Item.Status = WorkItemStatuses.Aborted;
+        session.Item.UpdatedAt = DateTimeOffset.UtcNow;
+        session.PendingGate = null;
+        session.PendingGateLabel = null;
+        session.ErrorMessage = "Aborted by user.";
+        await UpsertWorkItemAsync(session.Item, cancellationToken).ConfigureAwait(false);
+        await AppendEventAsync(
+                session,
+                session.Item.CurrentStage,
+                WorkItemStatuses.Aborted,
+                "SteerAborted",
+                session.SteerHint,
+                session.Item.CurrentTaskId,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        session.ApprovalGate?.TrySetResult(false);
+        session.ContinueGate?.TrySetResult(true);
+        try
+        {
+            await session.Cts.CancelAsync().ConfigureAwait(false);
+        }
+        catch
+        {
+            // ignore
+        }
+
+        session.Audit.CompletedAt = DateTimeOffset.UtcNow;
+        session.Audit.FinalStatus = WorkItemStatuses.Aborted;
+        await WriteAuditAsync(session, cancellationToken).ConfigureAwait(false);
+        Bump(session);
+        return new PocSteerResult(session.Item.WorkItemId, "ABORT", WorkItemStatuses.Aborted, session.SteerHint);
+    }
+
+    private async Task<PocSteerResult> RequestContinueAsync(PipelineSession session, CancellationToken cancellationToken)
+    {
+        if (session.Item.Status != WorkItemStatuses.Paused
+            && session.ContinueGate is null)
+        {
+            throw new InvalidOperationException("Nothing is paused — CONTINUE is only valid after PAUSE or STOP.");
+        }
+
+        // Capture before releasing ContinueGate — WaitWhilePausedAsync clears SteerHint on the pipeline thread.
+        const string message = "CONTINUE — resuming the pipeline.";
+        session.SteerHint = message;
+        await AppendEventAsync(
+                session,
+                session.Item.CurrentStage,
+                "Resuming",
+                "SteerContinue",
+                message,
+                session.Item.CurrentTaskId,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (session.ContinueGate is { Task.IsCompleted: false })
+        {
+            session.ContinueGate.TrySetResult(true);
+        }
+
+        // If we paused while a PRD/SD/Deploy gate was still pending, restore AwaitingApproval.
+        if (!string.IsNullOrWhiteSpace(session.SuspendedGate))
+        {
+            session.PendingGate = session.SuspendedGate;
+            session.PendingGateLabel = session.SuspendedGateLabel;
+            session.SuspendedGate = null;
+            session.SuspendedGateLabel = null;
+            session.Item.Status = WorkItemStatuses.AwaitingApproval;
+            session.Item.UpdatedAt = DateTimeOffset.UtcNow;
+            await UpsertWorkItemAsync(session.Item, cancellationToken).ConfigureAwait(false);
+        }
+        else if (session.Item.Status == WorkItemStatuses.Paused)
+        {
+            session.Item.Status = WorkItemStatuses.Queued;
+            session.Item.UpdatedAt = DateTimeOffset.UtcNow;
+            await UpsertWorkItemAsync(session.Item, cancellationToken).ConfigureAwait(false);
+        }
+
+        Bump(session);
+        return new PocSteerResult(session.Item.WorkItemId, "CONTINUE", session.Item.Status, message);
+    }
+
+    private async Task EnterPausedAsync(PipelineSession session, string message, CancellationToken cancellationToken)
+    {
+        if (session.Item.Status == WorkItemStatuses.AwaitingApproval && session.PendingGate is not null)
+        {
+            session.SuspendedGate = session.PendingGate;
+            session.SuspendedGateLabel = session.PendingGateLabel;
+            session.PendingGate = null;
+            session.PendingGateLabel = null;
+        }
+
+        session.Item.Status = WorkItemStatuses.Paused;
+        session.Item.UpdatedAt = DateTimeOffset.UtcNow;
+        session.SteerHint = message;
+        session.ContinueGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await UpsertWorkItemAsync(session.Item, cancellationToken).ConfigureAwait(false);
+        await AppendEventAsync(
+                session,
+                session.Item.CurrentStage,
+                WorkItemStatuses.Paused,
+                "SteerPaused",
+                message,
+                session.Item.CurrentTaskId,
+                cancellationToken)
+            .ConfigureAwait(false);
+        Bump(session);
+    }
+
+    private async Task ApplyStopAndPauseAsync(PipelineSession session, CancellationToken cancellationToken)
+    {
+        var last = session.LastApprovedStage ?? "INTAKE";
+        session.Item.CurrentStage = last;
+        session.PendingGate = null;
+        session.PendingGateLabel = null;
+        session.SuspendedGate = null;
+        session.SuspendedGateLabel = null;
+        session.ResumeFromStage = NextStageAfter(last);
+        session.StopRequested = false;
+        await EnterPausedAsync(
+                session,
+                $"Stopped. Reverted to last approved stage ({last}). "
+                + $"Type CONTINUE to resume from {session.ResumeFromStage ?? "the next stage"}, or ABORT to discard the work item.",
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task WaitWhilePausedAsync(PipelineSession session, CancellationToken cancellationToken)
+    {
+        if (session.ContinueGate is null)
+        {
+            return;
+        }
+
+        await session.ContinueGate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        session.ContinueGate = null;
+        session.SteerHint = null;
+        cancellationToken.ThrowIfCancellationRequested();
+    }
+
+    private async Task HonorSteerAfterStageAsync(PipelineSession session, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (session.StopRequested)
+        {
+            await ApplyStopAndPauseAsync(session, cancellationToken).ConfigureAwait(false);
+            await WaitWhilePausedAsync(session, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (session.PauseRequested)
+        {
+            session.PauseRequested = false;
+            await EnterPausedAsync(
+                    session,
+                    "Paused after the current stage. Type CONTINUE to proceed, STOP to revert to last approved, or ABORT.",
+                    cancellationToken)
+                .ConfigureAwait(false);
+            await WaitWhilePausedAsync(session, cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private static string? NextStageAfter(string stage)
+    {
+        if (stage is "INTAKE" or "")
+        {
+            return "PRD";
+        }
+
+        var idx = Array.IndexOf(StageOrder, stage);
+        if (idx < 0)
+        {
+            return "PRD";
+        }
+
+        return idx + 1 < StageOrder.Length ? StageOrder[idx + 1] : null;
+    }
 
     private async Task<PipelineSession> CreateSessionAsync(
         PocPipelineStartRequest request,
@@ -386,6 +665,7 @@ public sealed class PocPipelineOrchestrator
         await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
         await AppendEventAsync(session, "PRD", WorkItemStatuses.Queued, "PipelineStarted", "Pipeline started", null, cancellationToken)
             .ConfigureAwait(false);
+        session.LastApprovedStage = "INTAKE";
 
         string? workspaceRoot = null;
         string? headCommit = null;
@@ -404,9 +684,26 @@ public sealed class PocPipelineOrchestrator
             }
         }
 
-        foreach (var stage in StageOrder)
+        for (var stageIndex = 0; stageIndex < StageOrder.Length; stageIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (session.AbortRequested)
+            {
+                throw new OperationCanceledException("Aborted by user.");
+            }
+
+            // After STOP + CONTINUE, jump to the stage after last approved.
+            if (session.ResumeFromStage is { } resume)
+            {
+                var jump = Array.IndexOf(StageOrder, resume);
+                session.ResumeFromStage = null;
+                if (jump >= 0 && jump != stageIndex)
+                {
+                    stageIndex = jump;
+                }
+            }
+
+            var stage = StageOrder[stageIndex];
 
             if (stage == "DEPLOY_DEV")
             {
@@ -433,8 +730,26 @@ public sealed class PocPipelineOrchestrator
                     new { headCommit, deployedUrl, workspaceRoot },
                     JsonOptions);
 
-                await RaiseGateAndWaitAsync(session, stage, "DEV acceptance — open the app, then approve to finalize", deployResult.TaskId, cancellationToken)
+                var deployApproved = await RaiseGateAndWaitAsync(
+                        session,
+                        stage,
+                        "DEV acceptance — open the app, then approve to finalize",
+                        deployResult.TaskId,
+                        cancellationToken)
                     .ConfigureAwait(false);
+                if (!deployApproved)
+                {
+                    await HonorSteerAfterStageAsync(session, cancellationToken).ConfigureAwait(false);
+                    stageIndex = -1; // loop + ResumeFromStage will retarget
+                    continue;
+                }
+
+                await HonorSteerAfterStageAsync(session, cancellationToken).ConfigureAwait(false);
+                if (session.ResumeFromStage is not null)
+                {
+                    stageIndex = -1;
+                    continue;
+                }
 
                 var finalizeResult = await RunStageAsync(
                         session,
@@ -496,8 +811,14 @@ public sealed class PocPipelineOrchestrator
                 var label = stage == "PRD"
                     ? "Review the PRD document, then approve to continue"
                     : "Review the System Design document, then approve to continue";
-                await RaiseGateAndWaitAsync(session, stage, label, result.TaskId, cancellationToken)
+                var approved = await RaiseGateAndWaitAsync(session, stage, label, result.TaskId, cancellationToken)
                     .ConfigureAwait(false);
+                if (!approved)
+                {
+                    await HonorSteerAfterStageAsync(session, cancellationToken).ConfigureAwait(false);
+                    stageIndex = -1;
+                    continue;
+                }
             }
             else
             {
@@ -506,6 +827,17 @@ public sealed class PocPipelineOrchestrator
                 await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
                 Bump(session);
             }
+
+            await HonorSteerAfterStageAsync(session, cancellationToken).ConfigureAwait(false);
+            if (session.ResumeFromStage is not null)
+            {
+                stageIndex = -1;
+            }
+        }
+
+        if (session.AbortRequested || item.Status == WorkItemStatuses.Aborted)
+        {
+            return;
         }
 
         audit.CompletedAt = DateTimeOffset.UtcNow;
@@ -516,7 +848,8 @@ public sealed class PocPipelineOrchestrator
         Bump(session);
     }
 
-    private async Task RaiseGateAndWaitAsync(
+    /// <returns>true if approved and pipeline should continue; false if STOP aborted the gate.</returns>
+    private async Task<bool> RaiseGateAndWaitAsync(
         PipelineSession session,
         string stage,
         string label,
@@ -542,7 +875,7 @@ public sealed class PocPipelineOrchestrator
         if (session.AutoApprove)
         {
             await RecordApprovalAsync(session, stage, auto: true, cancellationToken).ConfigureAwait(false);
-            return;
+            return true;
         }
 
         session.ApprovalGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -565,12 +898,21 @@ public sealed class PocPipelineOrchestrator
             .ConfigureAwait(false);
 
         var approved = await session.ApprovalGate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        session.ApprovalGate = null;
         if (!approved)
         {
-            throw new InvalidOperationException($"Gate {stage} was rejected.");
+            if (session.AbortRequested)
+            {
+                throw new OperationCanceledException("Aborted by user.");
+            }
+
+            // STOP while at gate — do not record approval; caller will pause/rewind.
+            session.StopRequested = true;
+            return false;
         }
 
         await RecordApprovalAsync(session, stage, auto: false, cancellationToken).ConfigureAwait(false);
+        return true;
     }
 
     private async Task RecordApprovalAsync(
@@ -605,6 +947,7 @@ public sealed class PocPipelineOrchestrator
         session.PendingGate = null;
         session.PendingGateLabel = null;
         session.ApprovalGate = null;
+        session.LastApprovedStage = stage;
         await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
 
         var message = auto
@@ -974,8 +1317,9 @@ public sealed class PocPipelineOrchestrator
     {
         var item = session.Item;
         var current = item.CurrentStage;
-        var terminal = item.Status is WorkItemStatuses.Completed or WorkItemStatuses.Failed;
-        var failed = item.Status == WorkItemStatuses.Failed;
+        var terminal = WorkItemStatuses.IsTerminal(item.Status);
+        var failed = item.Status is WorkItemStatuses.Failed or WorkItemStatuses.Aborted;
+        var paused = item.Status == WorkItemStatuses.Paused;
         var stages = StageStrip.Select(s =>
         {
             var state = "pending";
@@ -987,7 +1331,11 @@ public sealed class PocPipelineOrchestrator
             {
                 state = "done";
             }
-            else if (session.PendingGate == s.Id)
+            else if (session.PendingGate == s.Id || session.SuspendedGate == s.Id)
+            {
+                state = "awaiting";
+            }
+            else if (paused && s.Id == current)
             {
                 state = "awaiting";
             }
@@ -1008,8 +1356,8 @@ public sealed class PocPipelineOrchestrator
             item.WorkItemId,
             item.Status,
             item.CurrentStage,
-            session.PendingGate,
-            session.PendingGateLabel,
+            session.PendingGate ?? session.SuspendedGate,
+            session.PendingGateLabel ?? session.SuspendedGateLabel,
             session.DeployedUrl,
             item.UserRequest ?? string.Empty,
             item.StackProfile ?? string.Empty,
@@ -1018,7 +1366,11 @@ public sealed class PocPipelineOrchestrator
             failed,
             session.ErrorMessage,
             stages,
-            item.UpdatedAt);
+            item.UpdatedAt,
+            IsPaused: paused,
+            CanResume: paused && session.ContinueGate is { Task.IsCompleted: false },
+            LastApprovedStage: session.LastApprovedStage,
+            SteerHint: session.SteerHint);
     }
 
     private static bool IsStageDone(PipelineSession session, string stageId, string current, bool terminal)
@@ -1176,10 +1528,19 @@ public sealed class PocPipelineOrchestrator
         public Task? RunTask { get; set; }
         public string? PendingGate { get; set; }
         public string? PendingGateLabel { get; set; }
+        public string? SuspendedGate { get; set; }
+        public string? SuspendedGateLabel { get; set; }
         public TaskCompletionSource<bool>? ApprovalGate { get; set; }
+        public TaskCompletionSource<bool>? ContinueGate { get; set; }
         public string? ApprovalFeedback { get; set; }
         public string? DeployedUrl { get; set; }
         public string? ErrorMessage { get; set; }
+        public string? LastApprovedStage { get; set; }
+        public string? ResumeFromStage { get; set; }
+        public string? SteerHint { get; set; }
+        public bool PauseRequested { get; set; }
+        public bool StopRequested { get; set; }
+        public bool AbortRequested { get; set; }
         public int Sequence { get; set; }
         public List<SessionEvent> Events { get; } = [];
         public List<ArtifactIndexEntry> ArtifactIndex { get; } = [];

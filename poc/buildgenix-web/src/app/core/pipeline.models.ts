@@ -20,6 +20,17 @@ export interface PipelineStatus {
   errorMessage: string | null;
   stages: StageStripItem[];
   updatedAt: string;
+  isPaused?: boolean;
+  canResume?: boolean;
+  lastApprovedStage?: string | null;
+  steerHint?: string | null;
+}
+
+export interface SteerResult {
+  workItemId: string;
+  command: string;
+  status: string;
+  message: string;
 }
 
 export interface PipelineEvent {

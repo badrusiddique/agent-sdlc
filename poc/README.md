@@ -35,6 +35,7 @@ Checked-in proof (from that Azurite run):
 | `poc/buildgenix-web` | Angular chat UI: stage strip, approvals, Documents + Logs tabs |
 | `poc/scripts/verify-three.sh` | Runs all three happy paths and smokes the URLs (auto-approve) |
 | `poc/scripts/verify-interactive.sh` | Interactive path: start → approve PRD/SD/Deploy → smoke |
+| `poc/scripts/verify-steering.sh` | Chat steering: PAUSE / STOP / CONTINUE / ABORT |
 | `poc/blob-storage-snapshot/` | Snapshot of Azurite blobs from the verified run |
 
 Design notes: agent writes AH tables/blobs; buildgenix owns WorkItems / Approvals / WorkItemEvents / AuditLog. Sync `POST /api/poc/pipeline/run` auto-approves gates (scripts). Interactive `POST /api/poc/pipeline/start` pauses at PRD, System Design, and post-Deploy for human approve (chat UI). Deploy then Finalize.
@@ -53,7 +54,10 @@ Or script the same gates without the browser:
 
 ```bash
 ./scripts/verify-interactive.sh
+./scripts/verify-steering.sh   # PAUSE / STOP / CONTINUE / ABORT
 ```
+
+Chat steering (while a work item is active): type `PAUSE`, `STOP`, `ABORT`, or `CONTINUE` in the studio, or call `POST /api/poc/pipeline/{workItemId}/steer` with `{"command":"PAUSE"|"STOP"|"ABORT"|"CONTINUE"}`.
 
 ---
 

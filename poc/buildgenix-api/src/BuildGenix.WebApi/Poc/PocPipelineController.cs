@@ -71,6 +71,40 @@ public sealed class PocPipelineController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// Chat steering: PAUSE (after current stage), STOP (revert to last approved), ABORT (abandon WI), CONTINUE (resume).
+    /// </summary>
+    [HttpPost("{workItemId}/steer")]
+    [ProducesResponseType(typeof(PocSteerResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<PocSteerResult>> SteerAsync(
+        string workItemId,
+        [FromBody] PocSteerRequest body,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(body.Command))
+        {
+            return BadRequest(new { error = "Command is required (PAUSE|STOP|ABORT|CONTINUE)." });
+        }
+
+        try
+        {
+            var result = await _orchestrator
+                .SteerAsync(workItemId, body.Command, cancellationToken)
+                .ConfigureAwait(false);
+            return Ok(result);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Unknown", StringComparison.Ordinal))
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpGet("{workItemId}/status")]
     [ProducesResponseType(typeof(PocPipelineStatusDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

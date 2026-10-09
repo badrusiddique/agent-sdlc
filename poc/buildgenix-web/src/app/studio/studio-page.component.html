@@ -96,9 +96,20 @@
           </div>
         </article>
 
-        <div class="typing" *ngIf="busy() && !status()?.pendingGate">
+        <div class="typing" *ngIf="busy() && !status()?.pendingGate && !status()?.isPaused">
           <span></span><span></span><span></span>
-          <em>Agent working…</em>
+          <em>Agent working… (PAUSE / STOP / ABORT available)</em>
+        </div>
+
+        <div class="steer-bar" *ngIf="status()?.isPaused || status()?.steerHint">
+          <p *ngIf="status()?.steerHint">{{ status()?.steerHint }}</p>
+          <div class="actions" *ngIf="status()?.canResume || status()?.isPaused">
+            <button type="button" class="approve" (click)="continuePipeline()" [disabled]="steering()">
+              CONTINUE
+            </button>
+            <button type="button" class="ghost" (click)="sendSteer('STOP')" [disabled]="steering()">STOP</button>
+            <button type="button" class="ghost" (click)="sendSteer('ABORT')" [disabled]="steering()">ABORT</button>
+          </div>
         </div>
       </div>
 
@@ -109,12 +120,16 @@
           name="request"
           rows="2"
           [(ngModel)]="draft"
-          [disabled]="busy()"
-          placeholder="e.g. Create a calculator app that adds two numbers"
+          [disabled]="composerDisabled()"
+          placeholder="Request, or PAUSE / STOP / ABORT / CONTINUE while a run is active"
           (keydown.enter)="$event.preventDefault(); send()"
         ></textarea>
-        <button type="submit" [disabled]="busy() || !draft.trim()">Send</button>
+        <button type="submit" [disabled]="composerDisabled() || !draft.trim()">Send</button>
       </form>
+      <p class="steer-hint" *ngIf="hasActiveRun()">
+        Steering: <code>PAUSE</code> after current stage · <code>STOP</code> revert to last approved ·
+        <code>ABORT</code> discard work item
+      </p>
     </section>
 
     <!-- Documents -->
