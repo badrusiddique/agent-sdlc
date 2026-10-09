@@ -4,7 +4,7 @@
 
 **Date:** 2026-10-09  
 **Repo:** `https://github.com/badrusiddique/agent-sdlc` only. Never `ai-sdlc`.  
-**Source of this change (until it lands on GitHub `main`):** branch `cursor/buildgenix-chat-ui-1fa7` tip **`b78191b`** or newer (steering + CONTINUE message fix + `verify-steering.sh` Aborted wait fix).  
+**Source of this change (until it lands on GitHub `main`):** branch `cursor/buildgenix-chat-ui-1fa7` tip **`6e123b2`** (steering + CONTINUE message fix + `verify-steering.sh` Aborted wait fix).  
 **Baseline already on the other machine:** GitHub `main` with the pre-phase-0 POC under `poc/` (one Pipeline agent + auto-approve `/run` + `verify-three.sh`). That work stays. This change **extends** it; it does not replace the System Design agent work.
 
 ---
@@ -286,7 +286,7 @@ Stop on FAIL. Report PASS/FAIL per row with URLs and evidence paths.
 
 ## 8. What was already verified on the cloud machine (do not re-claim without re-running)
 
-On 2026-10-09 against Azurite + Ollama `llama3.2:1b` (branch `cursor/buildgenix-chat-ui-1fa7`, tip ≥ `b78191b`):
+On 2026-10-09 against Azurite + Ollama `llama3.2:1b` (branch `cursor/buildgenix-chat-ui-1fa7`, tip `6e123b2`):
 
 | Suite | Result |
 |---|---|
