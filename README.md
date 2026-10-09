@@ -8,6 +8,7 @@ Iteration 0 foundation for the BuildGenix AI-SDLC platform.
 |---|---|
 | `buildgenix-api/` | BuildGenix .NET 10 WebAPI + `BuildGenix.Data` (BG tables) + Docker + BG heartbeat ping/pong |
 | `agenthub-api/` | AgentHub .NET 10 WebAPI + `AgentHub.Data` (AH tables only) + Docker + AH heartbeat ping/pong |
+| `poc/` | One-agent pipeline POC + interactive Angular chat UI (`poc/buildgenix-web`) — see `poc/README.md` |
 
 Project Context (decisions, iteration plan, full contracts) also lives in the Cursor Agent Store.
 
