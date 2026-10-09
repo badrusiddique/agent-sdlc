@@ -220,7 +220,7 @@ npm start
 | ID | Check | Pass criteria | Result |
 |---|---|---|---|
 | V1 | `verify-three.sh` | Hello + add + subtract all `Completed`; thought `source=ollama` **or** Gateway model text (not Fixture); add=5; subtract=3 and add still 5 | |
-| V2 | Azurite blobs | Under `agenthub-artifacts`: `prd.json`, `techspec.json`, `code-state.json`, `test-results.json`, `completion-summary.json` for each WI | |
+| V2 | Azurite blobs | Under `agenthub-artifacts`: `prd.json`, `techspec.json`, `code-state.json`, `test-results.json`, `completion-summary.json` for each WI. `test-results.json` includes `kind=http-roundtrip` and a `roundTrips` array (request path + response body) when TESTING ran WebApplicationFactory tests | |
 | V3 | Azurite tables | `WorkItemEvents`, `Artifacts`, `Approvals`, `ActivityLog`, `EffectLedger` populated | |
 | V4 | AuditLog | `/tmp/bgx-poc-audit-azurite/*-AuditLog.json` has original request + transitions through Finalize | |
 | V5 | `verify-interactive.sh` | Pauses at PRD, SYSTEM_DESIGN, DEPLOY_DEV; each approve advances; ends Completed; add=5 | |

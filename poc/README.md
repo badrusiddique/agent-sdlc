@@ -40,6 +40,8 @@ Checked-in proof (from that Azurite run):
 
 Design notes: agent writes AH tables/blobs; buildgenix owns WorkItems / Approvals / WorkItemEvents / AuditLog. Sync `POST /api/poc/pipeline/run` auto-approves gates (scripts). Interactive `POST /api/poc/pipeline/start` pauses at PRD, System Design, and post-Deploy for human approve (chat UI). Deploy then Finalize.
 
+**Implementation** materializes richer `fe-be` / `fe-be-llm` templates (request/response panels in the SPA shell, small `CalculatorMath` helper). **Testing** runs xUnit + `WebApplicationFactory` HTTP round-trips (`/health`, `/api/add`, `/api/thought`, and `/api/subtract` when present) and writes those exchanges into `test-results.json` under `roundTrips`.
+
 ### Chat UI (interactive)
 
 ```bash

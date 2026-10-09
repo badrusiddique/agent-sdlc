@@ -225,16 +225,45 @@ public sealed class PipelineAgentHandler
 
         var passed = true;
         var detail = "no test project; smoke compile";
+        object? roundTrips = null;
+        var roundTripPath = Path.Combine(Path.GetTempPath(), $"bgx-roundtrip-{message.WorkItemId}.json");
+        if (File.Exists(roundTripPath))
+        {
+            File.Delete(roundTripPath);
+        }
+
         if (testProj is not null)
         {
             var (exit, stdout) = await RunProcessAsync(
                     ResolveDotnet(),
                     $"test \"{testProj}\" --nologo",
-                    backend,
-                    cancellationToken)
+                    Path.GetDirectoryName(testProj)!,
+                    cancellationToken,
+                    new Dictionary<string, string>
+                    {
+                        ["BGX_ROUNDTRIP_PATH"] = roundTripPath,
+                        // Keep thought tests deterministic/fast inside the pipeline host.
+                        ["OLLAMA_BASE_URL"] = "http://127.0.0.1:9"
+                    })
                 .ConfigureAwait(false);
             passed = exit == 0;
             detail = Truncate(stdout, 2000);
+            if (File.Exists(roundTripPath))
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(await File.ReadAllTextAsync(roundTripPath, cancellationToken)
+                        .ConfigureAwait(false));
+                    if (doc.RootElement.TryGetProperty("roundTrips", out var rt))
+                    {
+                        roundTrips = JsonSerializer.Deserialize<object>(rt.GetRawText());
+                    }
+                }
+                catch (JsonException)
+                {
+                    // keep detail-only results
+                }
+            }
         }
         else
         {
@@ -258,6 +287,8 @@ public sealed class PipelineAgentHandler
             new
             {
                 status = "green",
+                kind = roundTrips is null ? "compile-or-unit" : "http-roundtrip",
+                roundTrips,
                 detail,
                 headCommit = message.Context.HeadCommit
             },
@@ -518,7 +549,14 @@ public sealed class PipelineAgentHandler
         text = text.Replace(
             "// {{EXTRA_ENDPOINTS}}",
             """
-            app.MapGet("/api/subtract", (double a, double b) => Results.Ok(new { result = a - b }));
+            app.MapGet("/api/subtract", (double a, double b) =>
+                Results.Ok(new
+                {
+                    operation = "subtract",
+                    a,
+                    b,
+                    result = CalculatorMath.Subtract(a, b)
+                }));
             // {{EXTRA_ENDPOINTS}}
             """,
             StringComparison.Ordinal);
@@ -528,21 +566,15 @@ public sealed class PipelineAgentHandler
         if (File.Exists(index))
         {
             var html = File.ReadAllText(index);
-            if (!html.Contains("subtract", StringComparison.OrdinalIgnoreCase))
+            if (!html.Contains("subBtn", StringComparison.Ordinal)
+                && !html.Contains("/api/subtract", StringComparison.Ordinal))
             {
                 html = html.Replace(
                     "<!-- {{EXTRA_UI}} -->",
                     """
-                    <label>Subtract</label>
-                    <button id="subBtn" type="button">a - b</button>
+                    <button id="subBtn" class="ghost" type="button">Subtract</button>
                     <script>
-                    document.getElementById('subBtn')?.addEventListener('click', async () => {
-                      const a = Number(document.getElementById('a').value);
-                      const b = Number(document.getElementById('b').value);
-                      const r = await fetch(`/api/subtract?a=${a}&b=${b}`);
-                      const j = await r.json();
-                      document.getElementById('out').textContent = String(j.result);
-                    });
+                    document.getElementById('subBtn')?.addEventListener('click', () => callApi('/api/subtract'));
                     </script>
                     <!-- {{EXTRA_UI}} -->
                     """,
@@ -583,7 +615,8 @@ public sealed class PipelineAgentHandler
         string fileName,
         string args,
         string workingDirectory,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyDictionary<string, string>? extraEnv = null)
     {
         var psi = new ProcessStartInfo
         {
@@ -594,6 +627,14 @@ public sealed class PipelineAgentHandler
             RedirectStandardError = true,
             UseShellExecute = false
         };
+        if (extraEnv is not null)
+        {
+            foreach (var (key, value) in extraEnv)
+            {
+                psi.Environment[key] = value;
+            }
+        }
+
         using var p = Process.Start(psi) ?? throw new InvalidOperationException($"Failed to start {fileName}.");
         var stdout = await p.StandardOutput.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
         var stderr = await p.StandardError.ReadToEndAsync(cancellationToken).ConfigureAwait(false);
