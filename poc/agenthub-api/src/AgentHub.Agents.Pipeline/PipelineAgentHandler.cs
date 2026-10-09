@@ -172,7 +172,17 @@ public sealed class PipelineAgentHandler
         CancellationToken cancellationToken)
     {
         var stack = message.Context.StackProfile ?? "fe-be";
-        var llm = await CallStageLlmAsync(message, 500, cancellationToken).ConfigureAwait(false);
+        // Headline/thought hints are best-effort — never fail Implementation on LLM timeout.
+        LlmCompletionResult llm;
+        try
+        {
+            llm = await CallStageLlmAsync(message, 500, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is TaskCanceledException or TimeoutException or HttpRequestException)
+        {
+            llm = new LlmCompletionResult("{}", message.Config.ModelId ?? "local", 0, 0);
+        }
+
         var workspace = ResolveWorkspace(message);
         var intent = PipelineAgentConstants.IntentWorkspace;
         var existing = await _ledger
