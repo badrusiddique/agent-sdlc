@@ -28,7 +28,39 @@ public static class PipelineEndpoints
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status500InternalServerError);
 
+        group.MapGet("/blob", GetBlobAsync)
+            .WithName("GetPipelineBlob")
+            .WithSummary("Read an artifact blob by path (POC Docs tab / BuildGenix proxy).")
+            .Produces(StatusCodes.Status200OK)
+            .ProducesProblem(StatusCodes.Status404NotFound)
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
         return app;
+    }
+
+    private static async Task<IResult> GetBlobAsync(
+        string? path,
+        IArtifactBlobStore blobs,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return ApiProblems.ValidationFailed("Query parameter 'path' is required.");
+        }
+
+        var normalized = path.Trim().TrimStart('/');
+        if (normalized.Contains("..", StringComparison.Ordinal))
+        {
+            return ApiProblems.ValidationFailed("Invalid blob path.");
+        }
+
+        var body = await blobs.TryReadJsonAsync(normalized, cancellationToken).ConfigureAwait(false);
+        if (body is null)
+        {
+            return Results.NotFound(new { error = "Blob not found.", path = normalized });
+        }
+
+        return Results.Content(body, "application/json");
     }
 
     private static async Task<IResult> DispatchAsync(

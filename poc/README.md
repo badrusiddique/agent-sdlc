@@ -31,11 +31,29 @@ Checked-in proof (from that Azurite run):
 | Path | Role |
 |---|---|
 | `poc/agenthub-api` | Agent host + `AgentHub.Agents.Pipeline` (handler, templates, LocalCompose deploy) |
-| `poc/buildgenix-api` | `POST /api/poc/pipeline/run` orchestrator (stages, gates, events, AuditLog) |
-| `poc/scripts/verify-three.sh` | Runs all three happy paths and smokes the URLs |
+| `poc/buildgenix-api` | Orchestrator: sync `/run` + interactive `/start` with human gates |
+| `poc/buildgenix-web` | Angular chat UI: stage strip, approvals, Documents + Logs tabs |
+| `poc/scripts/verify-three.sh` | Runs all three happy paths and smokes the URLs (auto-approve) |
+| `poc/scripts/verify-interactive.sh` | Interactive path: start → approve PRD/SD/Deploy → smoke |
 | `poc/blob-storage-snapshot/` | Snapshot of Azurite blobs from the verified run |
 
-Design notes: agent writes AH tables/blobs; buildgenix owns WorkItems / Approvals / WorkItemEvents / AuditLog; three gates auto-approve on the happy path; Deploy then Finalize.
+Design notes: agent writes AH tables/blobs; buildgenix owns WorkItems / Approvals / WorkItemEvents / AuditLog. Sync `POST /api/poc/pipeline/run` auto-approves gates (scripts). Interactive `POST /api/poc/pipeline/start` pauses at PRD, System Design, and post-Deploy for human approve (chat UI). Deploy then Finalize.
+
+### Chat UI (interactive)
+
+```bash
+# With AgentHub :43180 and BuildGenix :43181 already running:
+cd poc/buildgenix-web
+npm install
+npm start
+# open http://127.0.0.1:43182
+```
+
+Or script the same gates without the browser:
+
+```bash
+./scripts/verify-interactive.sh
+```
 
 ---
 

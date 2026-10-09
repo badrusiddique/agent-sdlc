@@ -1,0 +1,160 @@
+<div class="studio">
+  <header class="top">
+    <div class="brand-block">
+      <p class="eyebrow">AI software delivery</p>
+      <h1 class="brand">BuildGenix</h1>
+      <p class="tagline">Describe the app. Watch every stage. Approve the documents that matter.</p>
+    </div>
+    <div class="run-meta" *ngIf="status() as s">
+      <span class="chip">{{ s.projectName }}</span>
+      <span class="chip muted">{{ s.stackProfile }}</span>
+      <span class="chip" [class.warn]="s.status === 'AwaitingApproval'" [class.ok]="s.status === 'Completed'">
+        {{ s.status }}
+      </span>
+    </div>
+  </header>
+
+  <section class="pipeline" aria-label="Pipeline stages">
+    <ng-container *ngIf="status() as s; else idleStrip">
+      <ol class="stages">
+        <li
+          *ngFor="let stage of s.stages; let last = last"
+          class="stage"
+          [attr.data-state]="stage.state"
+        >
+          <span class="dot" aria-hidden="true"></span>
+          <span class="label">{{ stage.label }}</span>
+          <span class="connector" *ngIf="!last" aria-hidden="true"></span>
+        </li>
+      </ol>
+    </ng-container>
+    <ng-template #idleStrip>
+      <ol class="stages idle">
+        <li class="stage" data-state="pending" *ngFor="let label of ['Intake','PRD','System Design','Implementation','Testing','Deploy','Done']; let last = last">
+          <span class="dot"></span>
+          <span class="label">{{ label }}</span>
+          <span class="connector" *ngIf="!last"></span>
+        </li>
+      </ol>
+    </ng-template>
+  </section>
+
+  <nav class="tabs" aria-label="Studio panels">
+    <button type="button" [class.active]="activeTab === 'chat'" (click)="setTab('chat')">Chat</button>
+    <button type="button" [class.active]="activeTab === 'docs'" (click)="setTab('docs')">Documents</button>
+    <button type="button" [class.active]="activeTab === 'logs'" (click)="setTab('logs')">Logs</button>
+  </nav>
+
+  <p class="banner error" *ngIf="error()">{{ error() }}</p>
+  <p class="banner success" *ngIf="status()?.deployedUrl && status()?.isTerminal && !status()?.failed">
+    Deployed:
+    <a [href]="status()!.deployedUrl!" target="_blank" rel="noopener">{{ status()!.deployedUrl }}</a>
+  </p>
+
+  <main class="panel" [attr.data-tab]="activeTab">
+    <!-- Chat -->
+    <section class="chat" *ngIf="activeTab === 'chat'">
+      <div class="thread" #chatScroll>
+        <div class="empty" *ngIf="messages().length === 0">
+          <h2>What should we build?</h2>
+          <p>Pick an example or type your own request. The pipeline runs stage by stage and pauses when your approval is required.</p>
+          <div class="examples">
+            <button type="button" *ngFor="let ex of examples" (click)="useExample(ex)">{{ ex.label }}</button>
+          </div>
+        </div>
+
+        <article
+          *ngFor="let msg of messages()"
+          class="bubble"
+          [class.user]="msg.role === 'user'"
+          [class.agent]="msg.role === 'agent'"
+          [class.system]="msg.role === 'system'"
+        >
+          <header>
+            <span class="who">{{ msg.role === 'user' ? 'You' : msg.role === 'system' ? 'BuildGenix' : 'Agent' }}</span>
+            <span class="stage" *ngIf="msg.stage">{{ msg.stage }}</span>
+            <time>{{ msg.at | date: 'HH:mm:ss' }}</time>
+          </header>
+          <p>{{ msg.text }}</p>
+          <div class="actions" *ngIf="msg.needsApproval && status()?.pendingGate === msg.gateStage">
+            <button
+              type="button"
+              class="approve"
+              (click)="approve()"
+              [disabled]="approving()"
+            >
+              {{ approving() ? 'Approving…' : 'Approve & continue' }}
+            </button>
+            <button
+              type="button"
+              class="ghost"
+              *ngIf="msg.artifactKey"
+              (click)="setTab('docs'); openArtifact(msg.artifactKey!)"
+            >
+              Open document
+            </button>
+          </div>
+        </article>
+
+        <div class="typing" *ngIf="busy() && !status()?.pendingGate">
+          <span></span><span></span><span></span>
+          <em>Agent working…</em>
+        </div>
+      </div>
+
+      <form class="composer" (ngSubmit)="send()">
+        <label class="sr-only" for="request">Your request</label>
+        <textarea
+          id="request"
+          name="request"
+          rows="2"
+          [(ngModel)]="draft"
+          [disabled]="busy()"
+          placeholder="e.g. Create a calculator app that adds two numbers"
+          (keydown.enter)="$event.preventDefault(); send()"
+        ></textarea>
+        <button type="submit" [disabled]="busy() || !draft.trim()">Send</button>
+      </form>
+    </section>
+
+    <!-- Documents -->
+    <section class="docs" *ngIf="activeTab === 'docs'">
+      <aside class="doc-list">
+        <h2>Blob artifacts</h2>
+        <p class="hint" *ngIf="!artifacts().length">Documents appear here as each stage writes to blob storage.</p>
+        <button
+          type="button"
+          *ngFor="let doc of artifacts()"
+          [class.active]="selectedArtifactKey() === doc.key"
+          (click)="openArtifact(doc.key)"
+        >
+          <strong>{{ doc.title || doc.key }}</strong>
+          <small>{{ doc.blobPath }}</small>
+        </button>
+      </aside>
+      <article class="doc-view" *ngIf="selectedArtifact() as doc; else noDoc">
+        <header>
+          <h2>{{ doc.key }}</h2>
+          <code>{{ doc.blobPath }}</code>
+        </header>
+        <pre>{{ displayDoc(doc) }}</pre>
+      </article>
+      <ng-template #noDoc>
+        <div class="doc-view empty">
+          <p>Select a document to preview its blob contents.</p>
+        </div>
+      </ng-template>
+    </section>
+
+    <!-- Logs -->
+    <section class="logs" *ngIf="activeTab === 'logs'">
+      <h2>Verbose timeline</h2>
+      <p class="hint">Readable WorkItemEvents written as the pipeline advances.</p>
+      <div class="log-scroll">
+        <pre *ngIf="logs().length; else noLogs"><ng-container *ngFor="let line of logs()">{{ line.message }}
+</ng-container></pre>
+        <ng-template #noLogs><p class="hint">No log lines yet.</p></ng-template>
+      </div>
+    </section>
+  </main>
+</div>

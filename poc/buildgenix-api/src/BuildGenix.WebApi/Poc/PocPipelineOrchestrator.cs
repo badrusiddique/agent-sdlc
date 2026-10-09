@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Threading.Channels;
 using BuildGenix.Data;
 using BuildGenix.Data.Entities;
 using BuildGenix.Data.Infrastructure;
@@ -9,8 +11,8 @@ using Microsoft.Extensions.Options;
 namespace BuildGenix.WebApi.Poc;
 
 /// <summary>
-/// Pre-phase-0 happy-path orchestrator. Publishes one stage at a time to the Pipeline agent,
-/// updates WorkItems / WorkItemEvents / Approvals / Artifacts, and rewrites AuditLog.json.
+/// Pre-phase-0 orchestrator. Sync /run keeps auto-approve for scripts.
+/// Interactive /start pauses at PRD, SYSTEM_DESIGN, and post-DEPLOY for human approve.
 /// </summary>
 public sealed class PocPipelineOrchestrator
 {
@@ -28,6 +30,17 @@ public sealed class PocPipelineOrchestrator
         "DEPLOY_DEV"
     ];
 
+    private static readonly (string Id, string Label)[] StageStrip =
+    [
+        ("INTAKE", "Intake"),
+        ("PRD", "PRD"),
+        ("SYSTEM_DESIGN", "System Design"),
+        ("IMPLEMENTATION", "Implementation"),
+        ("TESTING", "Testing"),
+        ("DEPLOY_DEV", "Deploy"),
+        ("DONE", "Done")
+    ];
+
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IProjectRepository _projects;
     private readonly IWorkItemRepository _workItems;
@@ -38,6 +51,8 @@ public sealed class PocPipelineOrchestrator
     private readonly List<WorkItemEventEntity> _memoryEvents = [];
     private readonly List<ApprovalEntity> _memoryApprovals = [];
     private readonly Dictionary<string, ArtifactEntity> _memoryArtifacts = new(StringComparer.Ordinal);
+    private readonly ConcurrentDictionary<string, PipelineSession> _sessions = new(StringComparer.Ordinal);
+    private readonly object _eventLock = new();
 
     public PocPipelineOrchestrator(
         IHttpClientFactory httpClientFactory,
@@ -58,6 +73,172 @@ public sealed class PocPipelineOrchestrator
     public async Task<PocPipelineRunResult> RunAsync(
         PocPipelineStartRequest request,
         CancellationToken cancellationToken = default)
+    {
+        var session = await CreateSessionAsync(request, cancellationToken).ConfigureAwait(false);
+        await ExecutePipelineAsync(session, request, cancellationToken).ConfigureAwait(false);
+        return ToRunResult(session);
+    }
+
+    public async Task<PocPipelineStartResult> StartAsync(
+        PocPipelineStartRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        request.AutoApprove = false;
+        // Do not link to the HTTP request token — the run outlives the start response.
+        var session = await CreateSessionAsync(request, CancellationToken.None).ConfigureAwait(false);
+        session.RunTask = Task.Run(
+            async () =>
+            {
+                try
+                {
+                    await ExecutePipelineAsync(session, request, session.Cts.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    session.ErrorMessage = "Cancelled.";
+                    session.Item.Status = WorkItemStatuses.Failed;
+                    Bump(session);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Interactive pipeline failed for {WorkItemId}", session.Item.WorkItemId);
+                    session.ErrorMessage = ex.Message;
+                    session.Item.Status = WorkItemStatuses.Failed;
+                    session.Item.UpdatedAt = DateTimeOffset.UtcNow;
+                    try
+                    {
+                        await AppendEventAsync(
+                                session,
+                                session.Item.CurrentStage,
+                                WorkItemStatuses.Failed,
+                                "PipelineFailed",
+                                ex.Message,
+                                session.Item.CurrentTaskId,
+                                CancellationToken.None)
+                            .ConfigureAwait(false);
+                    }
+                    catch
+                    {
+                        // best effort
+                    }
+
+                    Bump(session);
+                }
+            },
+            CancellationToken.None);
+
+        return new PocPipelineStartResult(
+            session.Item.ProjectId,
+            session.Item.WorkItemId,
+            session.Item.Status,
+            session.Item.CurrentStage,
+            "Pipeline started. Waiting for stage progress and human approvals at PRD, System Design, and Deploy.");
+    }
+
+    public async Task ApproveAsync(string workItemId, string? feedback, CancellationToken cancellationToken = default)
+    {
+        if (!_sessions.TryGetValue(workItemId, out var session))
+        {
+            throw new InvalidOperationException($"Unknown work item {workItemId}. Start a pipeline first.");
+        }
+
+        if (string.IsNullOrWhiteSpace(session.PendingGate))
+        {
+            throw new InvalidOperationException("No gate is waiting for approval.");
+        }
+
+        session.ApprovalFeedback = feedback;
+        if (session.ApprovalGate is null || session.ApprovalGate.Task.IsCompleted)
+        {
+            throw new InvalidOperationException("Approval gate is not active.");
+        }
+
+        session.ApprovalGate.TrySetResult(true);
+        await Task.CompletedTask.ConfigureAwait(false);
+    }
+
+    public PocPipelineStatusDto GetStatus(string workItemId)
+    {
+        var session = RequireSession(workItemId);
+        return BuildStatus(session);
+    }
+
+    public IReadOnlyList<PocPipelineEventDto> GetEvents(string workItemId, int? afterSequence = null)
+    {
+        var session = RequireSession(workItemId);
+        lock (_eventLock)
+        {
+            return session.Events
+                .Where(e => afterSequence is null || e.Sequence > afterSequence.Value)
+                .Select(ToEventDto)
+                .ToArray();
+        }
+    }
+
+    public IReadOnlyList<PocArtifactListItem> GetArtifacts(string workItemId)
+    {
+        var session = RequireSession(workItemId);
+        return session.ArtifactIndex
+            .OrderBy(a => a.Key, StringComparer.Ordinal)
+            .Select(a => new PocArtifactListItem(a.Key, a.Revision, a.BlobPath, TitleFor(a.Key)))
+            .ToArray();
+    }
+
+    public async Task<PocArtifactContentDto?> GetArtifactContentAsync(
+        string workItemId,
+        string key,
+        CancellationToken cancellationToken = default)
+    {
+        var session = RequireSession(workItemId);
+        var entry = session.ArtifactIndex.FirstOrDefault(a => a.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+        if (entry is null)
+        {
+            return null;
+        }
+
+        var content = await ReadArtifactBodyAsync(entry.BlobPath, cancellationToken).ConfigureAwait(false);
+        if (content is null)
+        {
+            return null;
+        }
+
+        return new PocArtifactContentDto(entry.Key, entry.BlobPath, "application/json", content);
+    }
+
+    public IReadOnlyList<PocLogEntryDto> GetLogs(string workItemId)
+    {
+        var session = RequireSession(workItemId);
+        lock (_eventLock)
+        {
+            return session.Events
+                .Select(e => new PocLogEntryDto(
+                    e.Entity.OccurredAt,
+                    e.Entity.Status is WorkItemStatuses.Failed ? "error" : "info",
+                    e.Entity.Stage,
+                    e.Entity.EventType,
+                    FormatLogLine(e.Entity)))
+                .ToArray();
+        }
+    }
+
+    public ChannelReader<PocPipelineStatusDto> Subscribe(string workItemId)
+    {
+        var session = RequireSession(workItemId);
+        var channel = Channel.CreateUnbounded<PocPipelineStatusDto>(
+            new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+        session.Subscribers.Add(channel.Writer);
+        channel.Writer.TryWrite(BuildStatus(session));
+        return channel.Reader;
+    }
+
+    private PipelineSession RequireSession(string workItemId) =>
+        _sessions.TryGetValue(workItemId, out var session)
+            ? session
+            : throw new InvalidOperationException($"Unknown work item {workItemId}.");
+
+    private async Task<PipelineSession> CreateSessionAsync(
+        PocPipelineStartRequest request,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         if (string.IsNullOrWhiteSpace(request.UserRequest))
@@ -136,17 +317,41 @@ public sealed class PocPipelineOrchestrator
             await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
         }
 
-        var audit = new AuditLogDocument
+        var session = new PipelineSession
         {
-            OriginalRequest = request.UserRequest,
-            ProjectId = projectId,
-            WorkItemId = item.WorkItemId,
-            StackProfile = stack,
+            Item = item,
+            ProjectSlug = projectSlug,
             ProjectMode = mode,
-            StartedAt = DateTimeOffset.UtcNow
+            AutoApprove = request.AutoApprove,
+            BaselineArtifacts = request.BaselineArtifacts,
+            Audit = new AuditLogDocument
+            {
+                OriginalRequest = request.UserRequest,
+                ProjectId = projectId,
+                WorkItemId = item.WorkItemId,
+                StackProfile = stack,
+                ProjectMode = mode,
+                StartedAt = DateTimeOffset.UtcNow
+            },
+            Cts = new CancellationTokenSource()
         };
+        _sessions[item.WorkItemId] = session;
+        return session;
+    }
 
-        await AppendEventAsync(item, "INTAKE", WorkItemStatuses.Draft, "IntakeStarted", "Intake one-shot", null, cancellationToken)
+    private async Task ExecutePipelineAsync(
+        PipelineSession session,
+        PocPipelineStartRequest request,
+        CancellationToken cancellationToken)
+    {
+        var item = session.Item;
+        var audit = session.Audit;
+        var stack = string.IsNullOrWhiteSpace(item.StackProfile) ? "fe-be" : item.StackProfile;
+        var mode = session.ProjectMode;
+        var projectName = item.ProjectName ?? "Project";
+        var projectSlug = session.ProjectSlug;
+
+        await AppendEventAsync(session, "INTAKE", WorkItemStatuses.Draft, "IntakeStarted", "Intake one-shot", null, cancellationToken)
             .ConfigureAwait(false);
 
         var intakePath = $"{item.BlobPrefix}intake-summary.json";
@@ -161,7 +366,8 @@ public sealed class PocPipelineOrchestrator
                 templateId = item.TemplateId
             },
             JsonOptions);
-        await RegisterArtifactAsync(item, "intakeSummary", 1, intakePath, cancellationToken).ConfigureAwait(false);
+        await WriteLocalArtifactAsync(intakePath, intakeJson, cancellationToken).ConfigureAwait(false);
+        await RegisterArtifactAsync(session, "intakeSummary", 1, intakePath, cancellationToken).ConfigureAwait(false);
         audit.Transitions.Add(new AuditTransition
         {
             Stage = "INTAKE",
@@ -170,16 +376,15 @@ public sealed class PocPipelineOrchestrator
             Message = "Wrote intake-summary.json",
             ArtifactPath = intakePath
         });
-        await WriteAuditAsync(item, audit, cancellationToken).ConfigureAwait(false);
+        await WriteAuditAsync(session, cancellationToken).ConfigureAwait(false);
 
-        // Take ~ACTIVE / start pipeline
         item.Status = WorkItemStatuses.Queued;
         item.CurrentStage = "PRD";
         item.CurrentInputVersion = 1;
         item.PipelineStarted = true;
         item.UpdatedAt = DateTimeOffset.UtcNow;
         await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
-        await AppendEventAsync(item, "PRD", WorkItemStatuses.Queued, "PipelineStarted", "Implement now (POC auto)", null, cancellationToken)
+        await AppendEventAsync(session, "PRD", WorkItemStatuses.Queued, "PipelineStarted", "Pipeline started", null, cancellationToken)
             .ConfigureAwait(false);
 
         string? workspaceRoot = null;
@@ -201,11 +406,12 @@ public sealed class PocPipelineOrchestrator
 
         foreach (var stage in StageOrder)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             if (stage == "DEPLOY_DEV")
             {
-                // Deploy
                 var deployResult = await RunStageAsync(
-                        item,
+                        session,
                         stage,
                         "Deploy",
                         projectName,
@@ -216,34 +422,22 @@ public sealed class PocPipelineOrchestrator
                         workspaceRoot,
                         headCommit,
                         request.BaselineArtifacts,
-                        audit,
                         cancellationToken)
                     .ConfigureAwait(false);
                 MergeArtifacts(artifacts, deployResult.Artifacts);
                 workspaceRoot = deployResult.Outputs.GetValueOrDefault("workspaceRoot") ?? workspaceRoot;
                 headCommit = deployResult.Outputs.GetValueOrDefault("headCommit") ?? headCommit;
                 deployedUrl = deployResult.Outputs.GetValueOrDefault("deployedUrls");
+                session.DeployedUrl = deployedUrl;
                 item.RepoFactsJson = JsonSerializer.Serialize(
                     new { headCommit, deployedUrl, workspaceRoot },
                     JsonOptions);
 
-                item.Status = WorkItemStatuses.AwaitingApproval;
-                item.UpdatedAt = DateTimeOffset.UtcNow;
-                await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
-                await AppendEventAsync(
-                        item,
-                        stage,
-                        WorkItemStatuses.AwaitingApproval,
-                        "GateRaised",
-                        "DEV acceptance",
-                        deployResult.TaskId,
-                        cancellationToken)
+                await RaiseGateAndWaitAsync(session, stage, "DEV acceptance — open the app, then approve to finalize", deployResult.TaskId, cancellationToken)
                     .ConfigureAwait(false);
-                await AutoApproveAsync(item, stage, audit, cancellationToken).ConfigureAwait(false);
 
-                // Finalize
                 var finalizeResult = await RunStageAsync(
-                        item,
+                        session,
                         stage,
                         "Finalize",
                         projectName,
@@ -254,7 +448,6 @@ public sealed class PocPipelineOrchestrator
                         workspaceRoot,
                         headCommit,
                         request.BaselineArtifacts,
-                        audit,
                         cancellationToken)
                     .ConfigureAwait(false);
                 MergeArtifacts(artifacts, finalizeResult.Artifacts);
@@ -268,7 +461,7 @@ public sealed class PocPipelineOrchestrator
                 item.LastAppliedResultId = $"result:{finalizeResult.TaskId}:{item.CurrentInputVersion}";
                 await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
                 await AppendEventAsync(
-                        item,
+                        session,
                         "DONE",
                         WorkItemStatuses.Completed,
                         "Finalized",
@@ -281,7 +474,7 @@ public sealed class PocPipelineOrchestrator
             }
 
             var result = await RunStageAsync(
-                    item,
+                    session,
                     stage,
                     deploymentAction: null,
                     projectName,
@@ -292,7 +485,6 @@ public sealed class PocPipelineOrchestrator
                     workspaceRoot,
                     headCommit,
                     request.BaselineArtifacts,
-                    audit,
                     cancellationToken)
                 .ConfigureAwait(false);
             MergeArtifacts(artifacts, result.Artifacts);
@@ -301,46 +493,145 @@ public sealed class PocPipelineOrchestrator
 
             if (stage is "PRD" or "SYSTEM_DESIGN")
             {
-                item.Status = WorkItemStatuses.AwaitingApproval;
-                item.UpdatedAt = DateTimeOffset.UtcNow;
-                await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
-                await AppendEventAsync(
-                        item,
-                        stage,
-                        WorkItemStatuses.AwaitingApproval,
-                        "GateRaised",
-                        $"{stage} review",
-                        result.TaskId,
-                        cancellationToken)
+                var label = stage == "PRD"
+                    ? "Review the PRD document, then approve to continue"
+                    : "Review the System Design document, then approve to continue";
+                await RaiseGateAndWaitAsync(session, stage, label, result.TaskId, cancellationToken)
                     .ConfigureAwait(false);
-                await AutoApproveAsync(item, stage, audit, cancellationToken).ConfigureAwait(false);
             }
             else
             {
                 item.Status = WorkItemStatuses.Queued;
                 item.UpdatedAt = DateTimeOffset.UtcNow;
                 await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
+                Bump(session);
             }
         }
 
         audit.CompletedAt = DateTimeOffset.UtcNow;
         audit.FinalStatus = WorkItemStatuses.Completed;
         audit.DeployedUrl = deployedUrl;
-        await WriteAuditAsync(item, audit, cancellationToken).ConfigureAwait(false);
+        session.DeployedUrl = deployedUrl;
+        await WriteAuditAsync(session, cancellationToken).ConfigureAwait(false);
+        Bump(session);
+    }
 
-        return new PocPipelineRunResult(
-            item.ProjectId,
-            item.WorkItemId,
-            item.Status,
-            item.CurrentStage,
-            deployedUrl,
-            AuditLogPath(item),
-            audit.Transitions.Select(t => t.Stage + ":" + t.Status).ToArray(),
-            _memoryEvents.Where(e => e.WorkItemId == item.WorkItemId).Select(e => e.EventType).ToArray());
+    private async Task RaiseGateAndWaitAsync(
+        PipelineSession session,
+        string stage,
+        string label,
+        string? taskId,
+        CancellationToken cancellationToken)
+    {
+        var item = session.Item;
+        item.Status = WorkItemStatuses.AwaitingApproval;
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+        await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
+        session.PendingGate = stage;
+        session.PendingGateLabel = label;
+        await AppendEventAsync(
+                session,
+                stage,
+                WorkItemStatuses.AwaitingApproval,
+                "GateRaised",
+                label,
+                taskId,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (session.AutoApprove)
+        {
+            await RecordApprovalAsync(session, stage, auto: true, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        session.ApprovalGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Bump(session);
+        var waitMessage = stage switch
+        {
+            "PRD" => "PRD is ready for review. Open the document, then approve to continue.",
+            "SYSTEM_DESIGN" => "System Design is ready for review. Open the document, then approve to continue.",
+            "DEPLOY_DEV" => "DEV deploy is ready. Open the app URL, then approve to finalize.",
+            _ => "Waiting for your approval in the chat…"
+        };
+        await AppendEventAsync(
+                session,
+                stage,
+                WorkItemStatuses.AwaitingApproval,
+                "WaitingForUser",
+                waitMessage,
+                taskId,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var approved = await session.ApprovalGate.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (!approved)
+        {
+            throw new InvalidOperationException($"Gate {stage} was rejected.");
+        }
+
+        await RecordApprovalAsync(session, stage, auto: false, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task RecordApprovalAsync(
+        PipelineSession session,
+        string stage,
+        bool auto,
+        CancellationToken cancellationToken)
+    {
+        var item = session.Item;
+        var approval = new ApprovalEntity
+        {
+            PartitionKey = item.WorkItemId,
+            RowKey = $"{stage}:{item.CurrentInputVersion}",
+            WorkItemId = item.WorkItemId,
+            Stage = stage,
+            Decision = "Approved",
+            UserId = _options.DummyUserId,
+            InputVersion = item.CurrentInputVersion,
+            DecidedAt = DateTimeOffset.UtcNow
+        };
+        _memoryApprovals.Add(approval);
+        if (!_options.UseInMemoryTables)
+        {
+            await _tables.GetClient(TableNames.Approvals)
+                .UpsertEntityAsync(approval, cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        item.CurrentInputVersion += 1;
+        item.Status = WorkItemStatuses.Queued;
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+        session.PendingGate = null;
+        session.PendingGateLabel = null;
+        session.ApprovalGate = null;
+        await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
+
+        var message = auto
+            ? $"Auto-approved by {_options.DummyUserId}"
+            : $"Approved by {_options.DummyUserId}"
+              + (string.IsNullOrWhiteSpace(session.ApprovalFeedback) ? string.Empty : $": {session.ApprovalFeedback}");
+        await AppendEventAsync(
+                session,
+                stage,
+                "Approved",
+                "GateApproved",
+                message,
+                item.CurrentTaskId,
+                cancellationToken)
+            .ConfigureAwait(false);
+        session.Audit.Transitions.Add(new AuditTransition
+        {
+            Stage = stage,
+            Status = "Approved",
+            At = DateTimeOffset.UtcNow,
+            Message = $"causationId=gate:{approval.RowKey}:Approved"
+        });
+        await WriteAuditAsync(session, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<StageDispatchResult> RunStageAsync(
-        WorkItemEntity item,
+        PipelineSession session,
         string stage,
         string? deploymentAction,
         string projectName,
@@ -351,14 +642,10 @@ public sealed class PocPipelineOrchestrator
         string? workspaceRoot,
         string? headCommit,
         Dictionary<string, string>? baseline,
-        AuditLogDocument audit,
         CancellationToken cancellationToken)
     {
+        var item = session.Item;
         item.CurrentInputVersion = Math.Max(1, item.CurrentInputVersion);
-        if (deploymentAction is null || deploymentAction == "Deploy")
-        {
-            // new task id per stage run (Finalize gets its own too)
-        }
 
         var taskId = Guid.CreateVersion7().ToString("N");
         item.CurrentTaskId = taskId;
@@ -368,7 +655,15 @@ public sealed class PocPipelineOrchestrator
         item.PendingAt = DateTimeOffset.UtcNow;
         item.UpdatedAt = DateTimeOffset.UtcNow;
         await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
-        await AppendEventAsync(item, stage, WorkItemStatuses.Running, "StageStarted", $"Running {stage}", taskId, cancellationToken)
+        var actionLabel = deploymentAction is null ? stage : $"{stage}:{deploymentAction}";
+        await AppendEventAsync(
+                session,
+                stage,
+                WorkItemStatuses.Running,
+                "StageStarted",
+                $"Running {actionLabel}…",
+                taskId,
+                cancellationToken)
             .ConfigureAwait(false);
 
         var task = new
@@ -429,7 +724,7 @@ public sealed class PocPipelineOrchestrator
 
         foreach (var pair in result.Artifacts ?? [])
         {
-            await RegisterArtifactAsync(item, pair.Key, 1, pair.Value, cancellationToken).ConfigureAwait(false);
+            await RegisterArtifactAsync(session, pair.Key, 1, pair.Value, cancellationToken).ConfigureAwait(false);
         }
 
         item.LastAppliedResultId = $"result:{taskId}:{item.CurrentInputVersion}";
@@ -437,16 +732,16 @@ public sealed class PocPipelineOrchestrator
         item.UpdatedAt = DateTimeOffset.UtcNow;
         await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
         await AppendEventAsync(
-                item,
+                session,
                 stage,
                 "Completed",
                 "StageCompleted",
-                result.Outputs?.GetValueOrDefault("deployedUrls") ?? $"{stage} completed",
+                result.Outputs?.GetValueOrDefault("deployedUrls") ?? $"{actionLabel} completed",
                 taskId,
                 cancellationToken)
             .ConfigureAwait(false);
 
-        audit.Transitions.Add(new AuditTransition
+        session.Audit.Transitions.Add(new AuditTransition
         {
             Stage = stage + (deploymentAction is null ? string.Empty : ":" + deploymentAction),
             Status = "Completed",
@@ -454,7 +749,7 @@ public sealed class PocPipelineOrchestrator
             Message = $"task {taskId}",
             ArtifactPath = result.Artifacts?.Values.FirstOrDefault()
         });
-        await WriteAuditAsync(item, audit, cancellationToken).ConfigureAwait(false);
+        await WriteAuditAsync(session, cancellationToken).ConfigureAwait(false);
 
         return new StageDispatchResult(
             taskId,
@@ -462,56 +757,8 @@ public sealed class PocPipelineOrchestrator
             result.Outputs ?? new Dictionary<string, string>());
     }
 
-    private async Task AutoApproveAsync(
-        WorkItemEntity item,
-        string stage,
-        AuditLogDocument audit,
-        CancellationToken cancellationToken)
-    {
-        var approval = new ApprovalEntity
-        {
-            PartitionKey = item.WorkItemId,
-            RowKey = $"{stage}:{item.CurrentInputVersion}",
-            WorkItemId = item.WorkItemId,
-            Stage = stage,
-            Decision = "Approved",
-            UserId = _options.DummyUserId,
-            InputVersion = item.CurrentInputVersion,
-            DecidedAt = DateTimeOffset.UtcNow
-        };
-        _memoryApprovals.Add(approval);
-        if (!_options.UseInMemoryTables)
-        {
-            await _tables.GetClient(TableNames.Approvals)
-                .UpsertEntityAsync(approval, cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        item.CurrentInputVersion += 1;
-        item.Status = WorkItemStatuses.Queued;
-        item.UpdatedAt = DateTimeOffset.UtcNow;
-        await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
-        await AppendEventAsync(
-                item,
-                stage,
-                "Approved",
-                "GateApproved",
-                $"Auto-approved by {_options.DummyUserId}",
-                item.CurrentTaskId,
-                cancellationToken)
-            .ConfigureAwait(false);
-        audit.Transitions.Add(new AuditTransition
-        {
-            Stage = stage,
-            Status = "Approved",
-            At = DateTimeOffset.UtcNow,
-            Message = $"causationId=gate:{approval.RowKey}:Approved"
-        });
-        await WriteAuditAsync(item, audit, cancellationToken).ConfigureAwait(false);
-    }
-
     private async Task AppendEventAsync(
-        WorkItemEntity item,
+        PipelineSession session,
         string stage,
         string status,
         string eventType,
@@ -519,6 +766,7 @@ public sealed class PocPipelineOrchestrator
         string? taskId,
         CancellationToken cancellationToken)
     {
+        var item = session.Item;
         var entity = new WorkItemEventEntity
         {
             PartitionKey = item.WorkItemId,
@@ -532,7 +780,12 @@ public sealed class PocPipelineOrchestrator
             TaskId = taskId,
             OccurredAt = DateTimeOffset.UtcNow
         };
-        _memoryEvents.Add(entity);
+        lock (_eventLock)
+        {
+            _memoryEvents.Add(entity);
+            session.Events.Add(new SessionEvent(++session.Sequence, entity, GuessArtifactKey(eventType, stage, session)));
+        }
+
         _logger.LogInformation(
             "WorkItemEvent {EventType} WI={WorkItemId} Stage={Stage} Status={Status}",
             eventType,
@@ -545,15 +798,18 @@ public sealed class PocPipelineOrchestrator
                 .UpsertEntityAsync(entity, cancellationToken: cancellationToken)
                 .ConfigureAwait(false);
         }
+
+        Bump(session);
     }
 
     private async Task RegisterArtifactAsync(
-        WorkItemEntity item,
+        PipelineSession session,
         string key,
         int revision,
         string path,
         CancellationToken cancellationToken)
     {
+        var item = session.Item;
         var row = new ArtifactEntity
         {
             PartitionKey = item.WorkItemId,
@@ -574,6 +830,8 @@ public sealed class PocPipelineOrchestrator
         };
         _memoryArtifacts[row.RowKey] = row;
         _memoryArtifacts[head.RowKey] = head;
+        session.ArtifactIndex.RemoveAll(a => a.Key.Equals(key, StringComparison.OrdinalIgnoreCase));
+        session.ArtifactIndex.Add(new ArtifactIndexEntry(key, revision, path));
         if (!_options.UseInMemoryTables)
         {
             var client = _tables.GetClient(TableNames.Artifacts);
@@ -581,7 +839,19 @@ public sealed class PocPipelineOrchestrator
             await client.UpsertEntityAsync(head, cancellationToken: cancellationToken).ConfigureAwait(false);
         }
 
-        await Task.CompletedTask;
+        // Surface human-facing docs in chat; skip noisy intermediate keys.
+        if (key is "prd" or "prdMd" or "techSpec" or "techSpecMd" or "completionSummary")
+        {
+            await AppendEventAsync(
+                    session,
+                    item.CurrentStage,
+                    "ArtifactReady",
+                    "ArtifactReady",
+                    $"Document ready: {TitleFor(key)}",
+                    item.CurrentTaskId,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
     }
 
     private async Task UpsertWorkItemAsync(WorkItemEntity item, CancellationToken cancellationToken)
@@ -625,7 +895,6 @@ public sealed class PocPipelineOrchestrator
         await _tables.GetClient(TableNames.WorkItems)
             .UpsertEntityAsync(baseline, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
-        // release ~ACTIVE if present
         try
         {
             await _tables.GetClient(TableNames.WorkItems)
@@ -638,17 +907,15 @@ public sealed class PocPipelineOrchestrator
         }
     }
 
-    private async Task WriteAuditAsync(
-        WorkItemEntity item,
-        AuditLogDocument audit,
-        CancellationToken cancellationToken)
+    private async Task WriteAuditAsync(PipelineSession session, CancellationToken cancellationToken)
     {
+        var item = session.Item;
+        var audit = session.Audit;
         Directory.CreateDirectory(_options.AuditLogDirectory);
         var path = AuditLogPath(item);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var json = JsonSerializer.Serialize(audit, JsonOptions);
         await File.WriteAllTextAsync(path, json, cancellationToken).ConfigureAwait(false);
-        // also mirror under work-item relative path name for blob-style layout
         var blobStyle = Path.Combine(
             _options.AuditLogDirectory,
             item.ProjectId,
@@ -657,10 +924,169 @@ public sealed class PocPipelineOrchestrator
             "AuditLog.json");
         Directory.CreateDirectory(Path.GetDirectoryName(blobStyle)!);
         await File.WriteAllTextAsync(blobStyle, json, cancellationToken).ConfigureAwait(false);
+        await WriteLocalArtifactAsync($"{item.BlobPrefix}AuditLog.json", json, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task WriteLocalArtifactAsync(string blobPath, string json, CancellationToken cancellationToken)
+    {
+        var full = Path.Combine(
+            _options.ArtifactFileRootPath,
+            blobPath.Replace('/', Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+        await File.WriteAllTextAsync(full, json, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<string?> ReadArtifactBodyAsync(string blobPath, CancellationToken cancellationToken)
+    {
+        var local = Path.Combine(
+            _options.ArtifactFileRootPath,
+            blobPath.Replace('/', Path.DirectorySeparatorChar));
+        if (File.Exists(local))
+        {
+            return await File.ReadAllTextAsync(local, cancellationToken).ConfigureAwait(false);
+        }
+
+        try
+        {
+            var client = _httpClientFactory.CreateClient("agenthub");
+            using var response = await client
+                .GetAsync($"/api/pipeline/blob?path={Uri.EscapeDataString(blobPath)}", cancellationToken)
+                .ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            return await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to read artifact {BlobPath}", blobPath);
+            return null;
+        }
     }
 
     private string AuditLogPath(WorkItemEntity item) =>
         Path.Combine(_options.AuditLogDirectory, $"{item.WorkItemId}-AuditLog.json");
+
+    private PocPipelineStatusDto BuildStatus(PipelineSession session)
+    {
+        var item = session.Item;
+        var current = item.CurrentStage;
+        var terminal = item.Status is WorkItemStatuses.Completed or WorkItemStatuses.Failed;
+        var failed = item.Status == WorkItemStatuses.Failed;
+        var stages = StageStrip.Select(s =>
+        {
+            var state = "pending";
+            if (failed && s.Id == current)
+            {
+                state = "failed";
+            }
+            else if (item.Status == WorkItemStatuses.Completed || IsStageDone(session, s.Id, current, terminal))
+            {
+                state = "done";
+            }
+            else if (session.PendingGate == s.Id)
+            {
+                state = "awaiting";
+            }
+            else if (s.Id == current && item.Status == WorkItemStatuses.Running)
+            {
+                state = "running";
+            }
+            else if (s.Id == current)
+            {
+                state = "active";
+            }
+
+            return new PocStageStripItem(s.Id, s.Label, state);
+        }).ToArray();
+
+        return new PocPipelineStatusDto(
+            item.ProjectId,
+            item.WorkItemId,
+            item.Status,
+            item.CurrentStage,
+            session.PendingGate,
+            session.PendingGateLabel,
+            session.DeployedUrl,
+            item.UserRequest ?? string.Empty,
+            item.StackProfile ?? string.Empty,
+            item.ProjectName ?? string.Empty,
+            terminal,
+            failed,
+            session.ErrorMessage,
+            stages,
+            item.UpdatedAt);
+    }
+
+    private static bool IsStageDone(PipelineSession session, string stageId, string current, bool terminal)
+    {
+        if (stageId == "DONE")
+        {
+            return terminal && session.Item.Status == WorkItemStatuses.Completed;
+        }
+
+        if (stageId == "INTAKE")
+        {
+            return session.Events.Any(e => e.Entity.EventType == "IntakeStarted");
+        }
+
+        var order = StageStrip.Select(s => s.Id).ToList();
+        var stageIdx = order.IndexOf(stageId);
+        var currentIdx = order.IndexOf(string.IsNullOrEmpty(current) ? "INTAKE" : current);
+        if (stageIdx < 0 || currentIdx < 0)
+        {
+            return false;
+        }
+
+        if (stageIdx < currentIdx)
+        {
+            return true;
+        }
+
+        if (stageIdx == currentIdx
+            && session.Events.Any(e =>
+                e.Entity.Stage == stageId
+                && e.Entity.EventType is "StageCompleted" or "GateApproved"))
+        {
+            return session.PendingGate != stageId;
+        }
+
+        return false;
+    }
+
+    private PocPipelineRunResult ToRunResult(PipelineSession session)
+    {
+        var item = session.Item;
+        return new PocPipelineRunResult(
+            item.ProjectId,
+            item.WorkItemId,
+            item.Status,
+            item.CurrentStage,
+            session.DeployedUrl,
+            AuditLogPath(item),
+            session.Audit.Transitions.Select(t => t.Stage + ":" + t.Status).ToArray(),
+            session.Events.Select(e => e.Entity.EventType).ToArray());
+    }
+
+    private void Bump(PipelineSession session)
+    {
+        var status = BuildStatus(session);
+        foreach (var writer in session.Subscribers.ToArray())
+        {
+            if (session.DeadWriters.Contains(writer))
+            {
+                continue;
+            }
+
+            if (!writer.TryWrite(status))
+            {
+                session.DeadWriters.Add(writer);
+            }
+        }
+    }
 
     private static void MergeArtifacts(Dictionary<string, string> target, Dictionary<string, string> source)
     {
@@ -681,6 +1107,50 @@ public sealed class PocPipelineOrchestrator
         new string(name.ToLowerInvariant().Select(ch => char.IsLetterOrDigit(ch) ? ch : '-').ToArray())
             .Trim('-');
 
+    private static string TitleFor(string key) => key switch
+    {
+        "intakeSummary" => "Intake summary",
+        "prd" => "PRD (JSON)",
+        "prdMd" => "PRD",
+        "techSpec" => "System design (JSON)",
+        "techSpecMd" => "System design",
+        "codeState" => "Code state",
+        "review" => "Code review",
+        "testResults" => "Test results",
+        "completionSummary" => "Completion summary",
+        _ => key
+    };
+
+    private static string? GuessArtifactKey(string eventType, string stage, PipelineSession session)
+    {
+        if (eventType is not ("ArtifactReady" or "GateRaised" or "WaitingForUser"))
+        {
+            return null;
+        }
+
+        return stage switch
+        {
+            "PRD" => session.ArtifactIndex.LastOrDefault(a => a.Key is "prdMd" or "prd")?.Key,
+            "SYSTEM_DESIGN" => session.ArtifactIndex.LastOrDefault(a => a.Key is "techSpecMd" or "techSpec")?.Key,
+            "DEPLOY_DEV" => session.ArtifactIndex.LastOrDefault(a => a.Key == "completionSummary")?.Key,
+            _ => session.ArtifactIndex.LastOrDefault()?.Key
+        };
+    }
+
+    private static string FormatLogLine(WorkItemEventEntity e) =>
+        $"[{e.OccurredAt:HH:mm:ss}] {e.Stage}/{e.EventType} ({e.Status}) — {e.Message}";
+
+    private static PocPipelineEventDto ToEventDto(SessionEvent e) =>
+        new(
+            e.Entity.RowKey,
+            e.Entity.Stage,
+            e.Entity.Status,
+            e.Entity.EventType,
+            e.Entity.Message,
+            e.Entity.TaskId,
+            e.Entity.OccurredAt,
+            e.ArtifactKey);
+
     private sealed class AgentHubResultDto
     {
         public string Status { get; set; } = string.Empty;
@@ -693,47 +1163,31 @@ public sealed class PocPipelineOrchestrator
         string TaskId,
         Dictionary<string, string> Artifacts,
         Dictionary<string, string> Outputs);
-}
 
-public sealed class PocPipelineStartRequest
-{
-    public string UserRequest { get; set; } = string.Empty;
-    public string? StackProfile { get; set; }
-    public string? ProjectMode { get; set; }
-    public string? ProjectId { get; set; }
-    public string? ProjectName { get; set; }
-    public Dictionary<string, string>? BaselineArtifacts { get; set; }
-}
+    private sealed class PipelineSession
+    {
+        public required WorkItemEntity Item { get; init; }
+        public required string ProjectSlug { get; init; }
+        public required string ProjectMode { get; init; }
+        public required bool AutoApprove { get; init; }
+        public Dictionary<string, string>? BaselineArtifacts { get; init; }
+        public required AuditLogDocument Audit { get; init; }
+        public required CancellationTokenSource Cts { get; init; }
+        public Task? RunTask { get; set; }
+        public string? PendingGate { get; set; }
+        public string? PendingGateLabel { get; set; }
+        public TaskCompletionSource<bool>? ApprovalGate { get; set; }
+        public string? ApprovalFeedback { get; set; }
+        public string? DeployedUrl { get; set; }
+        public string? ErrorMessage { get; set; }
+        public int Sequence { get; set; }
+        public List<SessionEvent> Events { get; } = [];
+        public List<ArtifactIndexEntry> ArtifactIndex { get; } = [];
+        public ConcurrentBag<ChannelWriter<PocPipelineStatusDto>> Subscribers { get; } = [];
+        public ConcurrentBag<ChannelWriter<PocPipelineStatusDto>> DeadWriters { get; } = [];
+    }
 
-public sealed record PocPipelineRunResult(
-    string ProjectId,
-    string WorkItemId,
-    string Status,
-    string Stage,
-    string? DeployedUrl,
-    string AuditLogPath,
-    IReadOnlyList<string> TransitionTrail,
-    IReadOnlyList<string> EventTypes);
+    private sealed record SessionEvent(int Sequence, WorkItemEventEntity Entity, string? ArtifactKey);
 
-public sealed class AuditLogDocument
-{
-    public string OriginalRequest { get; set; } = string.Empty;
-    public string ProjectId { get; set; } = string.Empty;
-    public string WorkItemId { get; set; } = string.Empty;
-    public string StackProfile { get; set; } = string.Empty;
-    public string ProjectMode { get; set; } = string.Empty;
-    public DateTimeOffset StartedAt { get; set; }
-    public DateTimeOffset? CompletedAt { get; set; }
-    public string? FinalStatus { get; set; }
-    public string? DeployedUrl { get; set; }
-    public List<AuditTransition> Transitions { get; set; } = [];
-}
-
-public sealed class AuditTransition
-{
-    public string Stage { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public DateTimeOffset At { get; set; }
-    public string Message { get; set; } = string.Empty;
-    public string? ArtifactPath { get; set; }
+    private sealed record ArtifactIndexEntry(string Key, int Revision, string BlobPath);
 }
