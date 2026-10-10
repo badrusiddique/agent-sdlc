@@ -2,9 +2,10 @@
 
 **Purpose:** Paste this whole file into the coding agent on the other machine. It tells you exactly what to pick from the new change, what not to touch, how to integrate it on top of the POC already on `main`, and how to prove it.
 
-**Date:** 2026-10-09  
+**Date:** 2026-10-10  
 **Repo:** `https://github.com/badrusiddique/agent-sdlc` only. Never `ai-sdlc`.  
-**Source of this change (until it lands on GitHub `main`):** branch `cursor/buildgenix-chat-ui-1fa7` tip **`27e3a5f`** (steering + Implementation/Testing polish with HTTP round-trip automation).  
+**Remote:** `origin` → GitHub (`badrusiddique/agent-sdlc`). Integrate onto **`origin/main`** (some clones still call the default branch `master`; use whatever `origin/HEAD` points at — almost always `main`).  
+**Source of this change (until it lands on GitHub `main`):** branch `cursor/buildgenix-chat-ui-1fa7` tip — pull latest after Badru pushes. Includes chat UI, steering, Implementation/Testing polish, professional stage prompts, and **intra-stage tasks** (not sub-agents).  
 **Baseline already on the other machine:** GitHub `main` with the pre-phase-0 POC under `poc/` (one Pipeline agent + auto-approve `/run` + `verify-three.sh`). That work stays. This change **extends** it; it does not replace the System Design agent work.
 
 ---
@@ -32,58 +33,55 @@ The POC already walks Intake → PRD → System Design → Implementation → Te
 3. Status / events / artifacts / logs (+ SSE) feed the UI.
 4. Cooperative chat steering: `POST …/steer` with `PAUSE` | `STOP` | `ABORT` | `CONTINUE` (also typeable in the studio).
 5. AgentHub gains `GET /api/pipeline/blob?path=` so Documents can read blob bodies.
-6. `verify-three.sh` still uses `/run` with auto-approve. `verify-interactive.sh` exercises human gates. `verify-steering.sh` exercises PAUSE/STOP/CONTINUE/ABORT.
+6. Intra-stage **tasks** (still one Pipeline agent): each stage emits ordered `TaskStarted`/`TaskCompleted` steps into ActivityLog + `AgentResult.Steps`; BuildGenix replays them into `WorkItemEvents` for the chat UI/DB.
+7. Professional stage prompts in `poc/agenthub-api/.../Prompts/pipeline-system.txt`.
+8. `verify-three.sh` still uses `/run` with auto-approve. `verify-interactive.sh` exercises human gates. `verify-steering.sh` exercises PAUSE/STOP/CONTINUE/ABORT.
 
 ---
 
-## 2. How to get the bits onto the other machine
+## 2. How to get the bits onto the other machine (from GitHub `origin`)
 
-### Option A — GitHub `main` already has this tip (preferred after Badru pushes)
+### Option A — GitHub `main` already has this tip (preferred after Badru merges/pushes)
 
 ```bash
 cd <agent-sdlc>
-git fetch origin main
-git checkout main
+git remote -v   # origin -> github.com/badrusiddique/agent-sdlc
+git fetch origin
+git checkout main   # or: git checkout master if that is origin/HEAD
 git pull origin main
-git rev-parse HEAD   # must include commits that add poc/buildgenix-web, interactive APIs, and steer
+git rev-parse HEAD
+# Expect poc/buildgenix-web, verify-steering.sh, pipeline-system.txt with ===STAGE: sections,
+# and AgentResult.Steps / TaskCompleted events in a sample run.
 ```
 
 Confirm these paths exist:
 
 - `poc/buildgenix-web/package.json`
 - `poc/buildgenix-api/src/BuildGenix.WebApi/Poc/PocPipelineModels.cs`
+- `poc/agenthub-api/src/AgentHub.Agents.Pipeline/Prompts/pipeline-system.txt`
+- `poc/agenthub-api/src/AgentHub.Core/Models/AgentResult.cs` (has `Steps` / `AgentStepProgress`)
 - `poc/scripts/verify-interactive.sh`
 - `poc/scripts/verify-steering.sh`
 
-### Option B — Main is still the older POC only (current state until push)
-
-Fetch the feature branch (after it is published to GitHub), then **cherry-pick or checkout only `poc/` paths**:
+### Option B — `origin/main` is still the older POC only (fold feature branch into a branch off main)
 
 ```bash
 cd <agent-sdlc>
 git fetch origin
-# After the branch is on GitHub:
 git fetch origin cursor/buildgenix-chat-ui-1fa7
 git checkout -b fold/poc-chat-ui origin/main
 
-# Take the whole tree from the feature tip for poc/ + the tiny root README line:
-git checkout origin/cursor/buildgenix-chat-ui-1fa7 -- \
-  poc/README.md \
-  poc/agenthub-api/src/AgentHub.WebApi/Pipeline/PipelineEndpoints.cs \
-  poc/buildgenix-api/src/BuildGenix.Data/Entities/WorkItemEntity.cs \
-  poc/buildgenix-api/src/BuildGenix.WebApi/Poc/ \
-  poc/buildgenix-api/src/BuildGenix.WebApi/Program.cs \
-  poc/buildgenix-api/src/BuildGenix.WebApi/appsettings.Development.json \
-  poc/buildgenix-web/ \
-  poc/scripts/verify-interactive.sh \
-  poc/scripts/verify-steering.sh \
-  README.md
+# Prefer a merge if the histories are compatible:
+git merge --no-ff origin/cursor/buildgenix-chat-ui-1fa7
+# If merge is too noisy, take only POC paths from the feature tip:
+# git checkout origin/cursor/buildgenix-chat-ui-1fa7 -- \
+#   poc/ README.md docs/prompts/poc-interactive-chat-ui-other-machine-2026-10-09.md
 
 git status
-# Expect only poc/** and README.md. If anything under root agenthub-api/ or root buildgenix-api/ appears, abort and reset those paths.
+# Expect primarily poc/** (+ README / this prompt). Abort if root agenthub-api/ or root buildgenix-api/ change unexpectedly.
 ```
 
-If the branch is not on GitHub yet, Badru must push `cursor/buildgenix-chat-ui-1fa7` to `badrusiddique/agent-sdlc` first (or paste a patch). Do not invent files.
+If the feature branch is not on GitHub yet, Badru must `git push -u origin cursor/buildgenix-chat-ui-1fa7` to `badrusiddique/agent-sdlc` first. Do not invent files.
 
 ---
 
@@ -94,14 +92,19 @@ If the branch is not on GitHub yet, Badru must push `cursor/buildgenix-chat-ui-1
 | Path | Why |
 |---|---|
 | `poc/agenthub-api/src/AgentHub.WebApi/Pipeline/PipelineEndpoints.cs` | Adds `GET /api/pipeline/blob?path=` |
+| `poc/agenthub-api/src/AgentHub.Core/Models/AgentResult.cs` | `Steps` / `AgentStepProgress` for intra-stage tasks |
+| `poc/agenthub-api/src/AgentHub.Agents.Pipeline/PipelineAgentHandler.cs` | Stage tasks + HTTP round-trip testing + materializer flow |
+| `poc/agenthub-api/src/AgentHub.Agents.Pipeline/Prompts/pipeline-system.txt` | Professional per-stage prompts |
+| `poc/agenthub-api/src/AgentHub.Agents.Pipeline/Templates/**` | Richer apps + WebApplicationFactory tests |
 | `poc/buildgenix-api/src/BuildGenix.Data/Entities/WorkItemEntity.cs` | `Paused` / `Aborted` statuses (+ terminal includes Aborted) |
 | `poc/buildgenix-api/src/BuildGenix.WebApi/Poc/PocPipelineController.cs` | `/run`, `/start`, approve, **steer**, status, events, artifacts, logs, SSE |
-| `poc/buildgenix-api/src/BuildGenix.WebApi/Poc/PocPipelineOrchestrator.cs` | Session + human gates + cooperative steering; `/run` still auto-approves |
+| `poc/buildgenix-api/src/BuildGenix.WebApi/Poc/PocPipelineOrchestrator.cs` | Gates + steering + **replay Steps → WorkItemEvents** |
 | `poc/buildgenix-api/src/BuildGenix.WebApi/Poc/PocPipelineOptions.cs` | `ArtifactFileRootPath` |
 | `poc/buildgenix-api/src/BuildGenix.WebApi/Program.cs` | CORS for the Angular origin |
 | `poc/buildgenix-api/src/BuildGenix.WebApi/appsettings.Development.json` | Artifact root |
 | `poc/README.md` | How to run UI + interactive + steering scripts |
 | `README.md` | One line pointing at `poc/` UI |
+| `docs/prompts/poc-interactive-chat-ui-other-machine-2026-10-09.md` | This handover |
 
 ### 3.2 New
 
@@ -115,9 +118,9 @@ If the branch is not on GitHub yet, Badru must push `cursor/buildgenix-chat-ui-1
 ### 3.3 Do **not** pick / do not rewrite
 
 - Root `agenthub-api/**` and root `buildgenix-api/**` — out of scope for this fold-in.
-- `poc/agenthub-api/src/AgentHub.Agents.Pipeline/**` — Pipeline agent itself is unchanged by this UI work; keep the version already on your `main` unless a later tip explicitly changes it.
 - `poc/blob-storage-snapshot/**` — historical proof from the first Azurite sign-off; optional to refresh, not required to integrate.
 - Anything from `docs/prompts/i3-system-design-agent-*.md` — different workstream.
+- Do **not** invent separate agents per stage. Tasks update state; one Pipeline agent remains.
 
 ---
 
@@ -157,6 +160,14 @@ If the branch is not on GitHub yet, Badru must push `cursor/buildgenix-chat-ui-1
 7. **AgentHub** `GET /api/pipeline/blob?path=` returns JSON body or 404. Reject `..` in path.
 
 8. **UI** `poc/buildgenix-web` on port **43182**, proxies `/api` → BuildGenix **43181**. Example chips: Hello World, Calculator add, Calculator subtract. Approve CTA only for the **current** `pendingGate`. Steer bar / chat commands: PAUSE, STOP, ABORT, CONTINUE.
+
+9. **Intra-stage tasks (one agent)**  
+   - Handler records ordered steps (e.g. `prd.draft`, `impl.materialize`, `test.execute`).  
+   - ActivityLog + agent progress events on AgentHub; `AgentResult.Steps` returned to BuildGenix.  
+   - BuildGenix appends `TaskStarted` / `TaskCompleted` WorkItemEvents (`[stepId] message`) so chat/Logs show the trail.  
+   - Not separate agents / not a `state/agents` tree.
+
+10. **`test-results.json`** includes `kind=http-roundtrip` and `roundTrips[]` when WebApplicationFactory tests ran.
 
 ---
 
@@ -225,10 +236,11 @@ npm start
 | V4 | AuditLog | `/tmp/bgx-poc-audit-azurite/*-AuditLog.json` has original request + transitions through Finalize | |
 | V5 | `verify-interactive.sh` | Pauses at PRD, SYSTEM_DESIGN, DEPLOY_DEV; each approve advances; ends Completed; add=5 | |
 | V6 | `verify-steering.sh` | At PRD: PAUSE notes; STOP → `Paused` + revert to last approved; CONTINUE message non-null and PRD gate returns; ABORT → `Aborted`; fresh-run early ABORT → `Aborted` | |
-| V7 | UI happy path | Chat → Calculator add → Approve PRD (Documents show PRD) → Approve SD → Approve Deploy → Completed banner with URL; Logs tab non-empty | |
-| V8 | UI steering | Active run: type PAUSE / STOP / CONTINUE / ABORT (or use steer bar); bubbles show steer messages; ABORT returns to idle chat | |
-| V9 | CORS / proxy | Browser calls go through `:43182/api/...` without browser CORS errors | |
-| V10 | Non-interference | Root `agenthub-api` / `buildgenix-api` git tree unchanged by this fold-in | |
+| V7 | Intra-stage tasks | After a completed stage, `GET …/events` includes `TaskCompleted` rows with `[stepId]` messages (e.g. `prd.draft`, `impl.materialize`, `test.execute`) — still one Pipeline agent | |
+| V8 | UI happy path | Chat → Calculator add → Approve PRD (Documents show PRD) → Approve SD → Approve Deploy → Completed banner with URL; Logs/chat show task steps | |
+| V9 | UI steering | Active run: type PAUSE / STOP / CONTINUE / ABORT (or use steer bar); bubbles show steer messages; ABORT returns to idle chat | |
+| V10 | CORS / proxy | Browser calls go through `:43182/api/...` without browser CORS errors | |
+| V11 | Non-interference | Root `agenthub-api` / `buildgenix-api` git tree unchanged by this fold-in | |
 
 Stop on the first FAIL. Do not invent alternate APIs.
 
@@ -254,68 +266,60 @@ Task: fold in the interactive BuildGenix chat UI POC change (including cooperati
 
 Baseline: main already has the one-agent pipeline POC (Pipeline agent, POST /api/poc/pipeline/run auto-approve, verify-three.sh).
 
-Source: branch cursor/buildgenix-chat-ui-1fa7 (latest tip once on GitHub). If main already contains poc/buildgenix-web and verify-steering.sh, just verify. If not, checkout those paths from the branch onto a fold branch from main:
+Source: GitHub origin (badrusiddique/agent-sdlc). Prefer origin/main after Badru merges; else fold branch cursor/buildgenix-chat-ui-1fa7 onto a branch from origin/main (see §2).
 
-  poc/README.md
-  poc/agenthub-api/src/AgentHub.WebApi/Pipeline/PipelineEndpoints.cs
-  poc/buildgenix-api/src/BuildGenix.Data/Entities/WorkItemEntity.cs
-  poc/buildgenix-api/src/BuildGenix.WebApi/Poc/
-  poc/buildgenix-api/src/BuildGenix.WebApi/Program.cs
-  poc/buildgenix-api/src/BuildGenix.WebApi/appsettings.Development.json
-  poc/buildgenix-web/
-  poc/scripts/verify-interactive.sh
-  poc/scripts/verify-steering.sh
-  README.md
-
-Do NOT touch root agenthub-api/ or root buildgenix-api/.
+Scope ONLY poc/ (+ README + this prompt). Do NOT touch root agenthub-api/ or root buildgenix-api/.
 Do NOT mix this with the System Design agent spoon-feed.
-Preserve POST /api/poc/pipeline/run auto-approve for verify-three.sh.
-Interactive path: POST /start, approve at PRD + SYSTEM_DESIGN + post-DEPLOY only, status/events/artifacts/logs, Angular UI on :43182.
-Steering: POST /api/poc/pipeline/{workItemId}/steer with PAUSE|STOP|ABORT|CONTINUE (cooperative; STOP reverts to lastApproved; ABORT abandons WI; CONTINUE message must be non-null).
+Do NOT invent sub-agents — use intra-stage tasks (AgentResult.Steps → WorkItemEvents TaskCompleted).
 
-Then run Manual QA with Azurite + real LLM (Gateway on isolated machine, Ollama if local):
+Preserve POST /api/poc/pipeline/run auto-approve for verify-three.sh.
+Interactive: POST /start, approve PRD + SYSTEM_DESIGN + post-DEPLOY, Angular UI :43182.
+Steering: PAUSE|STOP|ABORT|CONTINUE. Testing: http-roundtrip test-results. Prompts: pipeline-system.txt.
+
+Manual QA (Azurite + Gateway or Ollama):
 1) ./poc/scripts/verify-three.sh
 2) ./poc/scripts/verify-interactive.sh
 3) ./poc/scripts/verify-steering.sh
-4) npm start in poc/buildgenix-web and walk Calculator add with three Approves; optionally exercise PAUSE/STOP/CONTINUE/ABORT in chat
-Fill the V1–V10 table in docs/prompts/poc-interactive-chat-ui-other-machine-2026-10-09.md.
-Stop on FAIL. Report PASS/FAIL per row with URLs and evidence paths.
+4) Confirm events include TaskCompleted step ids; UI walk Calculator add + optional steer
+Fill V1–V11 in docs/prompts/poc-interactive-chat-ui-other-machine-2026-10-09.md. Stop on FAIL.
 ```
 
 ---
 
 ## 8. What was already verified on the cloud machine (do not re-claim without re-running)
 
-On 2026-10-09 against Azurite + Ollama `llama3.2:1b` (branch `cursor/buildgenix-chat-ui-1fa7`, tip `27e3a5f`):
+On 2026-10-09/10 against Azurite + Ollama `llama3.2:1b` (branch `cursor/buildgenix-chat-ui-1fa7`):
 
 | Suite | Result |
 |---|---|
-| `verify-three.sh` (Hello / add / subtract) | PASS — thought `source=ollama`; add 5; subtract 3; `test-results.json` has `kind=http-roundtrip` with recorded request/response pairs |
+| `verify-three.sh` (Hello / add / subtract) | PASS — thought `source=ollama`; add 5; subtract 3; `test-results.json` has `kind=http-roundtrip` |
 | Azurite blobs + tables + AuditLog | PASS |
 | `verify-interactive.sh` | PASS — PRD / SYSTEM_DESIGN / DEPLOY_DEV gates; Completed; add=5 |
-| `verify-steering.sh` | PASS — PAUSE at gate; STOP → Paused + revert INTAKE; CONTINUE message non-null + PRD returns; ABORT → Aborted; fresh early ABORT → Aborted; ends with `Steering verification OK` |
-| Playwright UI (Calculator add + 3 Approves) | PASS (`UI_VERIFY_PASS`) earlier same day |
+| `verify-steering.sh` | PASS — PAUSE / STOP / CONTINUE / ABORT |
+| Intra-stage tasks | PASS — `TaskCompleted` events with step ids after stages (re-verified with this tip) |
+| Playwright UI (Calculator add + 3 Approves) | PASS (`UI_VERIFY_PASS`) earlier |
 
-Evidence notes (cloud store): Project Context `internal/poc-reverify-azurite-2026-10-09.md`, `internal/buildgenix-chat-ui-verify-2026-10-09.md`, `internal/poc-steering-verify-2026-10-09.md`, `internal/poc-impl-testing-polish-2026-10-09.md`.
+Evidence notes (cloud store): `internal/poc-reverify-azurite-2026-10-09.md`, `internal/buildgenix-chat-ui-verify-2026-10-09.md`, `internal/poc-steering-verify-2026-10-09.md`, `internal/poc-impl-testing-polish-2026-10-09.md`, `internal/poc-stage-tasks-2026-10-10.md`.
 
-The **other machine** must still fill V1–V10 itself (Gateway instead of Ollama if that is the house rule).
+The **other machine** must still fill V1–V11 itself (Gateway instead of Ollama if that is the house rule), after integrating from `origin/main` (or folding the feature branch onto `origin/main`).
 
 ---
 
 ## 9. What is next after this fold-in (for Badru / planning — not this prompt’s coding work)
 
-1. Push `cursor/buildgenix-chat-ui-1fa7` to GitHub `main` when ready (cloud Cursor origin already has the branch).
-2. Other machine: execute this prompt → V1–V10.
-3. Keep System Design Part A (`i3-system-design-agent-spoon-feed.md`) on root APIs as a **separate** track; do not merge POC UI patterns into Phase 0 agents until Badru says fold POC → production hosts.
-4. Optional later: SignalR instead of polling, real SSO instead of `X-User-Id: dummy-user`, reject/redraft at gates (POC today is approve-only).
+1. Push `cursor/buildgenix-chat-ui-1fa7` to GitHub and merge to `main` when ready.
+2. Other machine: `git fetch origin && git pull origin main` (or Option B fold) → V1–V11.
+3. Keep System Design Part A (`i3-system-design-agent-spoon-feed.md`) on root APIs as a **separate** track.
+4. Optional later: live mid-stage SSE for tasks (today steps are replayed when the stage dispatch returns), SignalR, real SSO, reject/redraft at gates.
 
 ---
 
 ## 10. Done when
 
-- [ ] Paths from §3 are on the other machine’s branch  
-- [ ] V1–V10 filled with PASS  
+- [ ] Paths from §3 are on the other machine’s branch (integrated from `origin/main` or feature fold)  
+- [ ] V1–V11 filled with PASS  
 - [ ] `verify-three.sh` still green  
 - [ ] Interactive or UI path shows human gates at PRD, System Design, Deploy  
+- [ ] Chat/events show intra-stage `TaskCompleted` steps  
 - [ ] Steering path shows PAUSE / STOP / CONTINUE / ABORT as in §4.5  
 - [ ] Root production API trees untouched by this fold-in  

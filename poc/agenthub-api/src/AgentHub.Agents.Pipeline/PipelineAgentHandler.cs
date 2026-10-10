@@ -21,7 +21,6 @@ public sealed class PipelineAgentHandler
     private readonly IAgentEventPublisher _events;
     private readonly IGuardrailPipeline _guardrails;
     private readonly ILogger<PipelineAgentHandler> _logger;
-    private int _eventSeq;
 
     public PipelineAgentHandler(
         ILlmClient llm,
@@ -62,10 +61,17 @@ public sealed class PipelineAgentHandler
         }
 
         var sw = Stopwatch.StartNew();
-        var runId = PipelineAgentConstants.RunId(message.TaskId, message.InputVersion, deliveryCount);
+        var run = new StageRunContext(
+            PipelineAgentConstants.RunId(message.TaskId, message.InputVersion, deliveryCount));
         await LogAsync(message, "info", $"PIPELINE {message.Stage} started", cancellationToken)
             .ConfigureAwait(false);
-        await PublishProgressAsync(message, runId, "AgentStarted", $"Stage {message.Stage} started", "Running", cancellationToken)
+        await PublishProgressAsync(
+                message,
+                run,
+                "AgentStarted",
+                $"Stage {message.Stage} started",
+                "Running",
+                cancellationToken)
             .ConfigureAwait(false);
 
         var artifacts = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -75,20 +81,21 @@ public sealed class PipelineAgentHandler
         switch (message.Stage)
         {
             case PipelineAgentConstants.StagePrd:
-                tokenUsage = await RunPrdAsync(message, artifacts, cancellationToken).ConfigureAwait(false);
+                tokenUsage = await RunPrdAsync(message, run, artifacts, cancellationToken).ConfigureAwait(false);
                 break;
             case PipelineAgentConstants.StageSystemDesign:
-                tokenUsage = await RunSystemDesignAsync(message, artifacts, cancellationToken).ConfigureAwait(false);
+                tokenUsage = await RunSystemDesignAsync(message, run, artifacts, cancellationToken)
+                    .ConfigureAwait(false);
                 break;
             case PipelineAgentConstants.StageImplementation:
-                tokenUsage = await RunImplementationAsync(message, artifacts, outputs, cancellationToken)
+                tokenUsage = await RunImplementationAsync(message, run, artifacts, outputs, cancellationToken)
                     .ConfigureAwait(false);
                 break;
             case PipelineAgentConstants.StageTesting:
-                await RunTestingAsync(message, artifacts, outputs, cancellationToken).ConfigureAwait(false);
+                await RunTestingAsync(message, run, artifacts, outputs, cancellationToken).ConfigureAwait(false);
                 break;
             case PipelineAgentConstants.StageDeployDev:
-                await RunDeployAsync(message, artifacts, outputs, cancellationToken).ConfigureAwait(false);
+                await RunDeployAsync(message, run, artifacts, outputs, cancellationToken).ConfigureAwait(false);
                 break;
             default:
                 throw new InvalidOperationException($"Unsupported stage {message.Stage}.");
@@ -99,7 +106,7 @@ public sealed class PipelineAgentHandler
             .ConfigureAwait(false);
         await PublishProgressAsync(
                 message,
-                runId,
+                run,
                 "AgentCompleted",
                 $"Stage {message.Stage} completed",
                 AgentResultStatus.Completed,
@@ -115,25 +122,40 @@ public sealed class PipelineAgentHandler
             CorrelationId = message.CorrelationId,
             InputVersion = message.InputVersion,
             OutputRevision = message.OutputRevision < 1 ? 1 : message.OutputRevision,
-            RunId = runId,
+            RunId = run.RunId,
             StateContextId = message.StateContextId,
             DurationMs = sw.ElapsedMilliseconds,
             Artifacts = artifacts,
             Outputs = outputs,
-            TokenUsage = tokenUsage
+            TokenUsage = tokenUsage,
+            Steps = run.Steps
         };
     }
 
     private async Task<TokenUsage> RunPrdAsync(
         TaskMessage message,
+        StageRunContext run,
         Dictionary<string, string> artifacts,
         CancellationToken cancellationToken)
     {
+        await BeginStepAsync(message, run, "prd.draft", "Draft PRD with model", cancellationToken)
+            .ConfigureAwait(false);
         var llm = await CallStageLlmAsync(message, 100, cancellationToken).ConfigureAwait(false);
         var prdJson = EnsureJson(llm.Text, () => DefaultPrd(message));
+        await CompleteStepAsync(message, run, "prd.draft", "PRD draft ready", cancellationToken)
+            .ConfigureAwait(false);
+
+        await BeginStepAsync(message, run, "prd.persistJson", "Persist prd.json", cancellationToken)
+            .ConfigureAwait(false);
         var prdPath = message.BlobPrefix + "prd.json";
-        var mdPath = message.BlobPrefix + "prd.md";
         await WriteArtifactAsync(message, prdPath, prdJson, 200, cancellationToken).ConfigureAwait(false);
+        artifacts["prd"] = prdPath;
+        await CompleteStepAsync(message, run, "prd.persistJson", "Wrote prd.json", cancellationToken)
+            .ConfigureAwait(false);
+
+        await BeginStepAsync(message, run, "prd.persistMd", "Persist PRD markdown", cancellationToken)
+            .ConfigureAwait(false);
+        var mdPath = message.BlobPrefix + "prd.md";
         var md = $"# {message.Context.ProjectName ?? "PRD"}\n\n{message.Context.UserRequest}\n\n```json\n{prdJson}\n```\n";
         await WriteArtifactAsync(
                 message,
@@ -142,36 +164,55 @@ public sealed class PipelineAgentHandler
                 210,
                 cancellationToken)
             .ConfigureAwait(false);
-        artifacts["prd"] = prdPath;
         artifacts["prdMd"] = mdPath;
+        await CompleteStepAsync(message, run, "prd.persistMd", "Wrote prd.md", cancellationToken)
+            .ConfigureAwait(false);
         return Tokens(llm);
     }
 
     private async Task<TokenUsage> RunSystemDesignAsync(
         TaskMessage message,
+        StageRunContext run,
         Dictionary<string, string> artifacts,
         CancellationToken cancellationToken)
     {
+        await BeginStepAsync(message, run, "sd.draft", "Draft system design with model", cancellationToken)
+            .ConfigureAwait(false);
         var llm = await CallStageLlmAsync(message, 300, cancellationToken).ConfigureAwait(false);
         var tech = EnsureJson(llm.Text, () => DefaultTechSpec(message));
+        await CompleteStepAsync(message, run, "sd.draft", "System design draft ready", cancellationToken)
+            .ConfigureAwait(false);
+
+        await BeginStepAsync(message, run, "sd.persistJson", "Persist techspec.json", cancellationToken)
+            .ConfigureAwait(false);
         var techPath = message.BlobPrefix + "techspec.json";
-        var mdPath = message.BlobPrefix + "system-design.md";
         await WriteArtifactAsync(message, techPath, tech, 400, cancellationToken).ConfigureAwait(false);
+        artifacts["techSpec"] = techPath;
+        await CompleteStepAsync(message, run, "sd.persistJson", "Wrote techspec.json", cancellationToken)
+            .ConfigureAwait(false);
+
+        await BeginStepAsync(message, run, "sd.persistMd", "Persist system-design.md", cancellationToken)
+            .ConfigureAwait(false);
+        var mdPath = message.BlobPrefix + "system-design.md";
         var md = $"# System design\n\nStack: {message.Context.StackProfile}\n\n```json\n{tech}\n```\n";
         await WriteArtifactAsync(message, mdPath, JsonSerializer.Serialize(new { content = md }), 410, cancellationToken)
             .ConfigureAwait(false);
-        artifacts["techSpec"] = techPath;
         artifacts["techSpecMd"] = mdPath;
+        await CompleteStepAsync(message, run, "sd.persistMd", "Wrote system-design.md", cancellationToken)
+            .ConfigureAwait(false);
         return Tokens(llm);
     }
 
     private async Task<TokenUsage> RunImplementationAsync(
         TaskMessage message,
+        StageRunContext run,
         Dictionary<string, string> artifacts,
         Dictionary<string, string> outputs,
         CancellationToken cancellationToken)
     {
         var stack = message.Context.StackProfile ?? "fe-be";
+        await BeginStepAsync(message, run, "impl.hints", "Gather implementation hints", cancellationToken)
+            .ConfigureAwait(false);
         // Headline/thought hints are best-effort — never fail Implementation on LLM timeout.
         LlmCompletionResult llm;
         try
@@ -183,6 +224,9 @@ public sealed class PipelineAgentHandler
             llm = new LlmCompletionResult("{}", message.Config.ModelId ?? "local", 0, 0);
         }
 
+        await CompleteStepAsync(message, run, "impl.hints", "Implementation hints ready", cancellationToken)
+            .ConfigureAwait(false);
+
         var workspace = ResolveWorkspace(message);
         var intent = PipelineAgentConstants.IntentWorkspace;
         var existing = await _ledger
@@ -190,8 +234,15 @@ public sealed class PipelineAgentHandler
             .ConfigureAwait(false);
         if (existing is null)
         {
+            await BeginStepAsync(message, run, "impl.materialize", "Materialize workspace template", cancellationToken)
+                .ConfigureAwait(false);
             var templateRoot = TemplateMaterializer.ResolveTemplateRoot(stack);
             TemplateMaterializer.CopyTemplate(templateRoot, workspace);
+            await CompleteStepAsync(message, run, "impl.materialize", $"Copied {stack} template", cancellationToken)
+                .ConfigureAwait(false);
+
+            await BeginStepAsync(message, run, "impl.apply", "Apply stack and project updates", cancellationToken)
+                .ConfigureAwait(false);
             if (message.Context.ProjectMode.equalsIgnore("Existing")
                 && message.Context.BaselineArtifacts.Count > 0)
             {
@@ -201,9 +252,25 @@ public sealed class PipelineAgentHandler
             TemplateMaterializer.ApplyImplementationHints(workspace, stack, llm.Text);
             await CommitLedgerAsync(message, intent, 600, new { workspace, stack }, new { ok = true }, cancellationToken)
                 .ConfigureAwait(false);
+            await CompleteStepAsync(message, run, "impl.apply", "Workspace customized", cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            await BeginStepAsync(message, run, "impl.reuse", "Reuse committed workspace", cancellationToken)
+                .ConfigureAwait(false);
+            await CompleteStepAsync(message, run, "impl.reuse", "Workspace already materialized", cancellationToken)
+                .ConfigureAwait(false);
         }
 
+        await BeginStepAsync(message, run, "impl.commit", "Commit workspace snapshot", cancellationToken)
+            .ConfigureAwait(false);
         var headCommit = await EnsureLocalGitCommitAsync(workspace, cancellationToken).ConfigureAwait(false);
+        await CompleteStepAsync(message, run, "impl.commit", $"headCommit={headCommit}", cancellationToken)
+            .ConfigureAwait(false);
+
+        await BeginStepAsync(message, run, "impl.artifacts", "Publish code-state and review", cancellationToken)
+            .ConfigureAwait(false);
         var codeState = TemplateMaterializer.WriteCodeState(workspace, stack);
         var codeStatePath = message.BlobPrefix + "code-state.json";
         await WriteArtifactAsync(message, codeStatePath, codeState, 700, cancellationToken).ConfigureAwait(false);
@@ -212,9 +279,11 @@ public sealed class PipelineAgentHandler
             new { status = "passed", checks = new[] { "template-allowlist", "health-endpoint" } },
             JsonOptions);
         await WriteArtifactAsync(message, reviewPath, review, 710, cancellationToken).ConfigureAwait(false);
-
         artifacts["codeState"] = codeStatePath;
         artifacts["review"] = reviewPath;
+        await CompleteStepAsync(message, run, "impl.artifacts", "Wrote code-state.json and review.json", cancellationToken)
+            .ConfigureAwait(false);
+
         outputs["workBranch"] = message.Context.WorkBranch ?? $"feature/wi-{message.WorkItemId}";
         outputs["headCommit"] = headCommit;
         outputs["workspaceRoot"] = workspace;
@@ -223,6 +292,7 @@ public sealed class PipelineAgentHandler
 
     private async Task RunTestingAsync(
         TaskMessage message,
+        StageRunContext run,
         Dictionary<string, string> artifacts,
         Dictionary<string, string> outputs,
         CancellationToken cancellationToken)
@@ -230,8 +300,18 @@ public sealed class PipelineAgentHandler
         var workspace = message.Context.WorkspaceRoot
                         ?? ResolveWorkspace(message);
         var backend = Path.Combine(workspace, "backend");
+
+        await BeginStepAsync(message, run, "test.locate", "Locate automated test project", cancellationToken)
+            .ConfigureAwait(false);
         var testProj = Directory.EnumerateFiles(workspace, "*Tests.csproj", SearchOption.AllDirectories)
             .FirstOrDefault();
+        await CompleteStepAsync(
+                message,
+                run,
+                "test.locate",
+                testProj is null ? "No test project; will smoke-compile" : Path.GetFileName(testProj),
+                cancellationToken)
+            .ConfigureAwait(false);
 
         var passed = true;
         var detail = "no test project; smoke compile";
@@ -242,6 +322,8 @@ public sealed class PipelineAgentHandler
             File.Delete(roundTripPath);
         }
 
+        await BeginStepAsync(message, run, "test.execute", "Execute automated suite", cancellationToken)
+            .ConfigureAwait(false);
         if (testProj is not null)
         {
             var (exit, stdout) = await RunProcessAsync(
@@ -290,9 +372,16 @@ public sealed class PipelineAgentHandler
 
         if (!passed)
         {
+            await CompleteStepAsync(message, run, "test.execute", "Automated suite failed", cancellationToken, failed: true)
+                .ConfigureAwait(false);
             throw new InvalidOperationException($"TESTING failed: {detail}");
         }
 
+        await CompleteStepAsync(message, run, "test.execute", "Automated suite green", cancellationToken)
+            .ConfigureAwait(false);
+
+        await BeginStepAsync(message, run, "test.publish", "Publish test-results.json", cancellationToken)
+            .ConfigureAwait(false);
         var results = JsonSerializer.Serialize(
             new
             {
@@ -310,10 +399,18 @@ public sealed class PipelineAgentHandler
                                  ?? (await EnsureLocalGitCommitAsync(workspace, cancellationToken)
                                      .ConfigureAwait(false));
         outputs["workspaceRoot"] = workspace;
+        await CompleteStepAsync(
+                message,
+                run,
+                "test.publish",
+                roundTrips is null ? "Wrote test-results.json" : "Wrote test-results.json with HTTP round-trips",
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task RunDeployAsync(
         TaskMessage message,
+        StageRunContext run,
         Dictionary<string, string> artifacts,
         Dictionary<string, string> outputs,
         CancellationToken cancellationToken)
@@ -322,6 +419,8 @@ public sealed class PipelineAgentHandler
         var action = message.Context.DeploymentAction ?? "Deploy";
         if (action.Equals("Finalize", StringComparison.OrdinalIgnoreCase))
         {
+            await BeginStepAsync(message, run, "deploy.finalize", "Finalize local deployment", cancellationToken)
+                .ConfigureAwait(false);
             await LocalComposeHost.FinalizeAsync(workspace, cancellationToken).ConfigureAwait(false);
             var merge = message.Context.HeadCommit ?? "local";
             outputs["mergeCommit"] = merge;
@@ -333,11 +432,20 @@ public sealed class PipelineAgentHandler
                 artifacts["completionSummary"] = summaryPath;
             }
 
+            await CompleteStepAsync(message, run, "deploy.finalize", "Finalize complete", cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
 
+        await BeginStepAsync(message, run, "deploy.host", "Start local app host", cancellationToken)
+            .ConfigureAwait(false);
         var deploy = await LocalComposeHost
             .DeployAsync(workspace, message.WorkItemId, cancellationToken)
+            .ConfigureAwait(false);
+        await CompleteStepAsync(message, run, "deploy.host", $"Host ready at {deploy.Url}", cancellationToken)
+            .ConfigureAwait(false);
+
+        await BeginStepAsync(message, run, "deploy.summary", "Publish completion summary", cancellationToken)
             .ConfigureAwait(false);
         var summary = JsonSerializer.Serialize(
             new
@@ -356,6 +464,8 @@ public sealed class PipelineAgentHandler
         outputs["headCommit"] = message.Context.HeadCommit ?? "local";
         outputs["workspaceRoot"] = workspace;
         outputs["deployMode"] = deploy.Mode;
+        await CompleteStepAsync(message, run, "deploy.summary", "Wrote completion-summary.json", cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task<LlmCompletionResult> CallStageLlmAsync(
@@ -497,24 +607,79 @@ public sealed class PipelineAgentHandler
             message.CorrelationId,
             cancellationToken);
 
+    private async Task BeginStepAsync(
+        TaskMessage message,
+        StageRunContext run,
+        string id,
+        string label,
+        CancellationToken cancellationToken)
+    {
+        await LogAsync(message, "info", $"TASK {id}: {label}", cancellationToken).ConfigureAwait(false);
+        await PublishProgressAsync(message, run, "TaskStarted", label, "Running", cancellationToken)
+            .ConfigureAwait(false);
+        run.Steps.Add(
+            new AgentStepProgress
+            {
+                Id = id,
+                Label = label,
+                Status = "Running",
+                Message = label,
+                At = DateTimeOffset.UtcNow
+            });
+    }
+
+    private async Task CompleteStepAsync(
+        TaskMessage message,
+        StageRunContext run,
+        string id,
+        string messageText,
+        CancellationToken cancellationToken,
+        bool failed = false)
+    {
+        var status = failed ? "Failed" : "Completed";
+        await LogAsync(message, failed ? "error" : "info", $"TASK {id}: {messageText}", cancellationToken)
+            .ConfigureAwait(false);
+        await PublishProgressAsync(message, run, "TaskCompleted", messageText, status, cancellationToken)
+            .ConfigureAwait(false);
+        var existing = run.Steps.LastOrDefault(s => s.Id == id && s.Status == "Running");
+        if (existing is not null)
+        {
+            existing.Status = status;
+            existing.Message = messageText;
+            existing.At = DateTimeOffset.UtcNow;
+        }
+        else
+        {
+            run.Steps.Add(
+                new AgentStepProgress
+                {
+                    Id = id,
+                    Label = id,
+                    Status = status,
+                    Message = messageText,
+                    At = DateTimeOffset.UtcNow
+                });
+        }
+    }
+
     private async Task PublishProgressAsync(
         TaskMessage message,
-        string runId,
+        StageRunContext run,
         string kind,
         string text,
         string? status,
         CancellationToken cancellationToken)
     {
-        _eventSeq++;
+        var seq = Interlocked.Increment(ref run.EventSeq);
         await _events
             .PublishEventAsync(
                 new AgentPipelineEvent
                 {
-                    EventId = $"{message.TaskId}:{message.InputVersion}:{_eventSeq}",
+                    EventId = $"{message.TaskId}:{message.InputVersion}:{seq}",
                     WorkItemId = message.WorkItemId,
                     TaskId = message.TaskId,
                     Stage = message.Stage,
-                    RunId = runId,
+                    RunId = run.RunId,
                     Kind = kind,
                     Message = text,
                     Level = "info",
@@ -524,6 +689,13 @@ public sealed class PipelineAgentHandler
                 },
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    private sealed class StageRunContext(string runId)
+    {
+        public string RunId { get; } = runId;
+        public int EventSeq;
+        public List<AgentStepProgress> Steps { get; } = [];
     }
 
     private static string ResolveWorkspace(TaskMessage message)

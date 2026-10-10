@@ -42,6 +42,8 @@ Design notes: agent writes AH tables/blobs; buildgenix owns WorkItems / Approval
 
 **Implementation** materializes richer `fe-be` / `fe-be-llm` templates (request/response panels in the SPA shell, small `CalculatorMath` helper). **Testing** runs xUnit + `WebApplicationFactory` HTTP round-trips (`/health`, `/api/add`, `/api/thought`, and `/api/subtract` when present) and writes those exchanges into `test-results.json` under `roundTrips`.
 
+**Intra-stage tasks (not sub-agents):** each Pipeline stage runs ordered tasks (`TaskStarted` / `TaskCompleted`) that land in ActivityLog + AgentResult.Steps and are replayed into BuildGenix `WorkItemEvents` for the chat UI/DB. Still one Pipeline agent. Stage LLM prompts live in `poc/agenthub-api/src/AgentHub.Agents.Pipeline/Prompts/pipeline-system.txt`.
+
 ### Chat UI (interactive)
 
 ```bash

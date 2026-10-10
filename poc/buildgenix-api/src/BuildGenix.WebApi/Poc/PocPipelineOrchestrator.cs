@@ -1070,6 +1070,30 @@ public sealed class PocPipelineOrchestrator
             await RegisterArtifactAsync(session, pair.Key, 1, pair.Value, cancellationToken).ConfigureAwait(false);
         }
 
+        // Replay intra-stage tasks into WorkItemEvents so the chat UI/DB show step progress
+        // (still one Pipeline agent — not separate agents).
+        foreach (var step in result.Steps ?? [])
+        {
+            var stepStatus = string.IsNullOrWhiteSpace(step.Status) ? "Completed" : step.Status;
+            var eventType = stepStatus.Equals("Running", StringComparison.OrdinalIgnoreCase)
+                ? "TaskStarted"
+                : "TaskCompleted";
+            var label = string.IsNullOrWhiteSpace(step.Label) ? step.Id : step.Label;
+            var detail = string.IsNullOrWhiteSpace(step.Message) ? label : step.Message;
+            item.PendingMessage = $"{stage}:{step.Id}:{stepStatus}";
+            item.UpdatedAt = DateTimeOffset.UtcNow;
+            await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
+            await AppendEventAsync(
+                    session,
+                    stage,
+                    stepStatus,
+                    eventType,
+                    $"[{step.Id}] {detail}",
+                    taskId,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
         item.LastAppliedResultId = $"result:{taskId}:{item.CurrentInputVersion}";
         item.PendingMessage = null;
         item.UpdatedAt = DateTimeOffset.UtcNow;
@@ -1509,6 +1533,15 @@ public sealed class PocPipelineOrchestrator
         public string? ErrorMessage { get; set; }
         public Dictionary<string, string>? Artifacts { get; set; }
         public Dictionary<string, string>? Outputs { get; set; }
+        public List<AgentHubStepDto>? Steps { get; set; }
+    }
+
+    private sealed class AgentHubStepDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string Label { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
     }
 
     private sealed record StageDispatchResult(
