@@ -5,7 +5,7 @@
 **Date:** 2026-10-10  
 **Repo:** `https://github.com/badrusiddique/agent-sdlc` only. Never `ai-sdlc`.  
 **Remote:** `origin` → GitHub (`badrusiddique/agent-sdlc`). Integrate onto **`origin/main`** (some clones still call the default branch `master`; use whatever `origin/HEAD` points at — almost always `main`).  
-**Source of this change (until it lands on GitHub `main`):** branch `cursor/buildgenix-chat-ui-1fa7` tip — pull latest after Badru pushes. Includes chat UI, steering, Implementation/Testing polish, professional stage prompts, and **intra-stage tasks** (not sub-agents).  
+**Source of this change (until it lands on GitHub `main`):** branch `cursor/buildgenix-chat-ui-1fa7` tip **`9a18990`** (or newer). Includes chat UI, steering, Implementation/Testing polish, professional stage prompts, and **intra-stage tasks** (not sub-agents).  
 **Baseline already on the other machine:** GitHub `main` with the pre-phase-0 POC under `poc/` (one Pipeline agent + auto-approve `/run` + `verify-three.sh`). That work stays. This change **extends** it; it does not replace the System Design agent work.
 
 ---
