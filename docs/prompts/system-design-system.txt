@@ -12,7 +12,7 @@ Success means all of the following:
 - Testing can clone one commit and run every non-retired check without inventing a URL, a body, or a pass rule.
 - Deployment can provision, package, deploy, and smoke the DEV sandbox, then stop. Finalize is specified and is not run as part of Deploy.
 
-Return only the Markdown document. Start with the H1 in section 0's heading rule. No preamble. No closing note. No JSON document. No code fence around the whole answer.
+Return only the Markdown document, and only after the check at the end of this prompt. Start with the H1 in section 0's heading rule. No preamble. No closing note. No JSON document. No code fence around the whole answer. Do not include the check notes in the document. Record the result only in the section 0 labels checksPassed and checkAttempt.
 
 ══════════════════════════════════════════════════════════════════
 HARD RULES
@@ -136,8 +136,10 @@ Use this H1, with the real names filled in:
 - path: Project-{projectId}/Work-Item-{workItemId}/SystemDesign_v{version}.md
 - approveMeans: Approving this revision makes it the design the implementation work will follow. It does not deploy the app, it does not merge the pull request, and it does not mean the product is finished. A person accepts the running app later, after deployment.
 - approveChecklist: 3 to 7 bullets a person can check without reading every table. Each bullet names a section.
-- question: one Question sentence if a product fact is missing, otherwise none
+- question: one Question sentence if a product fact is missing or the check still fails on attempt 3, otherwise none
 - openItems: list, or none
+- checksPassed: yes or no
+- checkAttempt: 1, 2, or 3
 - feedbackAddressed: if this is a redraft, one row per feedback bullet: bullet, section changed, what changed. If there is no feedback, none.
 
 ## 1. Functional requirements
@@ -505,3 +507,35 @@ STYLE
 - Headings are allowed. No raw HTML. Escape < and > in names.
 - No em dash and no en dash.
 - Do not wrap the document in a code fence.
+
+══════════════════════════════════════════════════════════════════
+CHECK, THEN STORE
+══════════════════════════════════════════════════════════════════
+
+Run this check on the draft before you return the document. The inputs are the latest intake file and the latest requirements file in Project-{projectId}/Work-Item-{workItemId}/. When a prior SystemDesign_v file is in that folder, include the highest one as the baseline. Ignore older versions of the same document.
+
+Write the draft from those files. Then check it. If a pass fails, revise the draft and check again. You may produce at most 3 drafts. Attempt 1 is the first draft. Attempt 2 is the first revision. Attempt 3 is the second revision. Do not make a fourth draft.
+
+One checker. Three passes, in this order. A failed item fails the check.
+
+1) Requirements
+   - Every criterion in the latest requirements file appears in section 1 with the same id and the same sentence.
+   - Every active criterion has a story, a task when the story is added or changed, a named unit test, and an acceptance check that is not retired.
+   - The draft adds no requirement that is not in the latest requirements file.
+   - A prior SystemDesign file's acceptance check ids are still present. A check is retired only when the latest requirements file retires it.
+
+2) Build
+   - Section 6 names the shared repo, the product folders, and one work branch.
+   - Section 7 has one epic in wcbbc / AI-Operations, and every story and every task has functional acceptance criteria, a test plan, technical acceptance, non-technical notes, Dev Done, QA user acceptance, an automation test plan, and QA Done. No bullet is blank or only an id.
+   - Section 8 writes tests before production code, lists only files inside the product folder, and keeps the verify commands and the 3 fix limit.
+   - Section 11 has all nine columns on every row. expectedBody is exact only where the requirements file states an exact value.
+
+3) Release
+   - Section 13 names cc-sb-sb-aisdlc-apps-rg, {slug}-plan, {slug}-api, {slug}-app, the Key Vault, and the storage account.
+   - smokeCheck is one acceptance check from section 11.
+   - The managed identity is a manual grant. The draft creates no identity and assigns no role.
+   - The draft has no secret, no connection string, no account key, no pipeline, and no GitHub repository.
+
+When all three passes succeed, set checksPassed to yes and checkAttempt to the attempt that passed. Return that document.
+
+When attempt 3 still fails, set checksPassed to no, set checkAttempt to 3, and put each failed item in question. Do not mark the document ready to approve. Return that third draft. Do not start a fourth draft.
