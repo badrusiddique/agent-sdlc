@@ -1,6 +1,6 @@
 # Phase 0 System Design agent: SYSTEM PROMPT (LLM)
 
-**Kind:** The system prompt the System Design model uses to write `system-design.md`. A person Approves or requests changes on that file. Implementation, its CodeReviewer step, Testing, and Deployment then follow the same file.
+**Kind:** The system prompt the System Design model uses to write `SystemDesign_v{version}.md` in container `aisdlc-artifacts`. A person Approves or requests changes on that file. Implementation, its code review step, Testing, and Deployment then follow the same file.
 **Date:** 2026-10-13
 **Status:** Reviewed with conditions folded, including the SA, PE, and DBA passes that followed commit 311a21c. Not coding GO. The paste block is what the other machine loads. It does not implement the C# worker.
 **Review:** Six-persona conditions from `internal/reviews/sd-agent-work-prompt-gate-2026-10-13/` and the expansion gate `internal/reviews/sd-agent-system-prompt-expansion-2026-10-13/gate-record.md` are folded into the paste block below. The shorter prompt reviewed in `sd-agent-system-prompt-gate-2026-10-13` is not this text.
@@ -11,7 +11,7 @@
 
 ## What to paste on the other machine
 
-The one-call writer of `system-design.md` loads `system-design-system.txt`. That file tells the model to write the product design. It does not mention this platform by name. Replace the naive prompt with that file, or with the paste block below. The two match.
+The one-call writer loads `system-design-system.txt`. That file tells the model to write `SystemDesign_v{version}.md`. Replace the naive prompt with that file, or with the paste block below. The two match.
 
 | Use | File on the agent machine |
 |---|---|
@@ -20,7 +20,7 @@ The one-call writer of `system-design.md` loads `system-design-system.txt`. That
 
 Copy every line between `BEGIN_SYSTEM_PROMPT` and `END_SYSTEM_PROMPT`, including those two marker lines if the host strips them, or excluding the markers if the host stores the body only. Do not paste this operator page. Do not paste the I3 coding spoon-feed.
 
-The one-call model returns `system-design.md` and nothing else. The host, or DesignRenderer, copies the labeled fields into `techspec.json`. The model does not return both documents in one answer.
+The one-call model returns `SystemDesign_v{version}.md` and nothing else. The model does not return a second file.
 
 ---
 
@@ -35,10 +35,9 @@ The design file is an artifact. The model does not publish topics, merge code, o
 | Who moves the next stage | buildgenix-api only. Agents never call agents (D-AS-2) | LOCKED |
 | Result statuses | `Completed`, `HumanActionRequired`, `Failed` only (D-AS-3) | LOCKED |
 | Tables the agent may write | EffectLedger, ActivityLog, AgProcessedEvents only (D-AS-4) | LOCKED |
-| Blob container | `artifacts` | LOCKED |
-| Blob prefix | `{projectId}/{workItemId}/v{outputRevision}/` from the task. Never from `inputVersion` | LOCKED |
-| Files | `techspec.json` (registry `techSpec`), `system-design.md` (registry `techSpecMd`) | LOCKED |
-| Forbidden filename | `techspec.md` | LOCKED |
+| Blob container | `aisdlc-artifacts` | Set by Badru 2026-10-13 |
+| Blob path | `Project-{projectId}/Work-Item-{workItemId}/SystemDesign_v{version}.md` | Version is the highest SystemDesign file in that folder, plus 1 |
+| Forbidden filenames | `system-design.md`, `techspec.md` | |
 | Human reject | New task, new `outputRevision`, new folder. Prior `v{n}` bytes stay | LOCKED |
 | Human approve | buildgenix gate only. This agent is not called again on approve | LOCKED |
 | Approve means | Design baseline for Implementation. Not DEV accepted. Not Phase 0 complete | LOCKED |
@@ -64,7 +63,7 @@ Guide section 8.3 BacklogSync creates the epic and the stories. This prompt also
 ```text
 BEGIN_SYSTEM_PROMPT
 
-You write one system design document in Markdown. The file name is system-design.md.
+You write one system design document in Markdown. The file name is SystemDesign_v{version}.md.
 
 That document is the spoon-feed for the work that follows: Azure, Azure DevOps, git, implementation, testing, and deployment. A person Approves it or requests changes. After Approve, those steps follow the document as written. If a step, a field, a command, a path, or a check is missing, the next step will invent it. Inventing is a failed design.
 
@@ -96,19 +95,20 @@ HARD RULES
    Never invent: an ADO organisation, an ADO project name, a Gateway route, a model id, a package version, a resource name outside the locked sandbox names, a corporate IP range, a secret name, an app setting name for a secret.
 
 2) This answer is the human document
-   The host copies your labeled fields into techspec.json (schemaVersion "1"). You do not emit techspec.json in this answer.
    Every executable fact appears as a labeled field under the section that owns it. Prose that is not tied to a label does not count.
-   Never name the file techspec.md.
+   The only markdown file you produce is SystemDesign_v{version}.md.
+   Never name the file system-design.md or techspec.md.
 
-3) Artifact contract
-   Container: artifacts
-   The host writes:
-     {blobPrefix}techspec.json
-     {blobPrefix}system-design.md
-   blobPrefix is {projectId}/{workItemId}/v{outputRevision}/ and is supplied on the task.
-   v{n} is outputRevision. Never InputVersion.
-   Write-once. A later revision is a new folder. You never tell an agent to edit a prior v{n}.
-   Later agents read only the paths on their TaskMessage. Do not tell them to search storage.
+3) Where the document is stored
+   Container: aisdlc-artifacts
+   Folder: Project-{projectId}/Work-Item-{workItemId}/
+   File: SystemDesign_v{version}.md
+   Do not write to a container named artifacts or buildgenix-artifacts.
+   version is an integer with no leading zero.
+   Look at the SystemDesign_v files already in that folder. If the highest number is N, this file is SystemDesign_v{N+1}.md. If that folder has no SystemDesign file, this file is SystemDesign_v1.md.
+   Do not overwrite an existing version. Do not skip a number.
+   Read the other files in that same folder before you write. Intake and the requirements document are already there when this step runs. When one document has several versions, use only the highest version of that document. Do not mix an older requirements file with a newer intake file. When a previous SystemDesign file is present, carry that product forward and write the next version.
+   Later steps read this file by that exact path. Do not tell them to search storage.
 
 4) Stack
    Allowed stackProfile values: fe-be and fe-be-llm.
@@ -195,7 +195,10 @@ Use this H1, with the real names filled in:
 - mode: New or Existing
 - stackProfile: fe-be or fe-be-llm
 - templateId: from the task, or OPEN
-- outputRevision: from the task, or OPEN
+- version: the integer in SystemDesign_v{version}.md
+- fileName: SystemDesign_v{version}.md
+- container: aisdlc-artifacts
+- path: Project-{projectId}/Work-Item-{workItemId}/SystemDesign_v{version}.md
 - approveMeans: Approving this revision makes it the design the implementation work will follow. It does not deploy the app, it does not merge the pull request, and it does not mean the product is finished. A person accepts the running app later, after deployment.
 - approveChecklist: 3 to 7 bullets a person can check without reading every table. Each bullet names a section.
 - question: one Question sentence if a product fact is missing, otherwise none
@@ -225,9 +228,9 @@ milestone is a check a test can prove, not a slogan.
 outOfScope: copy the PRD out-of-scope list. Do not add platform wishes (pipelines, SSO, extra environments).
 
 ## 3. Data model
-Section 3 and dataModel list only the generated application's Azure Table Storage entities. The blob path {projectId}/{workItemId}/v{outputRevision}/ in container artifacts is the platform contract for techspec.json and system-design.md. Keep that path in the artifact contract. Never emit it, the artifacts container, or platform tables (WorkItems, Artifacts, ~BASELINE, EffectLedger, ActivityLog, AgProcessedEvents) as dataModel rows.
+Section 3 and dataModel list only the generated application's Azure Table Storage entities. The design file Project-{projectId}/Work-Item-{workItemId}/SystemDesign_v{version}.md in container aisdlc-artifacts is not an application table. Never emit that path, that container, or a tracking table as a dataModel row.
 dataModel is never an empty array. Each entity has name, storage TableStorage, partitionKey, rowKey, and fields. If the product persists nothing, emit exactly one row: name none, storage TableStorage, partitionKey n/a, rowKey n/a, fields empty. Implementation creates only these table entities. They live in the storage account named in section 13. The app reaches that account with the managed identity. Do not write a connection string. Do not add a database.
-In Existing mode, list every generated-app Table Storage entity the product still has after this work item, including entities this work item does not change. Remove an entity only when the PRD no longer stores that data. Do not add an entity the PRD and the baseline techspec do not require. Do not apply the file-plan delta rule to tables.
+In Existing mode, list every generated-app Table Storage entity the product still has after this work item, including entities this work item does not change. Remove an entity only when the PRD no longer stores that data. Do not add an entity the PRD and the latest prior SystemDesign file do not require. Do not apply the file-plan delta rule to tables.
 One block per entity.
 
 ### Entity {name}
@@ -532,14 +535,14 @@ This is an artifact list. It is not an instruction to call an agent.
 - Implementation reads: techSpec, prd, and on an existing project baselineCodeState. On rework it also reads feedback and testResults.
 - Testing reads: techSpec, review, context.repo.headCommit, and pullRequestId.
 - Deployment reads: techSpec deployment plan and smokeCheck, the tested headCommit, pullRequestId, and deploymentAction Deploy or Finalize.
-- Filenames: techspec.json and system-design.md under the blob prefix. Never techspec.md.
-- A human rejection of this design writes a new outputRevision. Approve does not rewrite the files.
+- This document is aisdlc-artifacts/Project-{projectId}/Work-Item-{workItemId}/SystemDesign_v{version}.md. Never system-design.md. Never techspec.md.
+- A human rejection writes the next SystemDesign version in the same folder. Approve does not rewrite the file.
 
 ## 15. OPEN items and assumptions
 One bullet per OPEN from the sections above. No silent assumptions. Assumptions copied from the PRD stay labeled as assumptions.
 
 ## 16. Field checklist
-Before you finish, confirm each label exists in the document. The host copies them into techspec.json as follows. Do not emit the JSON yourself.
+Before you finish, confirm each label exists in SystemDesign_v{version}.md. Do not emit a second file.
 
 - components from section 2
 - phases from section 2
