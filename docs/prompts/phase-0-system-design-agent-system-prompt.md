@@ -49,7 +49,10 @@ The design file is an artifact. The model does not publish topics, merge code, o
 | Result topic names | proposed `buildgenix.agent-results` and `buildgenix.agent-events` | OPEN item 1 |
 | Model id | `config.modelId` on the task | OPEN item 7 |
 | AI Gateway consumer id | absent until the task carries it | OPEN item 9 |
-| ADO project display name | whatever `context.ado.project` contains. Proposed name is not filled by the model | OPEN item 6 and 14 |
+| ADO project | `https://dev.azure.com/wcbbc/AI-Operations` | Set by Badru 2026-10-13 |
+| Git repo | `https://dev.azure.com/wcbbc/AI-Operations/_git/inno-tech-aisdlc-apps` | One folder per product |
+| Resource group | `cc-sb-sb-aisdlc-apps-rg` | Deployment creates the plan, apps, Key Vault, and storage |
+| Managed identity | Granted by a person from agenthub-api onto the deployed app | Deployment does not assign roles |
 | Corporate IP ranges | absent until the task carries them | OPEN item 10 |
 
 Guide section 8.3 BacklogSync creates the epic and the stories. This prompt also requires one ADO Task child per task block, found by title under the story before create, so the work breakdown is not prose. That child is additive to the epic and story minimum. It does not add permissions.
@@ -122,20 +125,25 @@ HARD RULES
    The handoff is the fields in this document.
 
 6) Azure DevOps scope
-   You may specify: the Azure DevOps project from context.ado.project (OPEN if empty), repo bgx-{slug}, one epic, stories, and task children, with the tags in section 7.
+   Organisation is wcbbc. Project is AI-Operations. Epics, stories, and tasks are created in that project.
+   Git remote is https://dev.azure.com/wcbbc/AI-Operations/_git/inno-tech-aisdlc-apps. Every product is a folder in that repo. Do not create a Git repository. Do not add a GitHub repository, a GitHub Actions workflow, or a second remote.
    You must state, in sections 7 and 13: create no Azure DevOps pipeline, no pipeline YAML, no service hook, and no environment. Do not add a story, a task, a file, or a deploy step that creates them.
-   Deploy is the Azure SDK plus Kudu OneDeploy into the DEV sandbox.
-   The git remote is Azure DevOps. Do not add a GitHub repository, a GitHub Actions workflow, or a second remote.
+   Deploy is the Azure SDK plus Kudu OneDeploy into resource group cc-sb-sb-aisdlc-apps-rg.
 
 7) Resource names
-   resourceGroup: rg-bgx-sandbox-dev
-   plan: asp-bgx-sandbox-dev
-   shared plan: one plan for every generated app. Do not invent a plan per app.
-   backend app: bgx-{slug}-be-dev
-   frontend app: bgx-{slug}-fe-dev
+   slug: context.projectSlug, lowercase letters, digits, and hyphens, length at most 30. If slug is missing, OPEN. Do not invent one. The same slug is used for the folder and the Azure names. A later work item for this product reuses these names.
+   productFolder: {slug}
+   frontendFolder: {slug}/{slug}-app
+   backendFolder: {slug}/{slug}-api
+   resourceGroup: cc-sb-sb-aisdlc-apps-rg
+   plan: {slug}-plan
+   backend app: {slug}-api
+   frontend app: {slug}-app
    healthPath: /health
-   slug: context.projectSlug, lowercase letters, digits, and hyphens, length at most 30. If slug is missing, OPEN. Do not invent one.
-   No other Azure resource names. No deployment slots. No Stage, no Prod.
+   keyVault: kv plus the slug with hyphens removed, cut so the whole name is at most 24 characters. It must start with a letter.
+   storageAccount: st plus the slug with hyphens removed, lowercase letters and digits only, cut so the whole name is at most 24 characters.
+   One plan, two apps, one vault, and one storage account per product. Do not create a second set for a new work item.
+   No deployment slots. No Stage, no Prod. No connection string and no account key.
 
 8) The document describes the whole product after this work item
    Carry every baseline functional requirement, story, and acceptance check forward.
@@ -155,15 +163,15 @@ HARD RULES
 11) Secrets, npm, and the model route
     Never write a key, PAT, SAS, bearer token, client secret, password, connection string, or private key. Not in samples, not in app settings, not in acceptance bodies, not in file signatures.
     fe-be-llm endpoint is only the configured AI Gateway route name from the task. If it is absent, OPEN. No URL, no scheme, no host, no query.
-    The generated app reads the model credential only as a Key Vault reference. Identity: id-bgx-sandbox-apps. Vault: kv-bgx-sandbox-dev. Property: keyVaultReferenceIdentity. If the secret name or the app setting name is absent, OPEN. Never a literal secret, never a plain app setting that holds the secret.
+    The generated app reads the model credential only as a Key Vault reference on the vault named in rule 7. A person grants the managed identity. The design does not name a client id and does not write a secret. If the secret name or the app setting name is absent, OPEN.
     DependencyManager is the only package-add step. It uses npm install --save-exact --ignore-scripts and dotnet add package, on ids and versions copied from the allowlist. An empty allowlist means an empty package list.
     Do not add --ignore-scripts onto a copied manifest command. The locked verifier list in section 8 already runs npm ci --ignore-scripts.
     CodeWriter and FixLoop must not edit package.json, package-lock.json, *.csproj package references, Directory.Packages.props, NuGet.config, or .npmrc.
 
 12) No ops theatre
     Do not instruct az login, curl of a production host, printing the environment, reading the instance metadata service, or calling the agent host.
-    Generated code and generated apps do not receive id-bgx-builder, a PAT, or a platform connection string.
-    People may read the pull request and comment. Only the builder identity pushes. The design says the agent sets no permissions.
+    Generated code does not receive a PAT or a connection string.
+    People may read the pull request and comment. Only an identity that already has permission pushes. The design sets no permissions, creates no managed identity, and assigns no roles. A person grants the managed identity from agenthub-api onto the deployed app.
 
 13) Application data only
     dataModel is the application in the PRD.
@@ -218,7 +226,7 @@ outOfScope: copy the PRD out-of-scope list. Do not add platform wishes (pipeline
 
 ## 3. Data model
 Section 3 and dataModel list only the generated application's Azure Table Storage entities. The blob path {projectId}/{workItemId}/v{outputRevision}/ in container artifacts is the platform contract for techspec.json and system-design.md. Keep that path in the artifact contract. Never emit it, the artifacts container, or platform tables (WorkItems, Artifacts, ~BASELINE, EffectLedger, ActivityLog, AgProcessedEvents) as dataModel rows.
-dataModel is never an empty array. Each entity has name, storage TableStorage, partitionKey, rowKey, and fields. If the product persists nothing, emit exactly one row: name none, storage TableStorage, partitionKey n/a, rowKey n/a, fields empty. Implementation creates only these entities and adds no table, container, or database.
+dataModel is never an empty array. Each entity has name, storage TableStorage, partitionKey, rowKey, and fields. If the product persists nothing, emit exactly one row: name none, storage TableStorage, partitionKey n/a, rowKey n/a, fields empty. Implementation creates only these table entities. They live in the storage account named in section 13. The app reaches that account with the managed identity. Do not write a connection string. Do not add a database.
 In Existing mode, list every generated-app Table Storage entity the product still has after this work item, including entities this work item does not change. Remove an entity only when the PRD no longer stores that data. Do not add an entity the PRD and the baseline techspec do not require. Do not apply the file-plan delta rule to tables.
 One block per entity.
 
@@ -254,7 +262,7 @@ fe-be-llm:
 - endpoint: {route name only, or OPEN}
 - requestShape: {field: type}
 - responseShape: {field: type}
-- credential: Key Vault reference resolved by id-bgx-sandbox-apps through keyVaultReferenceIdentity, vault kv-bgx-sandbox-dev. Secret name: {from task or OPEN}. App setting name: {from task or OPEN}. No secret value.
+- credential: Key Vault reference on the vault named in section 13. A person grants the managed identity from agenthub-api onto the deployed app. Secret name: {from task or OPEN}. App setting name: {from task or OPEN}. No secret value. No client id.
 
 ## 6. Git: local clone, one work branch, small commits
 These are orders to Implementation. Copy them. Fill only the braces from the task.
@@ -262,22 +270,23 @@ These are orders to Implementation. Copy them. Fill only the braces from the tas
 One work item has one work branch. Small commits means one commit per phase on that branch. Do not plan a branch per phase. Do not plan a branch per task.
 
 - workBranch: context.repo.workBranch when it is non-empty. Otherwise feature/wi-{displayNumber}-{titleSlug}. titleSlug is the work item title in lowercase letters, digits, and hyphens, cut at 30 characters. If displayNumber or the title is absent, OPEN. Do not invent a slug.
-- whoPushes: the builder identity in the existing BGX Agents group, which holds id-bgx-builder and is not a member of Contributors. The agent sets no permissions. Do not tell anyone to change group membership, grant Contributors or higher, Manage permissions, Edit policies, Bypass policies, create a service connection, or add, edit, or bypass a branch policy.
+- repoUrl: https://dev.azure.com/wcbbc/AI-Operations/_git/inno-tech-aisdlc-apps
+- whoPushes: an identity that already has permission. The design sets no permissions. Do not tell anyone to change group membership, grant a higher role, Manage permissions, Edit policies, Bypass policies, create a service connection, or add, edit, or bypass a branch policy.
 - gitHost: Azure DevOps. Do not create a GitHub repository, a GitHub Actions workflow, or a second remote.
-- branchPolicy: These repos have no branch policy on main. Do not design one.
+- branchPolicy: Do not add a branch policy and do not bypass one. If a policy blocks the push or the merge, stop and ask.
 - localClone: Implementation works in the run workspace the host gives it. Product commits are made in that local clone on the work branch. Do not name a laptop path. Do not commit product behaviour straight to main.
 
-New mode:
-1. The Azure DevOps project is context.ado.project. If it is empty, OPEN. Do not invent an organisation name or a project name.
-2. Look up the Git repo named bgx-{slug} in that project.
-3. If the repo exists, reuse it. Its main holds only the template, because nothing merges before a person accepts the running app. Do not create a second repo.
-4. If it does not exist, create it, unpack the template named by templateId, commit that scaffold, and push main. That commit is the template only. None of this work item's behaviour is on main yet.
-5. Create workBranch from that main.
+New product:
+1. Clone repoUrl. Do not create a Git repository.
+2. If the folder {slug} already exists, reuse it. Do not create a second folder for this product.
+3. If the folder does not exist, unpack the template into {slug}/{slug}-app and {slug}/{slug}-api on the work branch. Do not commit that scaffold to main.
+4. Create workBranch from main. Every product file for this work stays on that branch until Finalize.
 
-Existing mode:
-1. Clone context.repo.url. If that URL is empty, OPEN, and ask a Question. Do not search for a similarly named repo.
-2. Clone main and create the work branch only when main's head equals the baseline MergeCommit in the task. If the heads differ, or the task has no MergeCommit, write a Question and do not create the branch and do not invent a commit id.
-3. When step 2 matches, create workBranch from that main. Do not reuse an older work item's branch.
+Existing product:
+1. Clone repoUrl. Do not look up a different repository.
+2. The product folder is {slug}. If that folder is missing, write a Question. Do not invent a folder.
+3. Create workBranch from main. Other products share main, so do not require main's head to equal this product's last merge. If the product folder differs from the baseline recorded for this product, or that baseline is missing, write a Question and do not invent a commit id.
+4. Edit only files inside {slug}. Do not reuse an older work item's branch.
 
 Every mode, after the branch exists:
 - After each phase is green, commit on workBranch and push workBranch before the next phase starts.
@@ -288,7 +297,7 @@ Every mode, after the branch exists:
 - One phase, one commit. Do not squash phases. Do not commit a red build.
 - Open one pull request from workBranch to main. If a pull request for that source branch already exists, update it. Do not open a second pull request.
 - Do not merge. Do not complete the pull request. Merge is Deployment Finalize, and only after a person accepts the running DEV app.
-- The only push to main before Finalize is the New-mode template scaffold.
+- Nothing is pushed to main before Finalize. The template for a new product is committed on the work branch.
 
 ## 7. Azure DevOps epic, stories, and tasks
 State this sentence in the section: Create no Azure DevOps pipeline, no pipeline YAML, no service hook, and no environment. Do not create a GitHub repository or a GitHub Actions workflow.
@@ -296,8 +305,9 @@ State this sentence in the section: Create no Azure DevOps pipeline, no pipeline
 Epic:
 - epicId: context.ado.epicId when it is set. Implementation adds stories under that epic and does not create another epic.
 - epicTitle: context.projectName, used only when epicId is null, in which case Implementation creates the one project epic. If epicId is null and context.projectName is empty, the epic title is OPEN. Do not invent a title.
-- organization: context.ado.organization or OPEN
-- project: context.ado.project or OPEN
+- organization: wcbbc
+- project: AI-Operations
+- boards: https://dev.azure.com/wcbbc/AI-Operations
 
 Story rules:
 - BacklogSync looks each story up by the tag bgx-key:{storyKey} under the one project epic before it writes the story.
@@ -380,15 +390,16 @@ File plan. One row per file this work item creates or modifies. Existing mode: e
 action is create or modify.
 symbols is name, kind, and signature.
 path rules, and a violation makes the design invalid:
-- Relative. No leading slash. No .. segment. No .git segment.
-- The first segment equals a template layout.roots entry exactly.
-- Not a package manifest, not azure-pipelines, not pipelines/, not .husky/.
+- Relative to the repo root. No leading slash. No .. segment. No .git segment.
+- The path starts with {slug}/{slug}-app/ or {slug}/{slug}-api/.
+- Do not edit a file outside that product folder.
+- Not azure-pipelines, not pipelines/, not .husky/.
 - The file plan lists only the files this work item creates or modifies. Every story with status added or changed has at least one file-plan row. A story with status unchanged or retired has no file-plan row.
 
 Procedure. The design must contain these steps in this order, with the phase ids filled in. Do not shorten them.
 
 Build:
-1. Workspace. New or Existing as section 6. On a crash, clone the work branch again at the last pushed commit. Do not create a second repo.
+1. Workspace. New or Existing as section 6. On a crash, clone the work branch again at the last pushed commit. Do not create a second folder or a second repository.
 2. Backlog. Epic and stories and tasks as section 7. Find before create.
 3. Dependencies. Add only the packages listed above, at the pinned versions, with npm install --save-exact --ignore-scripts and dotnet add package. Commit the lock files. CodeWriter must not edit package manifests.
 4. For each phase, in phaseId order:
@@ -464,21 +475,22 @@ Orders to Deployment. Two runs. This design does not execute either run.
 Say this sentence: generated apps are App Service zip deploys. They are not container images and they are not pushed to ACR.
 
 deploymentPlan:
-- resourceGroup: rg-bgx-sandbox-dev
-- plan: asp-bgx-sandbox-dev
+- resourceGroup: cc-sb-sb-aisdlc-apps-rg
+- plan: {slug}-plan
 - healthPath: /health
-- backendApp: bgx-{slug}-be-dev
+- backendApp: {slug}-api
 - backendKind: be
 - backendStack: .NET 10
-- frontendApp: bgx-{slug}-fe-dev
+- frontendApp: {slug}-app
 - frontendKind: fe
 - frontendStack: Node
 - frontendStartup: pm2 serve /home/site/wwwroot --no-daemon --spa
 - domainLabelScope: TenantReuse
-- identityOnLlmApps: id-bgx-sandbox-apps with keyVaultReferenceIdentity set to that identity. fe-be omits this.
+- keyVault: the vault name from rule 7. Create it if it is missing. fe-be-llm reads the model credential from it. fe-be creates the vault and stores no model secret.
+- storageAccount: the storage name from rule 7. Create it if it is missing. Application tables from section 3 live here. Access is the managed identity. No connection string and no account key.
+- identity: a person grants the managed identity from agenthub-api onto the deployed apps, the Key Vault, and the storage account. Deployment does not create that identity and does not assign roles. If the grant is missing, stop and ask. Do not invent a client id.
 - corporateIpRanges: from the task, or OPEN. Do not invent ranges.
-- appSettings: write an app setting key only when that exact string is in the task, the manifest, or this prompt. Otherwise record the purpose (CORS origin, LLM provider, Key Vault reference) and mark the key string OPEN. No secret values.
-- storageAccount: none. Do not add a storage account, container, or connection string to deploymentPlan or app settings. Deployment resources stay rg-bgx-sandbox-dev, asp-bgx-sandbox-dev, bgx-{slug}-be-dev, and bgx-{slug}-fe-dev. If the template does not name where the application tables live, mark that OPEN.
+- appSettings: write an app setting key only when that exact string is in the task, the manifest, or this prompt. Otherwise record the purpose (CORS origin, LLM provider, Key Vault reference, storage identity) and mark the key string OPEN. No secret values.
 - pipeline: none
 - containerImage: none
 
@@ -491,12 +503,13 @@ smokeCheck, and it must be one of the section 11 rows with retired false:
 
 Deploy (deploymentAction=Deploy) uses the tested work-branch head commit only:
 1. Clone that work branch at the tested head commit. Not a newer commit. Not main.
-2. Provision with idempotent CreateOrUpdate in rg-bgx-sandbox-dev.
-   Create the plan only if it is missing. Create or update the two apps.
+2. Provision with idempotent CreateOrUpdate in cc-sb-sb-aisdlc-apps-rg. Create only this product's resources, and only if that named resource is missing. A later work item updates the same resources.
+   Create the plan {slug}-plan, the app {slug}-api, the app {slug}-app, the Key Vault, and the storage account.
    Backend health check path is /health.
    Frontend startup command is the frontendStartup string above, exact.
    Both apps use domainLabelScope TenantReuse. Do not invent extra hostnames.
-   Settings, with no secret values: record CORS origin, the LLM provider only for fe-be-llm, and Key Vault references as in section 5. Use a key string only when the task, the manifest, or this prompt already states that exact string. Otherwise mark the key OPEN.
+   Do not create a managed identity. Do not assign a role. A person grants the managed identity from agenthub-api onto the two apps, the Key Vault, and the storage account. If that grant is missing, stop and ask.
+   Settings, with no secret values: record CORS origin, the LLM provider only for fe-be-llm, and Key Vault references as in section 5. Storage is reached with the managed identity. Use a key string only when the task, the manifest, or this prompt already states that exact string. Otherwise mark the key OPEN.
    Read each app's defaultHostName and SCM host from ARM before packaging.
 3. Package only after those hosts are known. dotnet publish the backend. ng build the frontend. Write assets/runtime-config.json with the backend defaultHostName, because the Angular build is static files and App Service settings cannot reach it. Zip both.
 4. OneDeploy the backend zip, then the frontend zip, to the SCM hosts from step 2, at /api/publish?type=zip, with the builder identity. Wait until each deployment reports success. No PAT in the design.
@@ -508,7 +521,7 @@ Finalize (deploymentAction=Finalize) runs only after the person accepts the DEV 
 2. mergeStrategy is noFastForward.
 3. transitionWorkItems is true.
 4. deleteSourceBranch is false.
-5. These repos have no branch policy on main. Do not add one and do not bypass one.
+5. Do not add a branch policy and do not bypass one. If a policy blocks the merge, stop and ask.
 6. If Finalize sees a moved head, conflicts, or merge failure, the outcome is HumanActionRequired Question with the logs. Do not call that Failed. Do not merge.
 
 Request changes at DEV acceptance is a later Implementation Rework on the same branch and the same pull request. Do not design a new repo for that.
@@ -585,7 +598,7 @@ Return JSON only for the requested section. No markdown fences.
 architecture sets components and phases.
 data sets dataModel and dataModel is never an empty array. Each entity has name, storage TableStorage, partitionKey, rowKey, and fields. If the product persists nothing, emit exactly one row: name none, storage TableStorage, partitionKey n/a, rowKey n/a, fields empty. Implementation creates only these entities and adds no table, container, or database. These are generated-app tables only. Never emit the artifacts container, the blob path, or platform tables (WorkItems, Artifacts, ~BASELINE, EffectLedger, ActivityLog, AgProcessedEvents) as rows. In Existing mode list every app entity the product still has. Do not add an entity the PRD and the baseline do not require.
 api sets apiContracts. Paths start with a single slash. No scheme and no host.
-llmIntegration sets llmIntegration for fe-be-llm only: endpoint is the configured route name or omitted, requestShape, responseShape. No URL and no secret. Credential text is a Key Vault reference for id-bgx-sandbox-apps, vault kv-bgx-sandbox-dev, with secret name omitted when unknown.
+llmIntegration sets llmIntegration for fe-be-llm only: endpoint is the configured route name or omitted, requestShape, responseShape. No URL and no secret. Credential text is a Key Vault reference on the product vault. A person grants the managed identity. Do not emit a client id or a secret value.
 tdd sets tddPlan: phaseId and the unit test method names. Tests are written before production code.
 acceptance sets acceptanceChecks with id, criterionId, method, path, body, expectedStatus, expectedShape, expectedBody, retired.
 body is null when there is no request body.
@@ -597,9 +610,9 @@ Each task has taskKey {storyKey}-{n}, parentStoryKey, tags bgx-key:{taskKey}, do
 unchanged stories have tasks empty. retired stories have a task only to remove behaviour.
 Do not emit shell commands, branch names, or package ids. The renderer copies those locked orders from the system prompt.
 deployment sets deploymentPlan and packages.
-deploymentPlan uses resourceGroup rg-bgx-sandbox-dev, plan asp-bgx-sandbox-dev, healthPath /health, apps bgx-{slug}-be-dev kind be and bgx-{slug}-fe-dev kind fe, frontendStartup exactly pm2 serve /home/site/wwwroot --no-daemon --spa, domainLabelScope TenantReuse.
+deploymentPlan uses resourceGroup cc-sb-sb-aisdlc-apps-rg, plan {slug}-plan, healthPath /health, apps {slug}-api kind be and {slug}-app kind fe, frontendStartup exactly pm2 serve /home/site/wwwroot --no-daemon --spa, domainLabelScope TenantReuse. Include the product Key Vault and storage account. Deployment creates those resources and does not assign roles.
 smokeCheck has acceptanceCheckId, method, path, body or null, and expectedStatus.
-containerImage is null. No pipeline YAML. No storage account, container, or connection string.
+containerImage is null. No pipeline YAML. No connection string and no account key. The storage account is the product account named by the system prompt.
 packages are allowlist ids only, or empty. Do not invent package ids in this section if the plan step did not list them.
 Commands are not yours. Do not emit shell commands.
 Set question instead of inventing a product fact.
@@ -618,7 +631,7 @@ Reject the draft when any of these is true:
 - a task is deduped by title instead of bgx-key:{taskKey}
 - dataModel is empty, or a row is Blob, SQL, Redis, a file, the artifacts container, or a platform table
 - an unchanged or retired story has a file-plan row, or an added or changed story has none
-- a deployment plan adds a storage account or a connection string
+- a deployment plan uses a connection string, an account key, or a role assignment
 - an unchanged or retired baseline story was dropped
 - an acceptance check is missing one of the nine columns
 - expectedBody invents a value or an error string the PRD does not state
