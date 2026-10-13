@@ -50,6 +50,15 @@ try
 
     builder.Services.AddControllers();
     builder.Services.AddProblemDetails();
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy(
+            "BuildGenixWeb",
+            policy => policy
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .SetIsOriginAllowed(_ => true));
+    });
 
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen(options =>
@@ -97,6 +106,7 @@ try
     var app = builder.Build();
 
     app.UseSerilogRequestLogging();
+    app.UseCors("BuildGenixWeb");
     app.UseDummyUserId();
     app.UseExceptionHandler();
     app.UseStatusCodePages();
@@ -127,7 +137,8 @@ try
         service = "BuildGenix.WebApi",
         status = "ok",
         docs = "/swagger",
-        pocPipeline = "/api/poc/pipeline/run"
+        pocPipeline = "/api/poc/pipeline/run",
+        pocInteractive = "/api/poc/pipeline/start"
     }));
 
     await app.RunAsync().ConfigureAwait(false);

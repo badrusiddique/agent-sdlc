@@ -19,6 +19,9 @@ public sealed class PipelineAgentHandlerTests
         Assert.Equal(AgentResultStatus.Completed, result.Status);
         Assert.Contains("prd", result.Artifacts.Keys);
         Assert.Contains(blobs.Writes, w => w.Path.EndsWith("prd.json", StringComparison.Ordinal));
+        Assert.Contains(result.Steps, s => s.Id == "prd.draft" && s.Status == "Completed");
+        Assert.Contains(result.Steps, s => s.Id == "prd.persistJson" && s.Status == "Completed");
+        Assert.Contains(result.Steps, s => s.Id == "prd.persistMd" && s.Status == "Completed");
     }
 
     [Fact]

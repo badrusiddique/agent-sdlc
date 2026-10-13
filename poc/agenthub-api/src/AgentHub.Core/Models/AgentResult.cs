@@ -17,6 +17,21 @@ public sealed class AgentResult
     public string? HumanMessage { get; set; }
     public string? StateContextId { get; set; }
     public int OutputRevision { get; set; } = 1;
+
+    /// <summary>
+    /// Ordered intra-stage tasks (not separate agents). Hosts can replay these into WorkItemEvents for UI/DB.
+    /// </summary>
+    public List<AgentStepProgress> Steps { get; set; } = [];
+}
+
+/// <summary>One task inside a stage — updates progress without spawning a new agent.</summary>
+public sealed class AgentStepProgress
+{
+    public string Id { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public string Status { get; set; } = "Completed";
+    public string Message { get; set; } = string.Empty;
+    public DateTimeOffset At { get; set; } = DateTimeOffset.UtcNow;
 }
 
 public static class AgentResultStatus

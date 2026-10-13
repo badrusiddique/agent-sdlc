@@ -69,11 +69,13 @@ public static class WorkItemStatuses
     public const string Running = "Running";
     public const string AwaitingApproval = "AwaitingApproval";
     public const string HumanActionRequired = "HumanActionRequired";
+    public const string Paused = "Paused";
     public const string Failed = "Failed";
     public const string Completed = "Completed";
+    public const string Aborted = "Aborted";
 
     public static bool IsTerminal(string status) =>
-        status is Failed or Completed;
+        status is Failed or Completed or Aborted;
 
     public static bool ReleasesActiveMarker(string status) => IsTerminal(status);
 }

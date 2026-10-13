@@ -31,11 +31,37 @@ Checked-in proof (from that Azurite run):
 | Path | Role |
 |---|---|
 | `poc/agenthub-api` | Agent host + `AgentHub.Agents.Pipeline` (handler, templates, LocalCompose deploy) |
-| `poc/buildgenix-api` | `POST /api/poc/pipeline/run` orchestrator (stages, gates, events, AuditLog) |
-| `poc/scripts/verify-three.sh` | Runs all three happy paths and smokes the URLs |
+| `poc/buildgenix-api` | Orchestrator: sync `/run` + interactive `/start` with human gates |
+| `poc/buildgenix-web` | Angular chat UI: stage strip, approvals, Documents + Logs tabs |
+| `poc/scripts/verify-three.sh` | Runs all three happy paths and smokes the URLs (auto-approve) |
+| `poc/scripts/verify-interactive.sh` | Interactive path: start → approve PRD/SD/Deploy → smoke |
+| `poc/scripts/verify-steering.sh` | Chat steering: PAUSE / STOP / CONTINUE / ABORT |
 | `poc/blob-storage-snapshot/` | Snapshot of Azurite blobs from the verified run |
 
-Design notes: agent writes AH tables/blobs; buildgenix owns WorkItems / Approvals / WorkItemEvents / AuditLog; three gates auto-approve on the happy path; Deploy then Finalize.
+Design notes: agent writes AH tables/blobs; buildgenix owns WorkItems / Approvals / WorkItemEvents / AuditLog. Sync `POST /api/poc/pipeline/run` auto-approves gates (scripts). Interactive `POST /api/poc/pipeline/start` pauses at PRD, System Design, and post-Deploy for human approve (chat UI). Deploy then Finalize.
+
+**Implementation** materializes richer `fe-be` / `fe-be-llm` templates (request/response panels in the SPA shell, small `CalculatorMath` helper). **Testing** runs xUnit + `WebApplicationFactory` HTTP round-trips (`/health`, `/api/add`, `/api/thought`, and `/api/subtract` when present) and writes those exchanges into `test-results.json` under `roundTrips`.
+
+**Intra-stage tasks (not sub-agents):** each Pipeline stage runs ordered tasks (`TaskStarted` / `TaskCompleted`) that land in ActivityLog + AgentResult.Steps and are replayed into BuildGenix `WorkItemEvents` for the chat UI/DB. Still one Pipeline agent. Stage LLM prompts live in `poc/agenthub-api/src/AgentHub.Agents.Pipeline/Prompts/pipeline-system.txt`.
+
+### Chat UI (interactive)
+
+```bash
+# With AgentHub :43180 and BuildGenix :43181 already running:
+cd poc/buildgenix-web
+npm install
+npm start
+# open http://127.0.0.1:43182
+```
+
+Or script the same gates without the browser:
+
+```bash
+./scripts/verify-interactive.sh
+./scripts/verify-steering.sh   # PAUSE / STOP / CONTINUE / ABORT
+```
+
+Chat steering (while a work item is active): type `PAUSE`, `STOP`, `ABORT`, or `CONTINUE` in the studio, or call `POST /api/poc/pipeline/{workItemId}/steer` with `{"command":"PAUSE"|"STOP"|"ABORT"|"CONTINUE"}`.
 
 ---
 

@@ -11,6 +11,13 @@ public sealed class PocPipelineOptions
     public string AuditLogDirectory { get; set; } =
         Path.Combine(Path.GetTempPath(), "bgx-poc-audit");
 
+    /// <summary>
+    /// Local file-blob root mirrored from AgentHub FileArtifactBlobStore (Development).
+    /// Used to serve Docs without round-tripping when blobs are on disk.
+    /// </summary>
+    public string ArtifactFileRootPath { get; set; } =
+        Path.Combine(Path.GetTempPath(), "bgx-poc-blobs");
+
     /// <summary>When true, skip Azure Tables and keep state in memory + AuditLog.json.</summary>
     public bool UseInMemoryTables { get; set; } = true;
 
