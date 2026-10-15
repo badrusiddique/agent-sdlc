@@ -25,6 +25,8 @@ Design: [`docs/ia-local-docker-design.md`](docs/ia-local-docker-design.md), [`do
 
 **Production SD/IA/TA work prompts:** [`docs/prompts/system-design-system.txt`](../docs/prompts/system-design-system.txt), [`implementation-agent-system.txt`](../docs/prompts/implementation-agent-system.txt), [`testing-agent-system.txt`](../docs/prompts/testing-agent-system.txt); alignment [`sd-ia-ta-prompt-alignment-2026-10-15.md`](../docs/prompts/sd-ia-ta-prompt-alignment-2026-10-15.md).
 
+**Start here on a clean machine (zip only):** [`docs/OTHER-MACHINE-SETUP.md`](docs/OTHER-MACHINE-SETUP.md) — install → local Docker → Azure/AzDO.
+
 **Azure QA Runbook (other machine + real subscription):** [`docs/qa/QA_Runbook-azure-dual-mode.md`](docs/qa/QA_Runbook-azure-dual-mode.md) — Gates A–E (`verify-ta`, contract tests, `verify-azure-preflight`, `verify-azure-e2e`, local dual-mode).
 
 **Azure dual-mode (same code):** defaults stay Gitea + Compose; flip via `IA_GIT_PROVIDER` / `IA_DEPLOY_PROVIDER` (or `Ia:*` config). ClickOps: [`docs/azure-clickops-integration.md`](docs/azure-clickops-integration.md). Design: [`docs/azure-dual-mode-design.md`](docs/azure-dual-mode-design.md). Example config: `agenthub-api/src/AgentHub.WebApi/appsettings.Azure.example.json`. Older stepwise notes: [`docs/azure-integration-next-steps.md`](docs/azure-integration-next-steps.md).
