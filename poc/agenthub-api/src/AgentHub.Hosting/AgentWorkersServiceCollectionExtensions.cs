@@ -43,9 +43,14 @@ public static class AgentWorkersServiceCollectionExtensions
         services.AddHostedService<HealthyAgentWorker>();
 
         services.Configure<IaGitOptions>(configuration.GetSection(IaGitOptions.SectionName));
+        services.Configure<IaDeployOptions>(configuration.GetSection(IaDeployOptions.SectionName));
         services.AddSingleton(sp =>
         {
             var git = sp.GetService<IOptions<IaGitOptions>>()?.Value ?? new IaGitOptions();
+            var deploy = sp.GetService<IOptions<IaDeployOptions>>()?.Value ?? new IaDeployOptions();
+            // Env overlays so local machines can point at Azure without editing committed JSON.
+            OverlayGitFromEnv(git);
+            OverlayDeployFromEnv(deploy);
             return new PipelineAgentHandler(
                 sp.GetRequiredService<ILlmClient>(),
                 sp.GetRequiredService<IArtifactBlobStore>(),
@@ -54,11 +59,79 @@ public static class AgentWorkersServiceCollectionExtensions
                 sp.GetRequiredService<IAgentEventPublisher>(),
                 sp.GetRequiredService<ILogger<PipelineAgentHandler>>(),
                 sp.GetRequiredService<IGuardrailPipeline>(),
-                git);
+                git,
+                deploy);
         });
         services.AddSingleton<PipelineAgentDispatcher>();
         services.AddHostedService<PipelineAgentWorker>();
 
         return services;
+    }
+
+    private static void OverlayGitFromEnv(IaGitOptions git)
+    {
+        var provider = Environment.GetEnvironmentVariable("IA_GIT_PROVIDER");
+        if (!string.IsNullOrWhiteSpace(provider))
+        {
+            git.Provider = provider.Trim();
+        }
+
+        var org = Environment.GetEnvironmentVariable("IA_GIT_ORGANIZATION");
+        if (!string.IsNullOrWhiteSpace(org))
+        {
+            git.Organization = org.Trim();
+        }
+
+        var project = Environment.GetEnvironmentVariable("IA_GIT_PROJECT");
+        if (!string.IsNullOrWhiteSpace(project))
+        {
+            git.Project = project.Trim();
+        }
+
+        var repo = Environment.GetEnvironmentVariable("IA_GIT_REPO");
+        if (!string.IsNullOrWhiteSpace(repo))
+        {
+            git.Repo = repo.Trim();
+        }
+
+        var token = Environment.GetEnvironmentVariable("IA_GIT_TOKEN")
+                    ?? Environment.GetEnvironmentVariable("AZDO_PAT");
+        if (!string.IsNullOrWhiteSpace(token))
+        {
+            git.Token = token.Trim();
+        }
+    }
+
+    private static void OverlayDeployFromEnv(IaDeployOptions deploy)
+    {
+        var provider = Environment.GetEnvironmentVariable("IA_DEPLOY_PROVIDER");
+        if (!string.IsNullOrWhiteSpace(provider))
+        {
+            deploy.Provider = provider.Trim();
+        }
+
+        var app = Environment.GetEnvironmentVariable("IA_DEPLOY_APP_NAME");
+        if (!string.IsNullOrWhiteSpace(app))
+        {
+            deploy.AppName = app.Trim();
+        }
+
+        var url = Environment.GetEnvironmentVariable("IA_DEPLOY_PUBLIC_URL");
+        if (!string.IsNullOrWhiteSpace(url))
+        {
+            deploy.PublicBaseUrl = url.Trim();
+        }
+
+        var user = Environment.GetEnvironmentVariable("IA_DEPLOY_USER");
+        if (!string.IsNullOrWhiteSpace(user))
+        {
+            deploy.PublishUser = user.Trim();
+        }
+
+        var pass = Environment.GetEnvironmentVariable("IA_DEPLOY_PASSWORD");
+        if (!string.IsNullOrWhiteSpace(pass))
+        {
+            deploy.PublishPassword = pass.Trim();
+        }
     }
 }

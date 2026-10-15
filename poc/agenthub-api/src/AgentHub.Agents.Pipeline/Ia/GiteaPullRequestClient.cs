@@ -17,7 +17,7 @@ public sealed record PullRequestResult(
 /// Opens a PR against the local Gitea mono-repo (AzDo stand-in).
 /// Falls back to a local bare remote + synthetic PR metadata when Gitea is down.
 /// </summary>
-public sealed class GiteaPullRequestClient
+public sealed class GiteaPullRequestClient : IGitPullRequestClient
 {
     private readonly IaGitOptions _options;
     private readonly HttpClient _http;

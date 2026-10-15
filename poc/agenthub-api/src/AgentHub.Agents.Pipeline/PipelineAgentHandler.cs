@@ -25,6 +25,9 @@ public sealed class PipelineAgentHandler
     private readonly IGuardrailPipeline _guardrails;
     private readonly ILogger<PipelineAgentHandler> _logger;
     private readonly IaGitOptions _gitOptions;
+    private readonly IaDeployOptions _deployOptions;
+    private readonly IGitPullRequestClient _git;
+    private readonly IDeployHost _deploy;
 
     public PipelineAgentHandler(
         ILlmClient llm,
@@ -34,7 +37,10 @@ public sealed class PipelineAgentHandler
         IAgentEventPublisher events,
         ILogger<PipelineAgentHandler> logger,
         IGuardrailPipeline? guardrails = null,
-        IaGitOptions? gitOptions = null)
+        IaGitOptions? gitOptions = null,
+        IaDeployOptions? deployOptions = null,
+        IGitPullRequestClient? gitClient = null,
+        IDeployHost? deployHost = null)
     {
         _llm = llm;
         _blobs = blobs;
@@ -44,6 +50,9 @@ public sealed class PipelineAgentHandler
         _logger = logger;
         _guardrails = guardrails ?? new LocalGuardrailPipeline();
         _gitOptions = gitOptions ?? new IaGitOptions();
+        _deployOptions = deployOptions ?? new IaDeployOptions();
+        _git = gitClient ?? GitPullRequestClientFactory.Create(_gitOptions);
+        _deploy = deployHost ?? DeployHostFactory.Create(_deployOptions);
     }
 
     public async Task<AgentResult> RunAsync(
@@ -493,13 +502,17 @@ public sealed class PipelineAgentHandler
         }
 
         var branch = MonoRepoLayout.WorkBranch(message.ProjectId, message.WorkItemId);
-        await BeginStepAsync(message, run, "ia.push.pr", "Push branch and open PR (Gitea / local)", cancellationToken)
+        await BeginStepAsync(
+                message,
+                run,
+                "ia.push.pr",
+                $"Push branch and open PR ({_gitOptions.Provider})",
+                cancellationToken)
             .ConfigureAwait(false);
-        var prClient = new GiteaPullRequestClient(_gitOptions);
         var title = $"IA: {MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId)}";
         var body =
             $"Automated Implementation Agent PR.\n\nRequest: {message.Context.UserRequest}\n\nMono folder: `{MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId)}` with `frontend/` and `backend/`.";
-        var pr = await prClient
+        var pr = await _git
             .PushAndOpenPrAsync(workspace, branch, title, body, cancellationToken)
             .ConfigureAwait(false);
         var prPath = message.BlobPrefix + "pull-request.json";
@@ -758,11 +771,10 @@ public sealed class PipelineAgentHandler
             }
         }
 
-        var client = new GiteaPullRequestClient(_gitOptions);
         PullRequestResult merge;
         if (prNumber is int pn)
         {
-            merge = await client
+            merge = await _git
                 .MergePullRequestAsync(pn, message.Context.WorkBranch, cancellationToken)
                 .ConfigureAwait(false);
         }
@@ -933,9 +945,14 @@ public sealed class PipelineAgentHandler
         var action = message.Context.DeploymentAction ?? "Deploy";
         if (action.Equals("Finalize", StringComparison.OrdinalIgnoreCase))
         {
-            await BeginStepAsync(message, run, "deploy.finalize", "Finalize local deployment", cancellationToken)
+            await BeginStepAsync(
+                    message,
+                    run,
+                    "deploy.finalize",
+                    $"Finalize deployment ({_deployOptions.Provider})",
+                    cancellationToken)
                 .ConfigureAwait(false);
-            await LocalComposeHost.FinalizeAsync(workspace, cancellationToken).ConfigureAwait(false);
+            await _deploy.FinalizeAsync(workspace, cancellationToken).ConfigureAwait(false);
             var merge = message.Context.HeadCommit ?? "local";
             outputs["mergeCommit"] = merge;
             outputs["headCommit"] = merge;
@@ -951,9 +968,14 @@ public sealed class PipelineAgentHandler
             return;
         }
 
-        await BeginStepAsync(message, run, "deploy.host", "Start local app host", cancellationToken)
+        await BeginStepAsync(
+                message,
+                run,
+                "deploy.host",
+                $"Start app host ({_deployOptions.Provider})",
+                cancellationToken)
             .ConfigureAwait(false);
-        var deploy = await LocalComposeHost
+        var deploy = await _deploy
             .DeployAsync(workspace, message.WorkItemId, cancellationToken)
             .ConfigureAwait(false);
         await CompleteStepAsync(message, run, "deploy.host", $"Host ready at {deploy.Url}", cancellationToken)
