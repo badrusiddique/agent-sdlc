@@ -1,0 +1,12 @@
+Phase: Implementation Plan
+
+Read the conversation below (user request, PRD, and system design). Write an implementation plan in Markdown with these sections:
+
+1. Goal — one short paragraph
+2. Mono-repo layout — confirm `frontend/` and `backend/` under `project-{projectId}-work-item-{workItemId}/`
+3. Backend changes — endpoints and files to touch
+4. Frontend changes — screens and copy
+5. Tests — which HTTP round-trips prove done
+6. Risks — short list
+
+Do not reply with a single compact summary object. Reply in readable Markdown a human can approve.

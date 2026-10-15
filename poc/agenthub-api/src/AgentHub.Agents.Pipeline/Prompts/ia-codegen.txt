@@ -1,0 +1,5 @@
+Phase: Code Generation hints
+
+In a short conversational reply (a few sentences), explain what headline and optional thought-of-the-day copy the generated UI should show. Then end with a JSON object only on the last line(s):
+
+{"headline":"...","thought":"...optional for fe-be-llm...","notes":"..."}

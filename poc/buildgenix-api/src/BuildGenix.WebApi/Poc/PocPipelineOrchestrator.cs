@@ -25,9 +25,10 @@ public sealed class PocPipelineOrchestrator
     [
         "PRD",
         "SYSTEM_DESIGN",
-        "IMPLEMENTATION",
-        "TESTING",
-        "DEPLOY_DEV"
+        "IA_PLAN",
+        "IA_CODEGEN",
+        "IA_REVIEW",
+        "IA_PUSH_DEPLOY"
     ];
 
     private static readonly (string Id, string Label)[] StageStrip =
@@ -35,9 +36,10 @@ public sealed class PocPipelineOrchestrator
         ("INTAKE", "Intake"),
         ("PRD", "PRD"),
         ("SYSTEM_DESIGN", "System Design"),
-        ("IMPLEMENTATION", "Implementation"),
-        ("TESTING", "Testing"),
-        ("DEPLOY_DEV", "Deploy"),
+        ("IA_PLAN", "Implementation Plan"),
+        ("IA_CODEGEN", "Code Generation"),
+        ("IA_REVIEW", "Code Review"),
+        ("IA_PUSH_DEPLOY", "Push & Deploy"),
         ("DONE", "Done")
     ];
 
@@ -137,7 +139,7 @@ public sealed class PocPipelineOrchestrator
             session.Item.WorkItemId,
             session.Item.Status,
             session.Item.CurrentStage,
-            "Pipeline started. Waiting for stage progress and human approvals at PRD, System Design, and Deploy.");
+            "Pipeline started. Waiting for stage progress and human approvals at PRD, System Design, Implementation Plan, Code Review, and Push & Deploy.");
     }
 
     public async Task ApproveAsync(string workItemId, string? feedback, CancellationToken cancellationToken = default)
@@ -705,7 +707,7 @@ public sealed class PocPipelineOrchestrator
 
             var stage = StageOrder[stageIndex];
 
-            if (stage == "DEPLOY_DEV")
+            if (stage == "IA_PUSH_DEPLOY")
             {
                 var deployResult = await RunStageAsync(
                         session,
@@ -726,14 +728,15 @@ public sealed class PocPipelineOrchestrator
                 headCommit = deployResult.Outputs.GetValueOrDefault("headCommit") ?? headCommit;
                 deployedUrl = deployResult.Outputs.GetValueOrDefault("deployedUrls");
                 session.DeployedUrl = deployedUrl;
+                var prUrl = deployResult.Outputs.GetValueOrDefault("prUrl");
                 item.RepoFactsJson = JsonSerializer.Serialize(
-                    new { headCommit, deployedUrl, workspaceRoot },
+                    new { headCommit, deployedUrl, workspaceRoot, prUrl },
                     JsonOptions);
 
                 var deployApproved = await RaiseGateAndWaitAsync(
                         session,
                         stage,
-                        "DEV acceptance — open the app, then approve to finalize",
+                        "DEV acceptance — open the app (and PR), then approve to finalize",
                         deployResult.TaskId,
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -770,7 +773,7 @@ public sealed class PocPipelineOrchestrator
                 item.Status = WorkItemStatuses.Completed;
                 item.CurrentStage = "DONE";
                 item.RepoFactsJson = JsonSerializer.Serialize(
-                    new { headCommit, deployedUrl, workspaceRoot, mergeCommit },
+                    new { headCommit, deployedUrl, workspaceRoot, mergeCommit, prUrl },
                     JsonOptions);
                 item.UpdatedAt = DateTimeOffset.UtcNow;
                 item.LastAppliedResultId = $"result:{finalizeResult.TaskId}:{item.CurrentInputVersion}";
@@ -780,7 +783,8 @@ public sealed class PocPipelineOrchestrator
                         "DONE",
                         WorkItemStatuses.Completed,
                         "Finalized",
-                        $"Completed with URL {deployedUrl}",
+                        $"Completed with URL {deployedUrl}"
+                        + (string.IsNullOrWhiteSpace(prUrl) ? string.Empty : $"; PR {prUrl}"),
                         finalizeResult.TaskId,
                         cancellationToken)
                     .ConfigureAwait(false);
@@ -806,11 +810,16 @@ public sealed class PocPipelineOrchestrator
             workspaceRoot = result.Outputs.GetValueOrDefault("workspaceRoot") ?? workspaceRoot;
             headCommit = result.Outputs.GetValueOrDefault("headCommit") ?? headCommit;
 
-            if (stage is "PRD" or "SYSTEM_DESIGN")
+            if (stage is "PRD" or "SYSTEM_DESIGN" or "IA_PLAN" or "IA_REVIEW")
             {
-                var label = stage == "PRD"
-                    ? "Review the PRD document, then approve to continue"
-                    : "Review the System Design document, then approve to continue";
+                var label = stage switch
+                {
+                    "PRD" => "Review the PRD document, then approve to continue",
+                    "SYSTEM_DESIGN" => "Review the System Design document, then approve to continue",
+                    "IA_PLAN" => "Review the Implementation Plan, then approve Code Generation",
+                    "IA_REVIEW" => "Review the generated code summary, then approve Push & Deploy",
+                    _ => "Review and approve to continue"
+                };
                 var approved = await RaiseGateAndWaitAsync(session, stage, label, result.TaskId, cancellationToken)
                     .ConfigureAwait(false);
                 if (!approved)
@@ -1033,7 +1042,7 @@ public sealed class PocPipelineOrchestrator
                 templateId = item.TemplateId,
                 environment = "DEV",
                 deploymentAction,
-                workBranch = $"feature/wi-{item.WorkItemId}",
+                workBranch = $"feature/project-{item.ProjectId}-work-item-{item.WorkItemId}",
                 headCommit,
                 workspaceRoot,
                 baselineArtifacts = baseline ?? new Dictionary<string, string>()

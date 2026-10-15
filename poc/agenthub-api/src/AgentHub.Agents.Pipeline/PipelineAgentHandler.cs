@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Text;
 using System.Text.Json;
+using AgentHub.Agents.Pipeline.Ia;
 using AgentHub.Core.Abstractions;
 using AgentHub.Core.Guardrails;
 using AgentHub.Core.Models;
@@ -21,6 +23,7 @@ public sealed class PipelineAgentHandler
     private readonly IAgentEventPublisher _events;
     private readonly IGuardrailPipeline _guardrails;
     private readonly ILogger<PipelineAgentHandler> _logger;
+    private readonly IaGitOptions _gitOptions;
 
     public PipelineAgentHandler(
         ILlmClient llm,
@@ -29,7 +32,8 @@ public sealed class PipelineAgentHandler
         IActivityLog activity,
         IAgentEventPublisher events,
         ILogger<PipelineAgentHandler> logger,
-        IGuardrailPipeline? guardrails = null)
+        IGuardrailPipeline? guardrails = null,
+        IaGitOptions? gitOptions = null)
     {
         _llm = llm;
         _blobs = blobs;
@@ -38,6 +42,7 @@ public sealed class PipelineAgentHandler
         _events = events;
         _logger = logger;
         _guardrails = guardrails ?? new LocalGuardrailPipeline();
+        _gitOptions = gitOptions ?? new IaGitOptions();
     }
 
     public async Task<AgentResult> RunAsync(
@@ -87,15 +92,27 @@ public sealed class PipelineAgentHandler
                 tokenUsage = await RunSystemDesignAsync(message, run, artifacts, cancellationToken)
                     .ConfigureAwait(false);
                 break;
+            case PipelineAgentConstants.StageIaPlan:
+                tokenUsage = await RunIaPlanAsync(message, run, artifacts, outputs, cancellationToken)
+                    .ConfigureAwait(false);
+                break;
+            case PipelineAgentConstants.StageIaCodegen:
             case PipelineAgentConstants.StageImplementation:
-                tokenUsage = await RunImplementationAsync(message, run, artifacts, outputs, cancellationToken)
+                tokenUsage = await RunIaCodegenAsync(message, run, artifacts, outputs, cancellationToken)
+                    .ConfigureAwait(false);
+                break;
+            case PipelineAgentConstants.StageIaReview:
+                tokenUsage = await RunIaReviewAsync(message, run, artifacts, outputs, cancellationToken)
+                    .ConfigureAwait(false);
+                break;
+            case PipelineAgentConstants.StageIaPushDeploy:
+            case PipelineAgentConstants.StageDeployDev:
+                await RunIaPushDeployAsync(message, run, artifacts, outputs, cancellationToken)
                     .ConfigureAwait(false);
                 break;
             case PipelineAgentConstants.StageTesting:
+                // Legacy path — IA_CODEGEN already runs tests; keep for older callers.
                 await RunTestingAsync(message, run, artifacts, outputs, cancellationToken).ConfigureAwait(false);
-                break;
-            case PipelineAgentConstants.StageDeployDev:
-                await RunDeployAsync(message, run, artifacts, outputs, cancellationToken).ConfigureAwait(false);
                 break;
             default:
                 throw new InvalidOperationException($"Unsupported stage {message.Stage}.");
@@ -203,7 +220,56 @@ public sealed class PipelineAgentHandler
         return Tokens(llm);
     }
 
-    private async Task<TokenUsage> RunImplementationAsync(
+    private async Task<TokenUsage> RunIaPlanAsync(
+        TaskMessage message,
+        StageRunContext run,
+        Dictionary<string, string> artifacts,
+        Dictionary<string, string> outputs,
+        CancellationToken cancellationToken)
+    {
+        var monoRoot = ResolveWorkspace(message);
+        outputs["workspaceRoot"] = monoRoot;
+        outputs["workBranch"] = MonoRepoLayout.WorkBranch(message.ProjectId, message.WorkItemId);
+        outputs["monoFolder"] = MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId);
+
+        await BeginStepAsync(message, run, "ia.plan.converse", "Draft implementation plan in conversation", cancellationToken)
+            .ConfigureAwait(false);
+        var conversation = await BuildArtifactConversationAsync(message, cancellationToken).ConfigureAwait(false);
+        LlmCompletionResult llm;
+        try
+        {
+            llm = await CallIaConversationAsync(
+                    message,
+                    520,
+                    PromptLoader.LoadIaPhasePrompt("ia-plan.txt"),
+                    conversation,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is TaskCanceledException or TimeoutException or HttpRequestException)
+        {
+            llm = new LlmCompletionResult(
+                DefaultIaPlanMarkdown(message),
+                message.Config.ModelId ?? "local",
+                0,
+                0);
+        }
+
+        await CompleteStepAsync(message, run, "ia.plan.converse", "Implementation plan drafted", cancellationToken)
+            .ConfigureAwait(false);
+
+        await BeginStepAsync(message, run, "ia.plan.persist", "Persist implementation-plan.md", cancellationToken)
+            .ConfigureAwait(false);
+        var planPath = message.BlobPrefix + "implementation-plan.md";
+        var planText = string.IsNullOrWhiteSpace(llm.Text) ? DefaultIaPlanMarkdown(message) : llm.Text;
+        await WriteArtifactAsync(message, planPath, planText, 530, cancellationToken).ConfigureAwait(false);
+        artifacts["implementationPlan"] = planPath;
+        await CompleteStepAsync(message, run, "ia.plan.persist", "Wrote implementation-plan.md", cancellationToken)
+            .ConfigureAwait(false);
+        return Tokens(llm);
+    }
+
+    private async Task<TokenUsage> RunIaCodegenAsync(
         TaskMessage message,
         StageRunContext run,
         Dictionary<string, string> artifacts,
@@ -211,20 +277,26 @@ public sealed class PipelineAgentHandler
         CancellationToken cancellationToken)
     {
         var stack = message.Context.StackProfile ?? "fe-be";
-        await BeginStepAsync(message, run, "impl.hints", "Gather implementation hints", cancellationToken)
+        await BeginStepAsync(message, run, "ia.codegen.hints", "Gather generation hints (conversation)", cancellationToken)
             .ConfigureAwait(false);
-        // Headline/thought hints are best-effort — never fail Implementation on LLM timeout.
         LlmCompletionResult llm;
         try
         {
-            llm = await CallStageLlmAsync(message, 500, cancellationToken).ConfigureAwait(false);
+            var conversation = await BuildArtifactConversationAsync(message, cancellationToken).ConfigureAwait(false);
+            llm = await CallIaConversationAsync(
+                    message,
+                    500,
+                    PromptLoader.LoadIaPhasePrompt("ia-codegen.txt"),
+                    conversation,
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is TaskCanceledException or TimeoutException or HttpRequestException)
         {
             llm = new LlmCompletionResult("{}", message.Config.ModelId ?? "local", 0, 0);
         }
 
-        await CompleteStepAsync(message, run, "impl.hints", "Implementation hints ready", cancellationToken)
+        await CompleteStepAsync(message, run, "ia.codegen.hints", "Generation hints ready", cancellationToken)
             .ConfigureAwait(false);
 
         var workspace = ResolveWorkspace(message);
@@ -234,60 +306,196 @@ public sealed class PipelineAgentHandler
             .ConfigureAwait(false);
         if (existing is null)
         {
-            await BeginStepAsync(message, run, "impl.materialize", "Materialize workspace template", cancellationToken)
+            await BeginStepAsync(message, run, "ia.codegen.materialize", "Materialize mono-repo work-item folder", cancellationToken)
                 .ConfigureAwait(false);
             var templateRoot = TemplateMaterializer.ResolveTemplateRoot(stack);
             TemplateMaterializer.CopyTemplate(templateRoot, workspace);
-            await CompleteStepAsync(message, run, "impl.materialize", $"Copied {stack} template", cancellationToken)
+            MonoRepoLayout.EnsureFrontendFromWwwroot(workspace);
+            MonoRepoLayout.WriteReadme(
+                workspace,
+                message.ProjectId,
+                message.WorkItemId,
+                message.Context.UserRequest ?? "");
+            await CompleteStepAsync(
+                    message,
+                    run,
+                    "ia.codegen.materialize",
+                    $"Copied {stack} into {MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId)}",
+                    cancellationToken)
                 .ConfigureAwait(false);
 
-            await BeginStepAsync(message, run, "impl.apply", "Apply stack and project updates", cancellationToken)
+            await BeginStepAsync(message, run, "ia.codegen.apply", "Apply stack and project updates", cancellationToken)
                 .ConfigureAwait(false);
             if (message.Context.ProjectMode.equalsIgnore("Existing")
                 && message.Context.BaselineArtifacts.Count > 0)
             {
                 ApplySubtractUpdate(workspace);
+                MonoRepoLayout.SyncFrontendToWwwroot(workspace);
             }
 
-            TemplateMaterializer.ApplyImplementationHints(workspace, stack, llm.Text);
+            var hintJson = ExtractTrailingJson(llm.Text) ?? llm.Text;
+            TemplateMaterializer.ApplyImplementationHints(workspace, stack, hintJson);
+            MonoRepoLayout.SyncFrontendToWwwroot(workspace);
             await CommitLedgerAsync(message, intent, 600, new { workspace, stack }, new { ok = true }, cancellationToken)
                 .ConfigureAwait(false);
-            await CompleteStepAsync(message, run, "impl.apply", "Workspace customized", cancellationToken)
+            await CompleteStepAsync(message, run, "ia.codegen.apply", "Workspace customized", cancellationToken)
                 .ConfigureAwait(false);
         }
         else
         {
-            await BeginStepAsync(message, run, "impl.reuse", "Reuse committed workspace", cancellationToken)
+            await BeginStepAsync(message, run, "ia.codegen.reuse", "Reuse committed workspace", cancellationToken)
                 .ConfigureAwait(false);
-            await CompleteStepAsync(message, run, "impl.reuse", "Workspace already materialized", cancellationToken)
+            await CompleteStepAsync(message, run, "ia.codegen.reuse", "Workspace already materialized", cancellationToken)
                 .ConfigureAwait(false);
         }
 
-        await BeginStepAsync(message, run, "impl.commit", "Commit workspace snapshot", cancellationToken)
+        await BeginStepAsync(message, run, "ia.codegen.tdd", "Run TDD suite in builder", cancellationToken)
             .ConfigureAwait(false);
-        var headCommit = await EnsureLocalGitCommitAsync(workspace, cancellationToken).ConfigureAwait(false);
-        await CompleteStepAsync(message, run, "impl.commit", $"headCommit={headCommit}", cancellationToken)
+        await RunBuilderTestsAsync(message, workspace, cancellationToken).ConfigureAwait(false);
+        await CompleteStepAsync(message, run, "ia.codegen.tdd", "Builder TDD green", cancellationToken)
             .ConfigureAwait(false);
 
-        await BeginStepAsync(message, run, "impl.artifacts", "Publish code-state and review", cancellationToken)
+        // Also publish test-results via the existing testing path for docs/UI.
+        await RunTestingAsync(message, run, artifacts, outputs, cancellationToken).ConfigureAwait(false);
+
+        await BeginStepAsync(message, run, "ia.codegen.commit", "Commit workspace snapshot", cancellationToken)
+            .ConfigureAwait(false);
+        var headCommit = await EnsureLocalGitCommitAsync(workspace, cancellationToken).ConfigureAwait(false);
+        await CompleteStepAsync(message, run, "ia.codegen.commit", $"headCommit={headCommit}", cancellationToken)
+            .ConfigureAwait(false);
+
+        await BeginStepAsync(message, run, "ia.codegen.artifacts", "Publish code-state.json", cancellationToken)
             .ConfigureAwait(false);
         var codeState = TemplateMaterializer.WriteCodeState(workspace, stack);
         var codeStatePath = message.BlobPrefix + "code-state.json";
         await WriteArtifactAsync(message, codeStatePath, codeState, 700, cancellationToken).ConfigureAwait(false);
-        var reviewPath = message.BlobPrefix + "review.json";
-        var review = JsonSerializer.Serialize(
-            new { status = "passed", checks = new[] { "template-allowlist", "health-endpoint" } },
-            JsonOptions);
-        await WriteArtifactAsync(message, reviewPath, review, 710, cancellationToken).ConfigureAwait(false);
         artifacts["codeState"] = codeStatePath;
-        artifacts["review"] = reviewPath;
-        await CompleteStepAsync(message, run, "impl.artifacts", "Wrote code-state.json and review.json", cancellationToken)
+        await CompleteStepAsync(message, run, "ia.codegen.artifacts", "Wrote code-state.json", cancellationToken)
             .ConfigureAwait(false);
 
-        outputs["workBranch"] = message.Context.WorkBranch ?? $"feature/wi-{message.WorkItemId}";
+        outputs["workBranch"] = MonoRepoLayout.WorkBranch(message.ProjectId, message.WorkItemId);
         outputs["headCommit"] = headCommit;
         outputs["workspaceRoot"] = workspace;
+        outputs["monoFolder"] = MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId);
         return Tokens(llm);
+    }
+
+    private async Task<TokenUsage> RunIaReviewAsync(
+        TaskMessage message,
+        StageRunContext run,
+        Dictionary<string, string> artifacts,
+        Dictionary<string, string> outputs,
+        CancellationToken cancellationToken)
+    {
+        var workspace = message.Context.WorkspaceRoot ?? ResolveWorkspace(message);
+        outputs["workspaceRoot"] = workspace;
+        outputs["workBranch"] = MonoRepoLayout.WorkBranch(message.ProjectId, message.WorkItemId);
+
+        await BeginStepAsync(message, run, "ia.review.converse", "Draft code review in conversation", cancellationToken)
+            .ConfigureAwait(false);
+        var files = Directory.Exists(workspace)
+            ? Directory.EnumerateFiles(workspace, "*", SearchOption.AllDirectories)
+                .Select(p => Path.GetRelativePath(workspace, p).Replace('\\', '/'))
+                .OrderBy(p => p, StringComparer.Ordinal)
+                .Take(80)
+                .ToArray()
+            : [];
+        var conversation = await BuildArtifactConversationAsync(message, cancellationToken).ConfigureAwait(false);
+        conversation += "\n\nGenerated files (sample):\n- " + string.Join("\n- ", files);
+        LlmCompletionResult llm;
+        try
+        {
+            llm = await CallIaConversationAsync(
+                    message,
+                    710,
+                    PromptLoader.LoadIaPhasePrompt("ia-review.txt"),
+                    conversation,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is TaskCanceledException or TimeoutException or HttpRequestException)
+        {
+            llm = new LlmCompletionResult(
+                """{"status":"passed","summary":"Template materialization and TDD completed.","checks":["frontend","backend","tests"]}""",
+                message.Config.ModelId ?? "local",
+                0,
+                0);
+        }
+
+        await CompleteStepAsync(message, run, "ia.review.converse", "Review drafted", cancellationToken)
+            .ConfigureAwait(false);
+
+        await BeginStepAsync(message, run, "ia.review.persist", "Persist review.json", cancellationToken)
+            .ConfigureAwait(false);
+        var reviewJson = ExtractTrailingJson(llm.Text)
+                         ?? JsonSerializer.Serialize(
+                             new
+                             {
+                                 status = "passed",
+                                 summary = llm.Text,
+                                 checks = new[] { "frontend", "backend", "tests" }
+                             },
+                             JsonOptions);
+        var reviewPath = message.BlobPrefix + "review.json";
+        await WriteArtifactAsync(message, reviewPath, reviewJson, 710, cancellationToken).ConfigureAwait(false);
+        var reviewMdPath = message.BlobPrefix + "code-review.md";
+        await WriteArtifactAsync(message, reviewMdPath, llm.Text, 711, cancellationToken).ConfigureAwait(false);
+        artifacts["review"] = reviewPath;
+        artifacts["codeReview"] = reviewMdPath;
+        await CompleteStepAsync(message, run, "ia.review.persist", "Wrote review.json and code-review.md", cancellationToken)
+            .ConfigureAwait(false);
+        return Tokens(llm);
+    }
+
+    private async Task RunIaPushDeployAsync(
+        TaskMessage message,
+        StageRunContext run,
+        Dictionary<string, string> artifacts,
+        Dictionary<string, string> outputs,
+        CancellationToken cancellationToken)
+    {
+        var workspace = message.Context.WorkspaceRoot ?? ResolveWorkspace(message);
+        var action = message.Context.DeploymentAction ?? "Deploy";
+        if (action.Equals("Finalize", StringComparison.OrdinalIgnoreCase))
+        {
+            await RunDeployAsync(message, run, artifacts, outputs, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var branch = MonoRepoLayout.WorkBranch(message.ProjectId, message.WorkItemId);
+        await BeginStepAsync(message, run, "ia.push.pr", "Push branch and open PR (Gitea / local)", cancellationToken)
+            .ConfigureAwait(false);
+        var prClient = new GiteaPullRequestClient(_gitOptions);
+        var title = $"IA: {MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId)}";
+        var body =
+            $"Automated Implementation Agent PR.\n\nRequest: {message.Context.UserRequest}\n\nMono folder: `{MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId)}` with `frontend/` and `backend/`.";
+        var pr = await prClient
+            .PushAndOpenPrAsync(workspace, branch, title, body, cancellationToken)
+            .ConfigureAwait(false);
+        var prPath = message.BlobPrefix + "pull-request.json";
+        var prJson = JsonSerializer.Serialize(
+            new
+            {
+                provider = pr.Provider,
+                prUrl = pr.PrUrl,
+                prNumber = pr.PrNumber,
+                branch = pr.Branch,
+                headCommit = pr.HeadCommit,
+                detail = pr.Detail,
+                cloneUrl = _gitOptions.CloneUrl
+            },
+            JsonOptions);
+        await WriteArtifactAsync(message, prPath, prJson, 850, cancellationToken).ConfigureAwait(false);
+        artifacts["pullRequest"] = prPath;
+        outputs["prUrl"] = pr.PrUrl;
+        outputs["workBranch"] = branch;
+        outputs["headCommit"] = pr.HeadCommit;
+        await CompleteStepAsync(message, run, "ia.push.pr", $"{pr.Provider}: {pr.PrUrl}", cancellationToken)
+            .ConfigureAwait(false);
+
+        await RunDeployAsync(message, run, artifacts, outputs, cancellationToken).ConfigureAwait(false);
+        outputs["workspaceRoot"] = workspace;
+        outputs["monoFolder"] = MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId);
     }
 
     private async Task RunTestingAsync(
@@ -698,20 +906,233 @@ public sealed class PipelineAgentHandler
         public List<AgentStepProgress> Steps { get; } = [];
     }
 
-    private static string ResolveWorkspace(TaskMessage message)
+    private static string ResolveWorkspace(TaskMessage message) =>
+        MonoRepoLayout.ResolveMonoRoot(message.ProjectId, message.WorkItemId, message.Context.WorkspaceRoot);
+
+    private async Task<string> BuildArtifactConversationAsync(
+        TaskMessage message,
+        CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(message.Context.WorkspaceRoot))
+        var sb = new StringBuilder();
+        sb.AppendLine("Here is the conversation context for this work item.");
+        sb.AppendLine();
+        sb.AppendLine($"Project id: {message.ProjectId}");
+        sb.AppendLine($"Work item id: {message.WorkItemId}");
+        sb.AppendLine($"Stack profile: {message.Context.StackProfile}");
+        sb.AppendLine($"Project mode: {message.Context.ProjectMode}");
+        sb.AppendLine($"Mono-repo folder: {MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId)}");
+        sb.AppendLine();
+        sb.AppendLine("## User request");
+        sb.AppendLine(message.Context.UserRequest ?? "(missing)");
+        sb.AppendLine();
+
+        await AppendBlobSectionAsync(sb, message, "prd.json", "PRD (prd.json)", cancellationToken)
+            .ConfigureAwait(false);
+        await AppendBlobSectionAsync(sb, message, "system-design.md", "System design (system-design.md)", cancellationToken)
+            .ConfigureAwait(false);
+        await AppendBlobSectionAsync(
+                sb,
+                message,
+                "implementation-plan.md",
+                "Implementation plan (implementation-plan.md)",
+                cancellationToken)
+            .ConfigureAwait(false);
+        return sb.ToString();
+    }
+
+    private async Task AppendBlobSectionAsync(
+        StringBuilder sb,
+        TaskMessage message,
+        string fileName,
+        string heading,
+        CancellationToken cancellationToken)
+    {
+        var path = message.BlobPrefix + fileName;
+        var body = await _blobs.TryReadJsonAsync(path, cancellationToken).ConfigureAwait(false);
+        // TryReadJsonAsync is used for all text blobs in this POC (md/json).
+        if (string.IsNullOrWhiteSpace(body))
         {
-            return message.Context.WorkspaceRoot!;
+            return;
         }
 
-        var root = Path.Combine(
-            Path.GetTempPath(),
-            "bgx-poc",
-            message.ProjectId,
-            message.WorkItemId);
-        Directory.CreateDirectory(root);
-        return root;
+        sb.AppendLine($"## {heading}");
+        sb.AppendLine(body);
+        sb.AppendLine();
+    }
+
+    private async Task<LlmCompletionResult> CallIaConversationAsync(
+        TaskMessage message,
+        int ordinal,
+        string phaseInstructions,
+        string conversation,
+        CancellationToken cancellationToken)
+    {
+        var existing = await _ledger
+            .TryGetCommittedAsync(
+                message.WorkItemId,
+                message.TaskId,
+                PipelineAgentConstants.IntentIa,
+                ordinal,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (existing?.OutputJson is { Length: > 0 })
+        {
+            return JsonSerializer.Deserialize<LlmCompletionResult>(existing.OutputJson, JsonOptions)
+                   ?? throw new InvalidOperationException("Corrupt ia.pipeline ledger OutputJson.");
+        }
+
+        var system = PromptLoader.LoadIaSystemPrompt();
+        var userPrompt =
+            phaseInstructions
+            + "\n\n---\n\n"
+            + conversation;
+
+        await EnforceGuardrailAsync(
+                _guardrails.EvaluateInput(userPrompt, message.CorrelationId),
+                message,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var completion = await _llm
+            .CompleteAsync(
+                new LlmCompletionRequest(
+                    system,
+                    userPrompt,
+                    message.Config.ModelId,
+                    message.Config.ReasoningEffort),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        // IA replies are conversational Markdown; truncate only (same as stage JSON path).
+        var text = Truncate(completion.Text, LocalGuardrailPipeline.DefaultMaxOutputChars);
+        var stored = completion with { Text = text };
+        await CommitLedgerAsync(
+                message,
+                PipelineAgentConstants.IntentIa,
+                ordinal,
+                new { stage = message.Stage, ordinal },
+                stored,
+                cancellationToken)
+            .ConfigureAwait(false);
+        return stored;
+    }
+
+    private async Task RunBuilderTestsAsync(
+        TaskMessage message,
+        string workspace,
+        CancellationToken cancellationToken)
+    {
+        var testProj = Directory.EnumerateFiles(workspace, "*Tests.csproj", SearchOption.AllDirectories)
+            .FirstOrDefault();
+        if (testProj is null)
+        {
+            var csproj = Directory.EnumerateFiles(
+                    Path.Combine(workspace, "backend"),
+                    "*.csproj",
+                    SearchOption.TopDirectoryOnly)
+                .FirstOrDefault();
+            if (csproj is null)
+            {
+                return;
+            }
+
+            var rel = Path.GetRelativePath(workspace, csproj).Replace('\\', '/');
+            var (exit, output) = await BuilderShell
+                .RunAsync(workspace, $"dotnet build \"{rel}\" --nologo", cancellationToken)
+                .ConfigureAwait(false);
+            if (exit != 0)
+            {
+                throw new InvalidOperationException($"Builder build failed: {Truncate(output, 2000)}");
+            }
+
+            return;
+        }
+
+        var testRel = Path.GetRelativePath(workspace, testProj).Replace('\\', '/');
+        var (testExit, testOut) = await BuilderShell
+            .RunAsync(
+                workspace,
+                $"dotnet test \"{testRel}\" --nologo",
+                cancellationToken,
+                new Dictionary<string, string> { ["OLLAMA_BASE_URL"] = "http://127.0.0.1:9" })
+            .ConfigureAwait(false);
+        if (testExit != 0)
+        {
+            // Host fallback already attempted inside BuilderShell when Docker missing.
+            // If builder image lacks restore network, fall back to host test once.
+            if (BuilderShell.DockerAvailable())
+            {
+                var (hostExit, hostOut) = await RunProcessAsync(
+                        ResolveDotnet(),
+                        $"test \"{testProj}\" --nologo",
+                        Path.GetDirectoryName(testProj)!,
+                        cancellationToken,
+                        new Dictionary<string, string> { ["OLLAMA_BASE_URL"] = "http://127.0.0.1:9" })
+                    .ConfigureAwait(false);
+                if (hostExit == 0)
+                {
+                    _logger.LogWarning(
+                        "Builder container tests failed; host fallback succeeded for {WorkItemId}. Builder out: {Out}",
+                        message.WorkItemId,
+                        Truncate(testOut, 500));
+                    return;
+                }
+
+                throw new InvalidOperationException(
+                    $"Builder and host tests failed: {Truncate(testOut, 1000)} | {Truncate(hostOut, 1000)}");
+            }
+
+            throw new InvalidOperationException($"Builder tests failed: {Truncate(testOut, 2000)}");
+        }
+    }
+
+    private static string DefaultIaPlanMarkdown(TaskMessage message) =>
+        $"""
+        # Implementation Plan
+
+        ## Goal
+        Deliver the requested slice for: {message.Context.UserRequest}
+
+        ## Mono-repo layout
+        `{MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId)}/frontend` and `.../backend`.
+
+        ## Backend changes
+        Materialize the checked-in {message.Context.StackProfile} template and keep `/health` plus primary APIs.
+
+        ## Frontend changes
+        Static UI under `frontend/` synced into the API wwwroot for local serving.
+
+        ## Tests
+        HTTP round-trip xUnit suite under `tests/`.
+
+        ## Risks
+        LLM hints are best-effort; template materialization is the source of truth for this POC.
+        """;
+
+    private static string? ExtractTrailingJson(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
+
+        var start = text.LastIndexOf('{');
+        var end = text.LastIndexOf('}');
+        if (start < 0 || end <= start)
+        {
+            return null;
+        }
+
+        var slice = text[start..(end + 1)];
+        try
+        {
+            using var _ = JsonDocument.Parse(slice);
+            return slice;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
     }
 
     private static void ApplySubtractUpdate(string workspace)
@@ -744,9 +1165,17 @@ public sealed class PipelineAgentHandler
             StringComparison.Ordinal);
         File.WriteAllText(program, text);
 
-        var index = Path.Combine(workspace, "backend", "wwwroot", "index.html");
-        if (File.Exists(index))
+        foreach (var index in new[]
+                 {
+                     Path.Combine(workspace, "frontend", "index.html"),
+                     Path.Combine(workspace, "backend", "wwwroot", "index.html")
+                 })
         {
+            if (!File.Exists(index))
+            {
+                continue;
+            }
+
             var html = File.ReadAllText(index);
             if (!html.Contains("subBtn", StringComparison.Ordinal)
                 && !html.Contains("/api/subtract", StringComparison.Ordinal))

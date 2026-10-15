@@ -51,9 +51,17 @@ public static class TemplateMaterializer
             // Keep template defaults when the model does not return JSON.
         }
 
-        var indexPath = Path.Combine(workspace, "backend", "wwwroot", "index.html");
-        if (File.Exists(indexPath))
+        foreach (var indexPath in new[]
+                 {
+                     Path.Combine(workspace, "frontend", "index.html"),
+                     Path.Combine(workspace, "backend", "wwwroot", "index.html")
+                 })
         {
+            if (!File.Exists(indexPath))
+            {
+                continue;
+            }
+
             var html = File.ReadAllText(indexPath)
                 .Replace("{{HEADLINE}}", headline, StringComparison.Ordinal);
             File.WriteAllText(indexPath, html);

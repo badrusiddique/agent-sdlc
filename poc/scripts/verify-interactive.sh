@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Interactive happy path: start → approve PRD → approve SD → (impl/test/deploy) → approve deploy.
+# Interactive happy path: PRD → SD → IA_PLAN → IA_CODEGEN → IA_REVIEW → IA_PUSH_DEPLOY → finalize.
 set -euo pipefail
 
 BGX_URL="${BGX_URL:-http://127.0.0.1:43181}"
@@ -63,7 +63,13 @@ approve
 wait_gate SYSTEM_DESIGN
 approve
 
-wait_gate DEPLOY_DEV
+wait_gate IA_PLAN
+approve
+
+wait_gate IA_REVIEW
+approve
+
+wait_gate IA_PUSH_DEPLOY
 curl -fsS "$BGX_URL/api/poc/pipeline/$WI/artifacts" | tee "$OUT_DIR/artifacts-deploy.json"
 curl -fsS "$BGX_URL/api/poc/pipeline/$WI/logs" | tee "$OUT_DIR/logs.json" >/dev/null
 approve

@@ -17,10 +17,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="Prompts\pipeline-system.txt">
+    <None Include="Prompts\*.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
-    <EmbeddedResource Include="Prompts\pipeline-system.txt" />
+    <EmbeddedResource Include="Prompts\*.txt" />
     <Compile Remove="Templates\**\*" />
     <None Include="Templates\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

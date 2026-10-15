@@ -1,6 +1,32 @@
 # Pre-phase-0 pipeline POC
 
-One Healthy-shaped **Pipeline** agent walks all six lifecycle stages. BuildGenix drives the happy path. Root `agenthub-api` / `buildgenix-api` are untouched — everything lives under `poc/`.
+One Healthy-shaped **Pipeline** agent walks lifecycle stages. BuildGenix drives the happy path. Root `agenthub-api` / `buildgenix-api` are untouched — everything lives under `poc/`.
+
+## Implementation Agent (IA) — local Docker slice
+
+IA owns code generation through DEV deploy (**option B**). Testing Agent (TA) is **not** started yet.
+
+| UI state | Stage id | What happens |
+|---|---|---|
+| Implementation Plan | `IA_PLAN` | Conversational plan from PRD + system design → `implementation-plan.md` (human gate) |
+| Code Generation | `IA_CODEGEN` | Mono-repo folder `project-{projectId}-work-item-{workItemId}/{frontend,backend}`; TDD in builder/host |
+| Code Review | `IA_REVIEW` | Conversational review → `review.json` / `code-review.md` (human gate) |
+| Push & Deploy | `IA_PUSH_DEPLOY` | Push branch, open PR on **Gitea** (AzDo stand-in), Compose deploy, then DEV accept gate |
+
+Design: [`docs/ia-local-docker-design.md`](docs/ia-local-docker-design.md).
+
+```bash
+# From poc/ — Azurite + Gitea, then APIs, then IA verify
+./scripts/seed-gitea.sh
+# (start AgentHub :43180 and BuildGenix :43181 as below)
+./scripts/verify-ia.sh
+```
+
+Optional builder image (otherwise host SDK is used):
+
+```bash
+docker build -t agenthub-ia-builder:local poc/agenthub-api/docker/ia-builder
+```
 
 ## Was this verified for real?
 
@@ -34,15 +60,17 @@ Checked-in proof (from that Azurite run):
 | `poc/buildgenix-api` | Orchestrator: sync `/run` + interactive `/start` with human gates |
 | `poc/buildgenix-web` | Angular chat UI: stage strip, approvals, Documents + Logs tabs |
 | `poc/scripts/verify-three.sh` | Runs all three happy paths and smokes the URLs (auto-approve) |
-| `poc/scripts/verify-interactive.sh` | Interactive path: start → approve PRD/SD/Deploy → smoke |
+| `poc/scripts/verify-ia.sh` | IA path: plan → codegen → review → push/PR/deploy + mono-folder checks |
+| `poc/scripts/seed-gitea.sh` | Start Azurite + Gitea; create `poc` user and `buildgenix/app-monorepo` |
+| `poc/scripts/verify-interactive.sh` | Interactive: PRD / SD / IA_PLAN / IA_REVIEW / Push&Deploy gates |
 | `poc/scripts/verify-steering.sh` | Chat steering: PAUSE / STOP / CONTINUE / ABORT |
 | `poc/blob-storage-snapshot/` | Snapshot of Azurite blobs from the verified run |
 
-Design notes: agent writes AH tables/blobs; buildgenix owns WorkItems / Approvals / WorkItemEvents / AuditLog. Sync `POST /api/poc/pipeline/run` auto-approves gates (scripts). Interactive `POST /api/poc/pipeline/start` pauses at PRD, System Design, and post-Deploy for human approve (chat UI). Deploy then Finalize.
+Design notes: agent writes AH tables/blobs; buildgenix owns WorkItems / Approvals / WorkItemEvents / AuditLog. Sync `POST /api/poc/pipeline/run` auto-approves gates (scripts). Interactive `POST /api/poc/pipeline/start` pauses at PRD, System Design, Implementation Plan, Code Review, and post Push & Deploy.
 
-**Implementation** materializes richer `fe-be` / `fe-be-llm` templates (request/response panels in the SPA shell, small `CalculatorMath` helper). **Testing** runs xUnit + `WebApplicationFactory` HTTP round-trips (`/health`, `/api/add`, `/api/thought`, and `/api/subtract` when present) and writes those exchanges into `test-results.json` under `roundTrips`.
+**IA codegen** materializes `fe-be` / `fe-be-llm` into a mono-repo work-item folder (`frontend/` + `backend/`). Unit/HTTP tests run inside `IA_CODEGEN`. **Push & Deploy** opens a Gitea PR then Compose-deploys. LLM prompts for IA are conversational (see `Prompts/ia-*.txt`), not compact summary dumps.
 
-**Intra-stage tasks (not sub-agents):** each Pipeline stage runs ordered tasks (`TaskStarted` / `TaskCompleted`) that land in ActivityLog + AgentResult.Steps and are replayed into BuildGenix `WorkItemEvents` for the chat UI/DB. Still one Pipeline agent. Stage LLM prompts live in `poc/agenthub-api/src/AgentHub.Agents.Pipeline/Prompts/pipeline-system.txt`.
+**Intra-stage tasks (not sub-agents):** each stage runs ordered tasks (`TaskStarted` / `TaskCompleted`) into ActivityLog + AgentResult.Steps → BuildGenix `WorkItemEvents`.
 
 ### Chat UI (interactive)
 

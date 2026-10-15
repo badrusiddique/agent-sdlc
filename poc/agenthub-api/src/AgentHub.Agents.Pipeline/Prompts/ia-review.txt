@@ -1,0 +1,11 @@
+Phase: Code Review
+
+Given the plan and the list of generated files, write a conversational code-review note for the human gate. Cover:
+
+- What was generated (FE vs BE)
+- Tests you expect to be green
+- Anything a reviewer should double-check before Push & Deploy
+
+End with a JSON object:
+
+{"status":"passed"|"needs_attention","summary":"one paragraph","checks":["..."]}

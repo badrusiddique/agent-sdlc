@@ -29,17 +29,23 @@ public sealed class PipelineAgentHandlerTests
     {
         var blobs = new FakeBlobStore();
         var handler = CreateHandler(blobs);
-        var workspace = Path.Combine(Path.GetTempPath(), "bgx-poc-tests", Guid.NewGuid().ToString("N"));
-        var message = BaseMessage(PipelineAgentConstants.StageImplementation);
+        var mono = Path.Combine(
+            Path.GetTempPath(),
+            "bgx-poc-tests",
+            $"project-p1-work-item-wi1-{Guid.NewGuid():N}");
+        var message = BaseMessage(PipelineAgentConstants.StageIaCodegen);
         message.Context.StackProfile = "fe-be";
-        message.Context.WorkspaceRoot = workspace;
+        message.Context.WorkspaceRoot = mono;
 
         var result = await handler.RunAsync(message, 1);
 
         Assert.Equal(AgentResultStatus.Completed, result.Status);
-        Assert.True(Directory.Exists(Path.Combine(workspace, "backend")));
+        Assert.True(Directory.Exists(Path.Combine(mono, "backend")));
+        Assert.True(Directory.Exists(Path.Combine(mono, "frontend")));
         Assert.True(result.Outputs.ContainsKey("headCommit"));
+        Assert.True(result.Outputs.ContainsKey("monoFolder"));
         Assert.Contains("codeState", result.Artifacts.Keys);
+        Assert.Contains(result.Steps, s => s.Id == "ia.codegen.materialize" && s.Status == "Completed");
     }
 
     private static PipelineAgentHandler CreateHandler(FakeBlobStore blobs) =>

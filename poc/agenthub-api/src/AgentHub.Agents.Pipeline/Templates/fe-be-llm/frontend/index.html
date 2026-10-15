@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hello World</title>
+  <style>
+    :root {
+      --ink: #1c2430;
+      --muted: #5b6775;
+      --line: #d7dde5;
+      --panel: #f3f6f9;
+      --accent: #245b8a;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 90% 0%, #e5eef8 0%, transparent 45%),
+        linear-gradient(180deg, #f8fafc 0%, #eef2f6 100%);
+      min-height: 100vh;
+    }
+    main { max-width: 40rem; margin: 0 auto; padding: 2.5rem 1.25rem 3rem; }
+    h1 { margin: 0 0 0.35rem; font-size: 1.85rem; letter-spacing: -0.02em; }
+    .lead { color: var(--muted); margin: 0 0 1.25rem; line-height: 1.45; }
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 0.65rem 1.1rem;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: #fff;
+    }
+    .panel {
+      margin-top: 1.25rem;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #fff;
+      overflow: hidden;
+    }
+    .panel h2 {
+      margin: 0;
+      padding: 0.7rem 1rem;
+      font-size: 0.78rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+    .panel pre {
+      margin: 0;
+      padding: 1rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, "Cascadia Mono", monospace;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>{{HEADLINE}}</h1>
+    <p class="lead">Hello World shell: the browser calls <code>/api/thought</code> and shows the JSON that comes back (Ollama when reachable, local copy otherwise).</p>
+    <button id="btn" type="button">Get thought</button>
+    <section class="panel">
+      <h2>Request</h2>
+      <pre id="req">Waiting for a call…</pre>
+    </section>
+    <section class="panel">
+      <h2>Response</h2>
+      <pre id="res">—</pre>
+    </section>
+    <!-- {{EXTRA_UI}} -->
+  </main>
+  <script>
+    document.getElementById('btn').addEventListener('click', async () => {
+      document.getElementById('req').textContent = 'GET /api/thought';
+      document.getElementById('res').textContent = 'Loading…';
+      const r = await fetch('/api/thought');
+      const text = await r.text();
+      let pretty = text;
+      try { pretty = JSON.stringify(JSON.parse(text), null, 2); } catch { /* keep raw */ }
+      document.getElementById('res').textContent = `${r.status} ${r.statusText}\n${pretty}`;
+    });
+  </script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 using AgentHub.Agents.Healthy;
 using AgentHub.Agents.Pipeline;
+using AgentHub.Agents.Pipeline.Ia;
 using AgentHub.Core.Abstractions;
 using AgentHub.Core.Guardrails;
 using AgentHub.Infrastructure.Messaging;
@@ -41,7 +42,20 @@ public static class AgentWorkersServiceCollectionExtensions
         services.AddSingleton<HealthyAgentDispatcher>();
         services.AddHostedService<HealthyAgentWorker>();
 
-        services.AddSingleton<PipelineAgentHandler>();
+        services.Configure<IaGitOptions>(configuration.GetSection(IaGitOptions.SectionName));
+        services.AddSingleton(sp =>
+        {
+            var git = sp.GetService<IOptions<IaGitOptions>>()?.Value ?? new IaGitOptions();
+            return new PipelineAgentHandler(
+                sp.GetRequiredService<ILlmClient>(),
+                sp.GetRequiredService<IArtifactBlobStore>(),
+                sp.GetRequiredService<IEffectLedger>(),
+                sp.GetRequiredService<IActivityLog>(),
+                sp.GetRequiredService<IAgentEventPublisher>(),
+                sp.GetRequiredService<ILogger<PipelineAgentHandler>>(),
+                sp.GetRequiredService<IGuardrailPipeline>(),
+                git);
+        });
         services.AddSingleton<PipelineAgentDispatcher>();
         services.AddHostedService<PipelineAgentWorker>();
 

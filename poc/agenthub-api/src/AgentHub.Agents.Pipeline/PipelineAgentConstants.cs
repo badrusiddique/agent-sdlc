@@ -14,14 +14,29 @@ public static class PipelineAgentConstants
 
     public const string StagePrd = "PRD";
     public const string StageSystemDesign = "SYSTEM_DESIGN";
+
+    /// <summary>Legacy alias — treated as IA_CODEGEN.</summary>
     public const string StageImplementation = "IMPLEMENTATION";
+
+    /// <summary>Legacy — unit tests now run inside IA_CODEGEN; kept for older callers.</summary>
     public const string StageTesting = "TESTING";
+
+    /// <summary>Legacy alias — treated as IA_PUSH_DEPLOY.</summary>
     public const string StageDeployDev = "DEPLOY_DEV";
+
+    public const string StageIaPlan = "IA_PLAN";
+    public const string StageIaCodegen = "IA_CODEGEN";
+    public const string StageIaReview = "IA_REVIEW";
+    public const string StageIaPushDeploy = "IA_PUSH_DEPLOY";
 
     public static readonly IReadOnlyList<string> SupportedStages =
     [
         StagePrd,
         StageSystemDesign,
+        StageIaPlan,
+        StageIaCodegen,
+        StageIaReview,
+        StageIaPushDeploy,
         StageImplementation,
         StageTesting,
         StageDeployDev
@@ -33,6 +48,7 @@ public static class PipelineAgentConstants
     public const string IntentArtifact = "artifact.pipeline";
     public const string IntentWorkspace = "workspace.pipeline";
     public const string IntentDeploy = "deploy.pipeline";
+    public const string IntentIa = "ia.pipeline";
 
     public static string StateContextId(string projectId, string workItemId) =>
         MessageIds.StateContextId(projectId, workItemId);
