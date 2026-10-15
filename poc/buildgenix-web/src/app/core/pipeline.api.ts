@@ -23,6 +23,7 @@ export class PipelineApi {
     projectMode?: string;
     projectName?: string;
     projectId?: string;
+    baselineArtifacts?: Record<string, string>;
   }): Observable<StartResult> {
     return this.http.post<StartResult>(`${this.base}/start`, body, {
       headers: { 'X-User-Id': 'dummy-user' },

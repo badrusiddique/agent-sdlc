@@ -54,6 +54,7 @@ HARD RULES
 8) Live deployed URL
    Phase 0 Testing runs before Deploy. Do not require context.deployedUrl.
    If the task carries context.deployedUrl (local POC option B or a later live-smoke adjunct), you may add HTTP smoke rows that mirror section 11 paths against that base URL, but you still must not invent paths or bodies. Record those rows separately from commit-local acceptance.
+   Honour deliveryMode from PRD / design section 0: rewrite smoke preserves baseline primary routes (e.g. /api/add); feature-increment smoke hits the new feature route and keeps prior checks non-retired; basic uses the scaffold primary API. Do not assume calculator /api/add for every ask.
 
 9) You only test
    Do not publish to agenthub.implementation.agent or agenthub.deployment.agent.

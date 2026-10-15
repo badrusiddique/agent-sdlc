@@ -338,31 +338,72 @@ public sealed class PipelineAgentHandler
             .ConfigureAwait(false);
         if (existing is null)
         {
+            var delivery = DeliveryModeClassifier.Classify(
+                message.Context.UserRequest,
+                message.Context.ProjectMode,
+                message.Context.BaselineArtifacts);
             await BeginStepAsync(
                     message,
                     run,
                     "ia.codegen.generate",
-                    "Generate app from user request (request-driven)",
+                    delivery switch
+                    {
+                        DeliveryMode.Rewrite => "Rewrite baseline to net10 greenfield",
+                        DeliveryMode.FeatureIncrement => "Apply feature on prior project workspace",
+                        _ => "Generate app from user request (request-driven)"
+                    },
                     cancellationToken)
                 .ConfigureAwait(false);
-            var kind = RequestDrivenCodegen.Classify(
-                message.Context.UserRequest,
-                stack,
-                message.Context.ProjectName);
-            var hintJson = ExtractTrailingJson(llm.Text) ?? llm.Text;
-            var meta = RequestDrivenCodegen.Generate(
-                workspace,
-                kind,
-                message.ProjectId,
-                message.WorkItemId,
-                message.Context.UserRequest ?? "",
-                hintJson);
-            if (message.Context.ProjectMode.equalsIgnore("Existing")
-                && message.Context.BaselineArtifacts.Count > 0
-                && kind == RequestDrivenCodegen.AppKind.Calculator)
+
+            object meta;
+            string summary;
+            if (delivery == DeliveryMode.Rewrite)
             {
-                ApplySubtractUpdate(workspace);
-                MonoRepoLayout.SyncFrontendToWwwroot(workspace);
+                var baselinePath = DeliveryModeClassifier.ResolveBaselinePath(message.Context.BaselineArtifacts)
+                                   ?? GreenfieldRewriteBuilder.ResolveDefaultFixtureRoot();
+                var rewritten = GreenfieldRewriteBuilder.Rewrite(
+                    workspace,
+                    baselinePath,
+                    message.ProjectId,
+                    message.WorkItemId,
+                    message.Context.UserRequest ?? "");
+                meta = rewritten;
+                summary = $"Rewrote baseline → {rewritten.TargetFramework} ({rewritten.PreservedRoutes.Length} routes)";
+                outputs["appKind"] = "Rewrite";
+                outputs["deliveryMode"] = nameof(DeliveryMode.Rewrite);
+            }
+            else if (delivery == DeliveryMode.FeatureIncrement)
+            {
+                var prior = DeliveryModeClassifier.ResolveBaselinePath(message.Context.BaselineArtifacts);
+                var feature = FeatureIncrementBuilder.Apply(
+                    workspace,
+                    message.ProjectId,
+                    message.WorkItemId,
+                    message.Context.UserRequest ?? "",
+                    prior);
+                meta = feature;
+                summary =
+                    $"Feature {feature.Feature} on prior workspace (+{string.Join(",", feature.RoutesAdded)})";
+                outputs["appKind"] = feature.Feature.ToString();
+                outputs["deliveryMode"] = nameof(DeliveryMode.FeatureIncrement);
+            }
+            else
+            {
+                var kind = RequestDrivenCodegen.Classify(
+                    message.Context.UserRequest,
+                    stack,
+                    message.Context.ProjectName);
+                var hintJson = ExtractTrailingJson(llm.Text) ?? llm.Text;
+                meta = RequestDrivenCodegen.Generate(
+                    workspace,
+                    kind,
+                    message.ProjectId,
+                    message.WorkItemId,
+                    message.Context.UserRequest ?? "",
+                    hintJson);
+                summary = $"Generated {kind}";
+                outputs["appKind"] = kind.ToString();
+                outputs["deliveryMode"] = nameof(DeliveryMode.Basic);
             }
 
             MonoRepoLayout.SyncFrontendToWwwroot(workspace);
@@ -370,7 +411,7 @@ public sealed class PipelineAgentHandler
                     message,
                     intent,
                     600,
-                    new { workspace, stack, kind = kind.ToString() },
+                    new { workspace, stack, delivery = delivery.ToString() },
                     new { ok = true, meta },
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -378,10 +419,9 @@ public sealed class PipelineAgentHandler
                     message,
                     run,
                     "ia.codegen.generate",
-                    $"Generated {kind} into {MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId)}",
+                    $"{summary} → {MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId)}",
                     cancellationToken)
                 .ConfigureAwait(false);
-            outputs["appKind"] = kind.ToString();
         }
         else
         {
@@ -626,7 +666,9 @@ public sealed class PipelineAgentHandler
             llm.Text,
             message.Context.StackProfile,
             message.Context.UserRequest,
-            message.Context.ProjectName);
+            message.Context.ProjectName,
+            message.Context.ProjectMode,
+            message.Context.BaselineArtifacts);
         DeployedSmokeGenerator.WriteSuite(workspace, cases);
         var planPath = message.BlobPrefix + "ta-test-plan.md";
         await WriteArtifactAsync(
@@ -1763,49 +1805,111 @@ public sealed class PipelineAgentHandler
         }
     }
 
-    private static string DefaultPrd(TaskMessage message) =>
-        JsonSerializer.Serialize(
+    private static string DefaultPrd(TaskMessage message)
+    {
+        var delivery = DeliveryModeClassifier.Classify(
+            message.Context.UserRequest,
+            message.Context.ProjectMode,
+            message.Context.BaselineArtifacts);
+        var stories = delivery switch
+        {
+            DeliveryMode.Rewrite => new[]
+            {
+                new
+                {
+                    id = "S1",
+                    title = "Greenfield rewrite to net10",
+                    acceptance = new[]
+                    {
+                        "Baseline ingested from baselineSourcePath (or default fixture)",
+                        "Target framework is net10.0",
+                        "Preserved public APIs still pass smoke (/health and primary route)",
+                        "code-state from graphify extract . --code-only after review"
+                    }
+                }
+            },
+            DeliveryMode.FeatureIncrement => new[]
+            {
+                new
+                {
+                    id = "S1",
+                    title = "Feature increment on existing project",
+                    acceptance = new[]
+                    {
+                        "Prior project workspace reused (not wiped)",
+                        "New feature route works",
+                        "Prior primary behaviour still works where applicable",
+                        "code-state from graphify after review"
+                    }
+                }
+            },
+            _ => new[]
+            {
+                new
+                {
+                    id = "S1",
+                    title = "Primary behaviour",
+                    acceptance = new[] { "Happy path works locally", "Request-driven scaffold matches the ask" }
+                }
+            }
+        };
+
+        return JsonSerializer.Serialize(
             new
             {
                 title = message.Context.ProjectName ?? "App",
                 summary = message.Context.UserRequest,
-                stories = new[]
-                {
-                    new
-                    {
-                        id = "S1",
-                        title = "Primary behaviour",
-                        acceptance = new[] { "Happy path works locally" }
-                    }
-                },
-                stackProfile = message.Context.StackProfile
+                stories,
+                stackProfile = message.Context.StackProfile,
+                projectMode = message.Context.ProjectMode ?? "New",
+                deliveryMode = delivery.ToString(),
+                targetFramework = GreenfieldRewriteBuilder.TargetFramework,
+                baselineSourcePath = DeliveryModeClassifier.ResolveBaselinePath(message.Context.BaselineArtifacts)
             },
             JsonOptions);
+    }
 
     private static string DefaultTechSpec(TaskMessage message)
     {
+        var delivery = DeliveryModeClassifier.Classify(
+            message.Context.UserRequest,
+            message.Context.ProjectMode,
+            message.Context.BaselineArtifacts);
         var kind = RequestDrivenCodegen.Classify(
             message.Context.UserRequest,
             message.Context.StackProfile,
             message.Context.ProjectName);
-        var api = kind switch
+        object api = delivery switch
         {
-            RequestDrivenCodegen.AppKind.Calculator =>
-                new { method = "GET", path = "/api/add", purpose = "add two numbers" },
-            RequestDrivenCodegen.AppKind.Todo =>
-                new { method = "GET", path = "/api/todos", purpose = "list todos" },
-            RequestDrivenCodegen.AppKind.HelloLlm =>
-                new { method = "GET", path = "/api/thought", purpose = "thought of the day" },
-            _ => new { method = "GET", path = "/api/hello", purpose = "hello" }
+            DeliveryMode.Rewrite =>
+                new { method = "GET", path = "/api/add", purpose = "preserved after net10 rewrite" },
+            DeliveryMode.FeatureIncrement when FeatureIncrementBuilder.ClassifyFeature(message.Context.UserRequest)
+                == FeatureIncrementBuilder.FeatureKind.Subtract =>
+                new { method = "GET", path = "/api/subtract", purpose = "feature increment" },
+            DeliveryMode.FeatureIncrement when FeatureIncrementBuilder.ClassifyFeature(message.Context.UserRequest)
+                == FeatureIncrementBuilder.FeatureKind.Multiply =>
+                new { method = "GET", path = "/api/multiply", purpose = "feature increment" },
+            _ => kind switch
+            {
+                RequestDrivenCodegen.AppKind.Calculator =>
+                    new { method = "GET", path = "/api/add", purpose = "add two numbers" },
+                RequestDrivenCodegen.AppKind.Todo =>
+                    new { method = "GET", path = "/api/todos", purpose = "list todos" },
+                RequestDrivenCodegen.AppKind.HelloLlm =>
+                    new { method = "GET", path = "/api/thought", purpose = "thought of the day" },
+                _ => new { method = "GET", path = "/api/hello", purpose = "hello" }
+            }
         };
         return JsonSerializer.Serialize(
             new
             {
                 components = new[] { "fe", "be" },
                 apis = new object[] { api },
-                phases = new[] { new { id = 1, name = "Scaffold and run" } },
+                phases = new[] { new { id = 1, name = delivery == DeliveryMode.Rewrite ? "Rewrite baseline" : "Scaffold and run" } },
                 deploy = "local-compose",
                 stackProfile = message.Context.StackProfile,
+                deliveryMode = delivery.ToString(),
+                targetFramework = GreenfieldRewriteBuilder.TargetFramework,
                 appKind = kind.ToString()
             },
             JsonOptions);

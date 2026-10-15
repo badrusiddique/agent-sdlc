@@ -539,6 +539,33 @@ public sealed class PocPipelineOrchestrator
             ? InferStack(request.UserRequest)
             : request.StackProfile.Trim();
         var mode = string.IsNullOrWhiteSpace(request.ProjectMode) ? "New" : request.ProjectMode.Trim();
+        if (mode.Equals("GreenfieldRewrite", StringComparison.OrdinalIgnoreCase))
+        {
+            mode = "Rewrite";
+        }
+
+        // Resolve relative baseline paths (e.g. fixtures/legacy-net8-calculator) for Rewrite.
+        if (request.BaselineArtifacts is { Count: > 0 })
+        {
+            foreach (var key in new[] { "baselineSourcePath", "sourceRepo", "baselineRoot" })
+            {
+                if (!request.BaselineArtifacts.TryGetValue(key, out var raw) || string.IsNullOrWhiteSpace(raw))
+                {
+                    continue;
+                }
+
+                if (Path.IsPathRooted(raw) && Directory.Exists(raw))
+                {
+                    continue;
+                }
+
+                var resolved = ResolveBaselineFolder(raw);
+                if (resolved is not null)
+                {
+                    request.BaselineArtifacts[key] = resolved;
+                }
+            }
+        }
         var projectName = string.IsNullOrWhiteSpace(request.ProjectName)
             ? (stack == "fe-be-llm" ? "Hello World" : "Calculator")
             : request.ProjectName.Trim();
@@ -644,15 +671,32 @@ public sealed class PocPipelineOrchestrator
             .ConfigureAwait(false);
 
         var intakePath = $"{item.BlobPrefix}intake-summary.json";
+        var deliveryMode =
+            mode.Equals("Rewrite", StringComparison.OrdinalIgnoreCase) ? "Rewrite"
+            : mode.Equals("Existing", StringComparison.OrdinalIgnoreCase) ? "FeatureIncrement"
+            : "Basic";
         var intakeJson = JsonSerializer.Serialize(
             new
             {
                 request = request.UserRequest,
                 stackProfile = stack,
                 projectMode = mode,
+                deliveryMode,
+                targetFramework = "net10.0",
+                baselineSourcePath = request.BaselineArtifacts is not null
+                    && request.BaselineArtifacts.TryGetValue("baselineSourcePath", out var bsp)
+                        ? bsp
+                        : request.BaselineArtifacts?.GetValueOrDefault("sourceRepo")
+                          ?? request.BaselineArtifacts?.GetValueOrDefault("baselineRoot"),
                 projectName,
                 projectSlug,
-                templateId = item.TemplateId
+                templateId = item.TemplateId,
+                notes = deliveryMode switch
+                {
+                    "Rewrite" => "Ingest baseline and rewrite as net10 greenfield; preserve public APIs.",
+                    "FeatureIncrement" => "Build on prior project workspace for this projectId (multi-WI).",
+                    _ => "New request-driven scaffold from user request."
+                }
             },
             JsonOptions);
         await WriteLocalArtifactAsync(intakePath, intakeJson, cancellationToken).ConfigureAwait(false);
@@ -1632,4 +1676,36 @@ public sealed class PocPipelineOrchestrator
     private sealed record SessionEvent(int Sequence, WorkItemEventEntity Entity, string? ArtifactKey);
 
     private sealed record ArtifactIndexEntry(string Key, int Revision, string BlobPath);
+
+    private static string? ResolveBaselineFolder(string raw)
+    {
+        var trimmed = raw.Trim().TrimStart('.', '/', '\\');
+        foreach (var start in new[]
+                 {
+                     Directory.GetCurrentDirectory(),
+                     AppContext.BaseDirectory,
+                     Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..")
+                 })
+        {
+            var dir = new DirectoryInfo(Path.GetFullPath(start));
+            for (var i = 0; i < 8 && dir is not null; i++, dir = dir.Parent)
+            {
+                foreach (var candidate in new[]
+                         {
+                             Path.Combine(dir.FullName, trimmed),
+                             Path.Combine(dir.FullName, "poc", trimmed),
+                             Path.Combine(dir.FullName, "fixtures", Path.GetFileName(trimmed)),
+                             Path.Combine(dir.FullName, "poc", "fixtures", Path.GetFileName(trimmed))
+                         })
+                {
+                    if (Directory.Exists(candidate))
+                    {
+                        return Path.GetFullPath(candidate);
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
 }

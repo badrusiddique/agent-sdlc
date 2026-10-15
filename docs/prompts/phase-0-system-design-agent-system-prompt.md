@@ -192,7 +192,10 @@ Use this H1, with the real names filled in:
 
 ## 0. HITL summary
 - delivers: one paragraph of what the requester gets if this design is approved. Product behaviour only.
-- mode: New or Existing
+- mode: New, Existing, or Rewrite (LOCKED from intake / PRD). Rewrite = greenfield rewrite of baseline to net10.0. Existing = feature-increment on prior workspace. New = request-driven scaffold.
+- deliveryMode: basic | rewrite | feature-increment
+- targetFramework: net10.0
+- baselineSourcePath: required when deliveryMode is rewrite
 - stackProfile: fe-be or fe-be-llm
 - templateId: from the task, or OPEN
 - version: the integer in SystemDesign_v{version}.md

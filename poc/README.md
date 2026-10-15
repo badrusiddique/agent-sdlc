@@ -93,7 +93,7 @@ Checked-in proof (from that Azurite run):
 
 Design notes: agent writes AH tables/blobs; buildgenix owns WorkItems / Approvals / WorkItemEvents / AuditLog. Sync `POST /api/poc/pipeline/run` auto-approves gates (scripts). Interactive `POST /api/poc/pipeline/start` pauses at PRD, System Design, Implementation Plan, Code Review, and post Push & Deploy.
 
-**IA codegen** is **request-driven** at runtime (hello / hello+LLM / todo / calculator / generic) — not a fixed calculator template copy. See [`docs/ia-request-driven-codegen.md`](docs/ia-request-driven-codegen.md). Unit/HTTP tests run inside `IA_CODEGEN`. After review, **`graphify extract . --code-only`** writes `code-graph.json` + `code-state.json`. **Push & Deploy** opens a feature-branch PR (not `main`) then Compose-deploys.
+**IA codegen** is **request-driven** at runtime (hello / hello+LLM / todo / calculator / generic) — not a fixed calculator template copy. See [`docs/ia-request-driven-codegen.md`](docs/ia-request-driven-codegen.md). Also supports **greenfield rewrite** (`projectMode=Rewrite` + baseline) and **multi-WI feature increment** (`Existing`) — [`docs/ia-greenfield-rewrite.md`](docs/ia-greenfield-rewrite.md); `./scripts/verify-greenfield.sh`. Unit/HTTP tests run inside `IA_CODEGEN`. After review, **`graphify extract . --code-only`** writes `code-graph.json` + `code-state.json`. **Push & Deploy** opens a feature-branch PR (not `main`) then Compose-deploys.
 
 **Intra-stage tasks (not sub-agents):** each stage runs ordered tasks (`TaskStarted` / `TaskCompleted`) into ActivityLog + AgentResult.Steps → BuildGenix `WorkItemEvents`.
 

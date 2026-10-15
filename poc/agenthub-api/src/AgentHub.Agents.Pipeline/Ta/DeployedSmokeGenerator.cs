@@ -14,12 +14,37 @@ public static class DeployedSmokeGenerator
     public static IReadOnlyList<SmokeCase> DefaultCases(
         string? stackProfile,
         string? userRequest = null,
-        string? projectName = null)
+        string? projectName = null,
+        string? projectMode = null,
+        IReadOnlyDictionary<string, string>? baselineArtifacts = null)
     {
         var cases = new List<SmokeCase>
         {
             new("HealthOk", "GET", "/health", 200, "ok")
         };
+
+        var delivery = DeliveryModeClassifier.Classify(userRequest, projectMode, baselineArtifacts);
+        if (delivery == DeliveryMode.Rewrite)
+        {
+            cases.Add(new("Add", "GET", "/api/add?a=2&b=3", 200, "\"result\":5"));
+            return cases;
+        }
+
+        if (delivery == DeliveryMode.FeatureIncrement)
+        {
+            var feature = FeatureIncrementBuilder.ClassifyFeature(userRequest);
+            cases.Add(feature switch
+            {
+                FeatureIncrementBuilder.FeatureKind.Subtract =>
+                    new("Subtract", "GET", "/api/subtract?a=5&b=2", 200, "\"result\":3"),
+                FeatureIncrementBuilder.FeatureKind.Multiply =>
+                    new("Multiply", "GET", "/api/multiply?a=3&b=4", 200, "\"result\":12"),
+                FeatureIncrementBuilder.FeatureKind.TodoEndpoint =>
+                    new("Todos", "GET", "/api/todos", 200, "["),
+                _ => new("FeatureNote", "GET", "/api/feature-note", 200, "note")
+            });
+            return cases;
+        }
 
         var kind = RequestDrivenCodegen.Classify(userRequest, stackProfile, projectName);
         cases.Add(PrimaryCase(kind));
@@ -44,12 +69,14 @@ public static class DeployedSmokeGenerator
         string? llmText,
         string? stackProfile,
         string? userRequest = null,
-        string? projectName = null)
+        string? projectName = null,
+        string? projectMode = null,
+        IReadOnlyDictionary<string, string>? baselineArtifacts = null)
     {
         var json = ExtractJson(llmText);
         if (json is null)
         {
-            return DefaultCases(stackProfile, userRequest, projectName);
+            return DefaultCases(stackProfile, userRequest, projectName, projectMode, baselineArtifacts);
         }
 
         try
@@ -57,7 +84,7 @@ public static class DeployedSmokeGenerator
             using var doc = JsonDocument.Parse(json);
             if (!doc.RootElement.TryGetProperty("cases", out var arr) || arr.ValueKind != JsonValueKind.Array)
             {
-                return DefaultCases(stackProfile, userRequest, projectName);
+                return DefaultCases(stackProfile, userRequest, projectName, projectMode, baselineArtifacts);
             }
 
             var list = new List<SmokeCase>();
@@ -71,11 +98,13 @@ public static class DeployedSmokeGenerator
                 list.Add(new SmokeCase(name, method, path, status, contains));
             }
 
-            return list.Count > 0 ? list : DefaultCases(stackProfile, userRequest, projectName);
+            return list.Count > 0
+                ? list
+                : DefaultCases(stackProfile, userRequest, projectName, projectMode, baselineArtifacts);
         }
         catch (JsonException)
         {
-            return DefaultCases(stackProfile, userRequest, projectName);
+            return DefaultCases(stackProfile, userRequest, projectName, projectMode, baselineArtifacts);
         }
     }
 

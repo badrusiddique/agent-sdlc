@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Legacy Calculator (net8)</title></head>
+<body>
+  <h1>Legacy Calculator</h1>
+  <p>net8 baseline fixture for greenfield rewrite.</p>
+  <button id="add">Add 2+3</button>
+  <pre id="out"></pre>
+  <script>
+    document.getElementById('add').onclick = async () => {
+      const r = await fetch('/api/add?a=2&b=3');
+      document.getElementById('out').textContent = await r.text();
+    };
+  </script>
+</body>
+</html>

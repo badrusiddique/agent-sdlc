@@ -127,7 +127,10 @@ Use this H1, with the real names filled in:
 
 ## 0. HITL summary
 - delivers: one paragraph of what the requester gets if this design is approved. Product behaviour only.
-- mode: New or Existing
+- mode: New, Existing, or Rewrite (LOCKED from intake / PRD projectMode). Rewrite means greenfield rewrite of an existing baseline repo/folder to net10.0. Existing means feature-increment on the prior project workspace. New means request-driven scaffold.
+- deliveryMode: basic | rewrite | feature-increment (must match mode: New→basic, Rewrite→rewrite, Existing→feature-increment)
+- targetFramework: net10.0 for generated / rewritten apps (LOCKED)
+- baselineSourcePath: required when deliveryMode is rewrite (from intake BaselineArtifacts.baselineSourcePath / sourceRepo). OPEN if rewrite and missing.
 - stackProfile: fe-be or fe-be-llm
 - templateId: from the task, or OPEN
 - version: the integer in SystemDesign_v{version}.md

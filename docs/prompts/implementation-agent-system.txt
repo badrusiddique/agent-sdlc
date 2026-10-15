@@ -81,6 +81,12 @@ HARD RULES
     Continue: resume at the stopped phase or review step. Do not repeat an earlier phase commit.
     Rework: one fix phase from feedback or failing checks, then section 9, then graphify, then update the same pull request. Do not create a new repo, branch, or pull request.
 
+11) Delivery modes (from design section 0 / PRD / intake — before Testing)
+    deliveryMode basic: generate request-driven scaffold (hello / todo / calculator / hello+llm / generic). Not a fixed calculator template copy.
+    deliveryMode rewrite: ingest baselineSourcePath (or locked fixture), rewrite as net10.0 greenfield work-item tree, preserve discovered public HTTP routes, then TDD → review → graphify → feature-branch PR. Do not push to main.
+    deliveryMode feature-increment (Existing projectMode): copy prior project work-item workspace for the same projectId, apply the requested feature on top (do not wipe prior behaviour), then same review → graphify → PR → hand off to Testing.
+    Testing Agent only runs after IA Push & Deploy is approved. Do not invent free-form arbitrary apps beyond these modes in this slice.
+
 ══════════════════════════════════════════════════════════════════
 REQUIRED WORK AND ARTIFACTS
 ══════════════════════════════════════════════════════════════════

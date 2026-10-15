@@ -19,7 +19,8 @@ interface ExamplePrompt {
   text: string;
   stackProfile: string;
   projectName: string;
-  projectMode: 'New' | 'Existing';
+  projectMode: 'New' | 'Existing' | 'Rewrite';
+  baselineArtifacts?: Record<string, string>;
 }
 
 @Component({
@@ -55,6 +56,14 @@ export class StudioPageComponent implements OnDestroy {
       stackProfile: 'fe-be',
       projectName: 'Calculator',
       projectMode: 'Existing',
+    },
+    {
+      label: 'Rewrite legacy → net10',
+      text: 'Rewrite the existing net8 calculator repo as a greenfield .NET 10 app keeping /api/add',
+      stackProfile: 'fe-be',
+      projectName: 'CalculatorRewrite',
+      projectMode: 'Rewrite',
+      baselineArtifacts: { baselineSourcePath: 'fixtures/legacy-net8-calculator' },
     },
   ];
 
@@ -130,6 +139,7 @@ export class StudioPageComponent implements OnDestroy {
         example?.projectMode === 'Existing' && this.lastProjectId
           ? this.lastProjectId
           : undefined,
+      baselineArtifacts: example?.baselineArtifacts,
     };
 
     this.error.set(null);
