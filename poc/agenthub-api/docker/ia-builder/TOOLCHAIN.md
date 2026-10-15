@@ -15,6 +15,7 @@ Image tags used in this repo:
 - Angular CLI (`@angular/cli@19`)
 - Python 3 + pip
 - Azure CLI (`az`)
+- graphify (`pip install graphifyy` — CLI `graphify`; locked: `graphify extract . --code-only`)
 - zip / unzip / jq / curl
 
 ## Build / save / load

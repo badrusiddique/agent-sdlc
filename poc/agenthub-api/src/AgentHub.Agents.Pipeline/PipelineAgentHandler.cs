@@ -338,46 +338,56 @@ public sealed class PipelineAgentHandler
             .ConfigureAwait(false);
         if (existing is null)
         {
-            await BeginStepAsync(message, run, "ia.codegen.materialize", "Materialize mono-repo work-item folder", cancellationToken)
-                .ConfigureAwait(false);
-            var templateRoot = TemplateMaterializer.ResolveTemplateRoot(stack);
-            TemplateMaterializer.CopyTemplate(templateRoot, workspace);
-            MonoRepoLayout.EnsureFrontendFromWwwroot(workspace);
-            MonoRepoLayout.WriteReadme(
-                workspace,
-                message.ProjectId,
-                message.WorkItemId,
-                message.Context.UserRequest ?? "");
-            await CompleteStepAsync(
+            await BeginStepAsync(
                     message,
                     run,
-                    "ia.codegen.materialize",
-                    $"Copied {stack} into {MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId)}",
+                    "ia.codegen.generate",
+                    "Generate app from user request (request-driven)",
                     cancellationToken)
                 .ConfigureAwait(false);
-
-            await BeginStepAsync(message, run, "ia.codegen.apply", "Apply stack and project updates", cancellationToken)
-                .ConfigureAwait(false);
+            var kind = RequestDrivenCodegen.Classify(
+                message.Context.UserRequest,
+                stack,
+                message.Context.ProjectName);
+            var hintJson = ExtractTrailingJson(llm.Text) ?? llm.Text;
+            var meta = RequestDrivenCodegen.Generate(
+                workspace,
+                kind,
+                message.ProjectId,
+                message.WorkItemId,
+                message.Context.UserRequest ?? "",
+                hintJson);
             if (message.Context.ProjectMode.equalsIgnore("Existing")
-                && message.Context.BaselineArtifacts.Count > 0)
+                && message.Context.BaselineArtifacts.Count > 0
+                && kind == RequestDrivenCodegen.AppKind.Calculator)
             {
                 ApplySubtractUpdate(workspace);
                 MonoRepoLayout.SyncFrontendToWwwroot(workspace);
             }
 
-            var hintJson = ExtractTrailingJson(llm.Text) ?? llm.Text;
-            TemplateMaterializer.ApplyImplementationHints(workspace, stack, hintJson);
             MonoRepoLayout.SyncFrontendToWwwroot(workspace);
-            await CommitLedgerAsync(message, intent, 600, new { workspace, stack }, new { ok = true }, cancellationToken)
+            await CommitLedgerAsync(
+                    message,
+                    intent,
+                    600,
+                    new { workspace, stack, kind = kind.ToString() },
+                    new { ok = true, meta },
+                    cancellationToken)
                 .ConfigureAwait(false);
-            await CompleteStepAsync(message, run, "ia.codegen.apply", "Workspace customized", cancellationToken)
+            await CompleteStepAsync(
+                    message,
+                    run,
+                    "ia.codegen.generate",
+                    $"Generated {kind} into {MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId)}",
+                    cancellationToken)
                 .ConfigureAwait(false);
+            outputs["appKind"] = kind.ToString();
         }
         else
         {
             await BeginStepAsync(message, run, "ia.codegen.reuse", "Reuse committed workspace", cancellationToken)
                 .ConfigureAwait(false);
-            await CompleteStepAsync(message, run, "ia.codegen.reuse", "Workspace already materialized", cancellationToken)
+            await CompleteStepAsync(message, run, "ia.codegen.reuse", "Workspace already generated", cancellationToken)
                 .ConfigureAwait(false);
         }
 
@@ -396,14 +406,7 @@ public sealed class PipelineAgentHandler
         await CompleteStepAsync(message, run, "ia.codegen.commit", $"headCommit={headCommit}", cancellationToken)
             .ConfigureAwait(false);
 
-        await BeginStepAsync(message, run, "ia.codegen.artifacts", "Publish code-state.json", cancellationToken)
-            .ConfigureAwait(false);
-        var codeState = TemplateMaterializer.WriteCodeState(workspace, stack);
-        var codeStatePath = message.BlobPrefix + "code-state.json";
-        await WriteArtifactAsync(message, codeStatePath, codeState, 700, cancellationToken).ConfigureAwait(false);
-        artifacts["codeState"] = codeStatePath;
-        await CompleteStepAsync(message, run, "ia.codegen.artifacts", "Wrote code-state.json", cancellationToken)
-            .ConfigureAwait(false);
+        // code-state.json / code-graph.json come from graphify after review (locked command), not here.
 
         outputs["workBranch"] = MonoRepoLayout.WorkBranch(message.ProjectId, message.WorkItemId);
         outputs["headCommit"] = headCommit;
@@ -483,6 +486,34 @@ public sealed class PipelineAgentHandler
         artifacts["codeReview"] = reviewMdPath;
         await CompleteStepAsync(message, run, "ia.review.persist", "Wrote review.json and code-review.md", cancellationToken)
             .ConfigureAwait(false);
+
+        // Locked CodeStateBuilder step (after review, before PR): graphify extract . --code-only
+        await BeginStepAsync(
+                message,
+                run,
+                "ia.codestate.graphify",
+                GraphifyCodeStateBuilder.LockedCommand,
+                cancellationToken)
+            .ConfigureAwait(false);
+        var graphify = await GraphifyCodeStateBuilder
+            .BuildAsync(workspace, cancellationToken)
+            .ConfigureAwait(false);
+        var codeGraphPath = message.BlobPrefix + "code-graph.json";
+        var codeStatePath = message.BlobPrefix + "code-state.json";
+        await WriteArtifactAsync(message, codeGraphPath, graphify.CodeGraphJson, 720, cancellationToken)
+            .ConfigureAwait(false);
+        await WriteArtifactAsync(message, codeStatePath, graphify.CodeStateJson, 721, cancellationToken)
+            .ConfigureAwait(false);
+        artifacts["codeGraph"] = codeGraphPath;
+        artifacts["codeState"] = codeStatePath;
+        await CompleteStepAsync(
+                message,
+                run,
+                "ia.codestate.graphify",
+                $"Wrote code-graph.json + code-state.json from {graphify.GraphPath}",
+                cancellationToken)
+            .ConfigureAwait(false);
+
         return Tokens(llm);
     }
 
@@ -1541,7 +1572,7 @@ public sealed class PipelineAgentHandler
         `{MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId)}/frontend` and `.../backend`.
 
         ## Backend changes
-        Materialize the checked-in {message.Context.StackProfile} template and keep `/health` plus primary APIs.
+        Generate the app at runtime from the user request (hello / hello+LLM / todo / calculator / generic), keep `/health` plus primary APIs.
 
         ## Frontend changes
         Static UI under `frontend/` synced into the API wwwroot for local serving.
@@ -1549,8 +1580,11 @@ public sealed class PipelineAgentHandler
         ## Tests
         HTTP round-trip xUnit suite under `tests/`.
 
+        ## Code state
+        After review: `graphify extract . --code-only` → `code-graph.json` + `code-state.json`. Open a feature-branch PR (do not push to main).
+
         ## Risks
-        LLM hints are best-effort; template materialization is the source of truth for this POC.
+        Request classification must match the ask; Fixture LLM does not invent arbitrary file trees yet.
         """;
 
     private static string? ExtractTrailingJson(string? text)
@@ -1602,7 +1636,7 @@ public sealed class PipelineAgentHandler
                     operation = "subtract",
                     a,
                     b,
-                    result = CalculatorMath.Subtract(a, b)
+                    result = CalculatorApi.Services.CalculatorMath.Subtract(a, b)
                 }));
             // {{EXTRA_ENDPOINTS}}
             """,

@@ -164,11 +164,13 @@ Builder web app name + default hostname:
 Builder identity client id / principal id:
 Sandbox plan name:
 Storage blob ServiceUri (if new):
-AzDO org / project / repo:
-Confirmation: builder SP added to AzDO (Y/N)
+AzDO: wcbbc / AI-Operations / inno-tech-aisdlc-apps ready (Y/N)
+Confirmation: builder SP added to AzDO with Code+PR (Y/N)
 Confirmation: AcrPull on builder identity (Y/N)
 Confirmation: cc-sb-sb-aisdlc-rg MI still Contributor on cc-sb-sb-aisdlc-apps-rg (Y/N)
+GitHub access for DevOps: not required
 ```
+
 
 ---
 

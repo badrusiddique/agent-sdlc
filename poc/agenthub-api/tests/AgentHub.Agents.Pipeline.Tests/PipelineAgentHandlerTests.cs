@@ -25,7 +25,7 @@ public sealed class PipelineAgentHandlerTests
     }
 
     [Fact]
-    public async Task RunAsync_implementation_materializes_calculator_template()
+    public async Task RunAsync_implementation_generates_calculator_from_request()
     {
         var blobs = new FakeBlobStore();
         var handler = CreateHandler(blobs);
@@ -42,10 +42,13 @@ public sealed class PipelineAgentHandlerTests
         Assert.Equal(AgentResultStatus.Completed, result.Status);
         Assert.True(Directory.Exists(Path.Combine(mono, "backend")));
         Assert.True(Directory.Exists(Path.Combine(mono, "frontend")));
+        Assert.True(File.Exists(Path.Combine(mono, "backend", "CalculatorApi.csproj")));
         Assert.True(result.Outputs.ContainsKey("headCommit"));
         Assert.True(result.Outputs.ContainsKey("monoFolder"));
-        Assert.Contains("codeState", result.Artifacts.Keys);
-        Assert.Contains(result.Steps, s => s.Id == "ia.codegen.materialize" && s.Status == "Completed");
+        Assert.Equal("Calculator", result.Outputs.GetValueOrDefault("appKind"));
+        // code-state is produced by graphify after IA_REVIEW, not during codegen
+        Assert.DoesNotContain("codeState", result.Artifacts.Keys);
+        Assert.Contains(result.Steps, s => s.Id == "ia.codegen.generate" && s.Status == "Completed");
     }
 
     private static PipelineAgentHandler CreateHandler(FakeBlobStore blobs) =>

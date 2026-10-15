@@ -52,6 +52,11 @@ RUN set -eux; \
 RUN curl -fsSL https://aka.ms/InstallAzureCLIDeb | bash \
     && rm -rf /var/lib/apt/lists/*
 
+# graphify (PyPI package name graphifyy; CLI remains `graphify`)
+# Locked IA command: graphify extract . --code-only
+RUN pip3 install --break-system-packages --no-cache-dir 'graphifyy==0.9.91' \
+    && graphify --help >/dev/null
+
 # Convenience: python → python3
 RUN ln -sf /usr/bin/python3 /usr/local/bin/python \
     && ln -sf /usr/bin/pip3 /usr/local/bin/pip || true
@@ -78,6 +83,7 @@ RUN set -e; \
     command -v ng; \
     python3 --version; \
     az version; \
+    graphify --help >/dev/null; \
     zip -v | head -1; \
     jq --version; \
     test -f /TOOLCHAIN.md
