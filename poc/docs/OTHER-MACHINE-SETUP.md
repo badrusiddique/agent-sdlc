@@ -11,6 +11,7 @@ Related docs:
 |---|---|
 | This file | First boot on a clean machine |
 | [`azure-clickops-integration.md`](azure-clickops-integration.md) | Portal clicks for Azure resources + auth modes |
+| [`azure-devops-provision-brief.md`](azure-devops-provision-brief.md) | Pass to DevOps: `abc-sg` vs `abc-agent-sg`, ACR placement, RBAC |
 | [`qa/QA_Runbook-azure-dual-mode.md`](qa/QA_Runbook-azure-dual-mode.md) | Gates A–E after wiring Azure |
 | [`../agenthub-api/docker/ia-builder/EXPORT-NOTE.md`](../agenthub-api/docker/ia-builder/EXPORT-NOTE.md) | Optional builder image → ACR |
 
