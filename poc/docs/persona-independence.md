@@ -16,3 +16,11 @@ Each SDLC step runs as a **separate persona** with:
 | TA_REPORT | QA Lead | PRD bar + `ta-results.json` + URL | Softening from implementer |
 
 This keeps Code Review and Automation Test design independent of Implementation authorship.
+
+Production work prompts (same rigor as System Design):
+
+- `docs/prompts/system-design-system.txt` (orders in `SystemDesign_v{n}.md`)
+- `docs/prompts/implementation-agent-system.txt` (executes design §§6–9; no deploy/merge)
+- `docs/prompts/testing-agent-system.txt` (executes design §§10–11; RouteBack on red; no merge)
+
+Alignment note: `docs/prompts/sd-ia-ta-prompt-alignment-2026-10-15.md`. Local POC option B (IA deploy + TA merge) is a stand-in; Phase 0 keeps Deploy/Finalize on the Deployment agent.

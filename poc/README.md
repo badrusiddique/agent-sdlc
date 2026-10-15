@@ -23,6 +23,8 @@ Design: [`docs/ia-local-docker-design.md`](docs/ia-local-docker-design.md), [`do
 
 **Verified 2026-10-15:** Docker + Gitea + Compose + studio UI e2e + six-persona sign-off → [`docs/ia-ta-six-persona-verification-2026-10-15.md`](docs/ia-ta-six-persona-verification-2026-10-15.md).
 
+**Production SD/IA/TA work prompts:** [`docs/prompts/system-design-system.txt`](../docs/prompts/system-design-system.txt), [`implementation-agent-system.txt`](../docs/prompts/implementation-agent-system.txt), [`testing-agent-system.txt`](../docs/prompts/testing-agent-system.txt); alignment [`sd-ia-ta-prompt-alignment-2026-10-15.md`](../docs/prompts/sd-ia-ta-prompt-alignment-2026-10-15.md).
+
 **Next (Azure):** replace stand-ins one at a time → [`docs/azure-integration-next-steps.md`](docs/azure-integration-next-steps.md).
 
 ```bash

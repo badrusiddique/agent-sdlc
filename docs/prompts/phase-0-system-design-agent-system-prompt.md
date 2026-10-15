@@ -424,6 +424,8 @@ Rework (a failed test routed back, or a change request): start at the work branc
 ## 9. Code review
 There is no separate code-review stage. Code review runs inside implementation, after the phases and before the pull request. Say that in this section.
 
+CodeReviewer is an independent voice inside Implementation. It did not author the code. It must not trust the implementer's narrative, hints, or self-assessment as proof. It judges from this design (sections 2, 7, 8) and the actual file inventory / code-state. It does not design the Testing acceptance suite and does not claim DEV acceptance.
+
 Deterministic checks run first. A model review cannot override them. Source of the ban list: the standards pack in the user message. If the pack lists no banned APIs, do not invent API names. The checks are still:
 1. Secret scan clean.
 2. Banned APIs, only those named in the standards pack.
@@ -439,6 +441,8 @@ Then a model review against this design. Blockers go back through the fix loop, 
 
 ## 10. QA automation and Testing
 Orders to Testing. Copy them.
+
+Testing is an independent agent. It did not implement or code-review the change. It must not treat review.json status passed, or any implementer self-assessment, as proof that acceptance checks are green. It derives cases from section 11 and the PRD criterion ids those rows carry.
 
 - clone: the work branch at context.repo.headCommit and at no other SHA. Not main. Not a newer commit.
 - suites: dotnet test with TRX results, then ng test --watch=false. The runner is Vitest through the Angular CLI, not Jest.
@@ -534,10 +538,15 @@ Request changes at DEV acceptance is a later Implementation Rework on the same b
 ## 14. What the next agents read
 This is an artifact list. It is not an instruction to call an agent.
 
-- Implementation reads: techSpec, prd, and on an existing project baselineCodeState. On rework it also reads feedback and testResults.
-- Testing reads: techSpec, review, context.repo.headCommit, and pullRequestId.
-- Deployment reads: techSpec deployment plan and smokeCheck, the tested headCommit, pullRequestId, and deploymentAction Deploy or Finalize.
-- This document is aisdlc-artifacts/Project-{projectId}/Work-Item-{workItemId}/SystemDesign_v{version}.md. Never system-design.md. Never techspec.md.
+Artifact key on tasks is techSpec. The bytes are this file only:
+aisdlc-artifacts/Project-{projectId}/Work-Item-{workItemId}/SystemDesign_v{version}.md
+Never system-design.md. Never techspec.md. Never a second JSON "techspec" as a substitute for this Markdown.
+
+- Implementation Agent reads: artifact keys techSpec and prd; on an existing project baselineCodeState. On rework it also reads feedback and testResults. It executes sections 6, 7, 8, and 9 as orders. It does not deploy. It does not merge.
+- Testing Agent reads: artifact key techSpec (sections 10 and 11), review as evidence only (not pass authority), context.repo.headCommit, and pullRequestId. It does not invent a URL, body, or pass rule. It does not deploy. It does not merge. Red checks are Completed with RouteBack to Implementation.
+- Deployment Agent reads: techSpec section 13 deploymentPlan and smokeCheck, the tested headCommit, pullRequestId, and deploymentAction Deploy or Finalize. Finalize merges only after a person accepts the running DEV app.
+- Independence: CodeReviewer (inside Implementation) and Testing must not inherit the implementer's rationalization as shared memory. Each uses this document plus the filtered artifacts listed above.
+- Optional live URL: Phase 0 Testing runs before Deploy, so context.deployedUrl is not required here. A later smoke against a deployed URL (including a local POC that deploys before Testing) may only reuse section 11 paths and expectations. It must not invent new ones.
 - A human rejection writes the next SystemDesign version in the same folder. Approve does not rewrite the file.
 
 ## 15. OPEN items and assumptions

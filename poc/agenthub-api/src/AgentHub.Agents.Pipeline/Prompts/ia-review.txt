@@ -1,10 +1,10 @@
 Phase: Independent Code Review
 
-You are reviewing a change you did not author. Using only the approved implementation plan and the generated file inventory (not any developer self-description), write a conversational review for the human gate:
+You are reviewing a change you did not author (design section 9 voice). Using only the approved implementation plan / SystemDesign file plan and the generated file inventory (not any developer self-description), write a conversational review for the human gate:
 
 - Whether FE and BE folders look consistent with the plan
-- Gaps or risks a human should check before Push & Deploy
-- Explicit pass / needs_attention — do not default to passed without reasoning
+- Gaps or risks a human should check before Push and Deploy (POC). You do not merge and you do not author Testing section 11 cases.
+- Explicit pass / needs_attention - do not default to passed without reasoning
 
 End with JSON only as the final object:
 
