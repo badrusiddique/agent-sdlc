@@ -622,7 +622,11 @@ public sealed class PipelineAgentHandler
 
         await BeginStepAsync(message, run, "ta.gen.write", "Write tests/e2e suite under mono folder", cancellationToken)
             .ConfigureAwait(false);
-        var cases = DeployedSmokeGenerator.ParseCasesOrDefault(llm.Text, message.Context.StackProfile);
+        var cases = DeployedSmokeGenerator.ParseCasesOrDefault(
+            llm.Text,
+            message.Context.StackProfile,
+            message.Context.UserRequest,
+            message.Context.ProjectName);
         DeployedSmokeGenerator.WriteSuite(workspace, cases);
         var planPath = message.BlobPrefix + "ta-test-plan.md";
         await WriteArtifactAsync(
@@ -1778,19 +1782,34 @@ public sealed class PipelineAgentHandler
             },
             JsonOptions);
 
-    private static string DefaultTechSpec(TaskMessage message) =>
-        JsonSerializer.Serialize(
+    private static string DefaultTechSpec(TaskMessage message)
+    {
+        var kind = RequestDrivenCodegen.Classify(
+            message.Context.UserRequest,
+            message.Context.StackProfile,
+            message.Context.ProjectName);
+        var api = kind switch
+        {
+            RequestDrivenCodegen.AppKind.Calculator =>
+                new { method = "GET", path = "/api/add", purpose = "add two numbers" },
+            RequestDrivenCodegen.AppKind.Todo =>
+                new { method = "GET", path = "/api/todos", purpose = "list todos" },
+            RequestDrivenCodegen.AppKind.HelloLlm =>
+                new { method = "GET", path = "/api/thought", purpose = "thought of the day" },
+            _ => new { method = "GET", path = "/api/hello", purpose = "hello" }
+        };
+        return JsonSerializer.Serialize(
             new
             {
                 components = new[] { "fe", "be" },
-                apis = message.Context.StackProfile == "fe-be-llm"
-                    ? new object[] { new { method = "GET", path = "/api/thought", purpose = "thought of the day" } }
-                    : new object[] { new { method = "GET", path = "/api/add", purpose = "add two numbers" } },
+                apis = new object[] { api },
                 phases = new[] { new { id = 1, name = "Scaffold and run" } },
                 deploy = "local-compose",
-                stackProfile = message.Context.StackProfile
+                stackProfile = message.Context.StackProfile,
+                appKind = kind.ToString()
             },
             JsonOptions);
+    }
 
     private static TokenUsage Tokens(LlmCompletionResult llm) =>
         new()

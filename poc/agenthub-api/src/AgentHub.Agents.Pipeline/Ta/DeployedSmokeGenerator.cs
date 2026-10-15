@@ -1,4 +1,5 @@
 using System.Text.Json;
+using AgentHub.Agents.Pipeline.Ia;
 
 namespace AgentHub.Agents.Pipeline.Ta;
 
@@ -10,31 +11,45 @@ public static class DeployedSmokeGenerator
         WriteIndented = true
     };
 
-    public static IReadOnlyList<SmokeCase> DefaultCases(string? stackProfile)
+    public static IReadOnlyList<SmokeCase> DefaultCases(
+        string? stackProfile,
+        string? userRequest = null,
+        string? projectName = null)
     {
         var cases = new List<SmokeCase>
         {
             new("HealthOk", "GET", "/health", 200, "ok")
         };
 
-        if (string.Equals(stackProfile, "fe-be-llm", StringComparison.OrdinalIgnoreCase))
-        {
-            cases.Add(new("Thought", "GET", "/api/thought", 200, "thought"));
-        }
-        else
-        {
-            cases.Add(new("Add", "GET", "/api/add?a=2&b=3", 200, "\"result\":5"));
-        }
-
+        var kind = RequestDrivenCodegen.Classify(userRequest, stackProfile, projectName);
+        cases.Add(PrimaryCase(kind));
         return cases;
     }
 
-    public static IReadOnlyList<SmokeCase> ParseCasesOrDefault(string? llmText, string? stackProfile)
+    public static SmokeCase PrimaryCase(RequestDrivenCodegen.AppKind kind) =>
+        kind switch
+        {
+            RequestDrivenCodegen.AppKind.Calculator =>
+                new("Add", "GET", "/api/add?a=2&b=3", 200, "\"result\":5"),
+            RequestDrivenCodegen.AppKind.Todo =>
+                new("Todos", "GET", "/api/todos", 200, "["),
+            RequestDrivenCodegen.AppKind.HelloLlm =>
+                new("Thought", "GET", "/api/thought", 200, "thought"),
+            RequestDrivenCodegen.AppKind.Hello or RequestDrivenCodegen.AppKind.Generic =>
+                new("Hello", "GET", "/api/hello", 200, "\"status\":\"ok\""),
+            _ => new("Hello", "GET", "/api/hello", 200, "\"status\":\"ok\"")
+        };
+
+    public static IReadOnlyList<SmokeCase> ParseCasesOrDefault(
+        string? llmText,
+        string? stackProfile,
+        string? userRequest = null,
+        string? projectName = null)
     {
         var json = ExtractJson(llmText);
         if (json is null)
         {
-            return DefaultCases(stackProfile);
+            return DefaultCases(stackProfile, userRequest, projectName);
         }
 
         try
@@ -42,7 +57,7 @@ public static class DeployedSmokeGenerator
             using var doc = JsonDocument.Parse(json);
             if (!doc.RootElement.TryGetProperty("cases", out var arr) || arr.ValueKind != JsonValueKind.Array)
             {
-                return DefaultCases(stackProfile);
+                return DefaultCases(stackProfile, userRequest, projectName);
             }
 
             var list = new List<SmokeCase>();
@@ -56,11 +71,11 @@ public static class DeployedSmokeGenerator
                 list.Add(new SmokeCase(name, method, path, status, contains));
             }
 
-            return list.Count > 0 ? list : DefaultCases(stackProfile);
+            return list.Count > 0 ? list : DefaultCases(stackProfile, userRequest, projectName);
         }
         catch (JsonException)
         {
-            return DefaultCases(stackProfile);
+            return DefaultCases(stackProfile, userRequest, projectName);
         }
     }
 

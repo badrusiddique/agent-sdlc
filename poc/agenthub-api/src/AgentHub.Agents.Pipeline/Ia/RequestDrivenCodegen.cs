@@ -25,11 +25,13 @@ public static class RequestDrivenCodegen
         var text = $"{userRequest} {projectName}".ToLowerInvariant();
         var stack = stackProfile ?? "";
 
-        if (stack.Equals("fe-be-llm", StringComparison.OrdinalIgnoreCase)
-            || text.Contains("llm", StringComparison.Ordinal)
+        var wantsLlm = stack.Equals("fe-be-llm", StringComparison.OrdinalIgnoreCase)
             || text.Contains("ollama", StringComparison.Ordinal)
             || text.Contains("thought of the day", StringComparison.Ordinal)
-            || text.Contains("thought", StringComparison.Ordinal) && text.Contains("hello", StringComparison.Ordinal))
+            || (text.Contains("thought", StringComparison.Ordinal) && text.Contains("hello", StringComparison.Ordinal))
+            || (text.Contains("llm", StringComparison.Ordinal)
+                && !Regex.IsMatch(text, @"\b(without|no|sans)\s+(an\s+)?llm\b"));
+        if (wantsLlm)
         {
             return AppKind.HelloLlm;
         }

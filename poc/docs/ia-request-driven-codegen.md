@@ -31,3 +31,11 @@ Install: `pip install graphifyy` (CLI name remains `graphify`). Also baked into 
 ## Push target
 
 IA opens/updates a **feature-branch PR** (`IA_PUSH_DEPLOY`). It does **not** push to `main`. TA merges after green smoke (`TA_MERGE`).
+
+## TA smoke
+
+`DeployedSmokeGenerator` uses the same request classifier so live smoke hits `/api/add`, `/api/todos`, `/api/hello`, or `/api/thought` — not a hard-coded calculator.
+
+## Six-persona
+
+See [`ia-request-driven-six-persona-2026-10-15.md`](ia-request-driven-six-persona-2026-10-15.md) (overall AWC on `main-azure`).

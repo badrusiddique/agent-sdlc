@@ -9,6 +9,8 @@ public sealed class RequestDrivenCodegenTests
     [InlineData("Build a todo list API", "fe-be", "Todos", RequestDrivenCodegen.AppKind.Todo)]
     [InlineData("Hello world with a thought of the day", "fe-be-llm", "Hello", RequestDrivenCodegen.AppKind.HelloLlm)]
     [InlineData("Simple hello world page", "fe-be", "Hi", RequestDrivenCodegen.AppKind.Hello)]
+    [InlineData("Create a hello world app without llm", "fe-be", "Hello", RequestDrivenCodegen.AppKind.Hello)]
+    [InlineData("hello world with llm", "fe-be", "Hello", RequestDrivenCodegen.AppKind.HelloLlm)]
     [InlineData("Inventory lookup service", "fe-be", "Inv", RequestDrivenCodegen.AppKind.Generic)]
     public void Classify_maps_requests(string request, string stack, string project, RequestDrivenCodegen.AppKind expected)
     {
