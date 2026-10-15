@@ -11,7 +11,7 @@ Image tags used in this repo:
 
 - git
 - .NET 10 SDK (`mcr.microsoft.com/dotnet/sdk:10.0`)
-- Node.js 22 + npm
+- Node.js 22 + npm (official `nodejs.org` binary tarball; not NodeSource apt)
 - Angular CLI (`@angular/cli@19`)
 - Python 3 + pip
 - Azure CLI (`az`)
