@@ -1,22 +1,34 @@
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Text;
+using Azure.Core;
+using Azure.Identity;
 
 namespace AgentHub.Agents.Pipeline.Ia;
 
 /// <summary>
-/// DEV deploy to Azure App Service via Kudu zipdeploy (publish-profile basic auth).
+/// DEV deploy to Azure App Service via Kudu zipdeploy.
+/// Auth = publish-profile basic auth locally (key), or managed identity /
+/// DefaultAzureCredential Bearer when hosted in Azure.
 /// Docs: https://learn.microsoft.com/en-us/azure/app-service/deploy-zip
 /// </summary>
 public sealed class AzureAppServiceDeployHost : IDeployHost
 {
+    /// <summary>ARM / App Service management scope used for SCM Bearer auth.</summary>
+    public const string ManagementScope = "https://management.azure.com/.default";
+
     private readonly IaDeployOptions _options;
     private readonly HttpClient _http;
+    private readonly TokenCredential _credential;
 
-    public AzureAppServiceDeployHost(IaDeployOptions options, HttpClient? http = null)
+    public AzureAppServiceDeployHost(
+        IaDeployOptions options,
+        HttpClient? http = null,
+        TokenCredential? credential = null)
     {
         _options = options;
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+        _credential = credential ?? new DefaultAzureCredential();
     }
 
     public async Task<DeployOutcome> DeployAsync(
@@ -61,13 +73,13 @@ public sealed class AzureAppServiceDeployHost : IDeployHost
             using var content = new ByteArrayContent(await File.ReadAllBytesAsync(zipPath, cancellationToken).ConfigureAwait(false));
             content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
             using var req = new HttpRequestMessage(HttpMethod.Post, zipUrl) { Content = content };
-            ApplyBasicAuth(req);
+            await ApplyAuthAsync(req, cancellationToken).ConfigureAwait(false);
             using var res = await _http.SendAsync(req, cancellationToken).ConfigureAwait(false);
             var body = await res.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             if (!res.IsSuccessStatusCode)
             {
                 throw new InvalidOperationException(
-                    $"App Service zipdeploy failed ({(int)res.StatusCode}): {Truncate(body, 800)}. Check publish profile / SCM basic auth. See poc/docs/azure-clickops-integration.md.");
+                    $"App Service zipdeploy failed ({(int)res.StatusCode}): {Truncate(body, 800)}. Check Auth=publishProfile credentials or managed identity SCM rights. See poc/docs/azure-clickops-integration.md.");
             }
 
             var publicUrl = ResolvePublicBaseUrl().TrimEnd('/');
@@ -102,12 +114,17 @@ public sealed class AzureAppServiceDeployHost : IDeployHost
                 "Ia:Deploy:AppName or PublicBaseUrl is required for Provider=appservice. See poc/docs/azure-clickops-integration.md.");
         }
 
+        if (_options.UseManagedIdentity)
+        {
+            return;
+        }
+
         var user = ResolveUser();
         var pass = ResolvePassword();
         if (string.IsNullOrWhiteSpace(user) || string.IsNullOrWhiteSpace(pass))
         {
             throw new InvalidOperationException(
-                "Ia:Deploy publish credentials missing. Set Ia:Deploy:PublishUser/PublishPassword or env IA_DEPLOY_USER / IA_DEPLOY_PASSWORD (from App Service publish profile). See poc/docs/azure-clickops-integration.md.");
+                "Ia:Deploy publish credentials missing when Auth=publishProfile. Set Ia:Deploy:PublishUser/PublishPassword or env IA_DEPLOY_USER / IA_DEPLOY_PASSWORD, or set Auth=managedIdentity for cloud. See poc/docs/azure-clickops-integration.md.");
         }
     }
 
@@ -148,12 +165,33 @@ public sealed class AzureAppServiceDeployHost : IDeployHost
             Environment.GetEnvironmentVariable("IA_DEPLOY_PASSWORD"))
         ?? "";
 
-    private void ApplyBasicAuth(HttpRequestMessage req)
+    private async Task ApplyAuthAsync(HttpRequestMessage req, CancellationToken cancellationToken)
     {
+        if (_options.UseManagedIdentity)
+        {
+            var token = await GetAccessTokenAsync(cancellationToken).ConfigureAwait(false);
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            return;
+        }
+
         var raw = $"{ResolveUser()}:{ResolvePassword()}";
         req.Headers.Authorization = new AuthenticationHeaderValue(
             "Basic",
             Convert.ToBase64String(Encoding.ASCII.GetBytes(raw)));
+    }
+
+    private async Task<string> GetAccessTokenAsync(CancellationToken cancellationToken)
+    {
+        var result = await _credential
+            .GetTokenAsync(new TokenRequestContext([ManagementScope]), cancellationToken)
+            .ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(result.Token))
+        {
+            throw new InvalidOperationException(
+                "DefaultAzureCredential returned an empty token for App Service SCM. Assign Website Contributor (or equivalent) to the managed identity; locally use Auth=publishProfile or az login.");
+        }
+
+        return result.Token;
     }
 
     private static string NormalizeHealthPath(string path) =>

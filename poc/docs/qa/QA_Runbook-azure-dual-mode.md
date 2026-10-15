@@ -74,8 +74,10 @@ dotnet test tests/AgentHub.Agents.Pipeline.Tests
 | Check | Pass? |
 |---|---|
 | AzDO create PR URL + body (refs/heads, api-version=7.1, Basic :PAT) | |
+| AzDO create PR uses Bearer when `Auth=managedIdentity` | |
 | AzDO complete PR (lastMergeSourceCommit + noFastForward) | |
 | App Service POST …/api/zipdeploy + Basic publish profile | |
+| App Service zipdeploy uses Bearer when `Auth=managedIdentity` | |
 | Factories default to gitea/compose | |
 
 ---
@@ -86,19 +88,22 @@ Complete ClickOps first ([azure-clickops-integration.md](../azure-clickops-integ
 
 ```bash
 cd poc
+# Laptop → Azure uses keys / PAT / publish profile (not MI)
 export IA_GIT_PROVIDER=azuredevops
+export IA_GIT_AUTH=pat
 export IA_GIT_ORGANIZATION=<org>
 export IA_GIT_PROJECT=<project>
 export IA_GIT_REPO=<repo>
 export IA_GIT_TOKEN=<pat>
 
 export IA_DEPLOY_PROVIDER=appservice
+export IA_DEPLOY_AUTH=publishProfile
 export IA_DEPLOY_APP_NAME=<webapp>
 export IA_DEPLOY_PUBLIC_URL=https://<webapp>.azurewebsites.net
 export IA_DEPLOY_USER='<from publish profile>'
 export IA_DEPLOY_PASSWORD='<from publish profile>'
 
-# Optional storage
+# Optional storage (key path)
 # export BlobStorage__Provider=Azure
 # export BlobStorage__ConnectionString='...'
 # export TableStorage__Provider=Azure
@@ -115,6 +120,7 @@ export IA_DEPLOY_PASSWORD='<from publish profile>'
 | AzDO repo GET 200 with PAT | | |
 | SCM basic auth not 401 on probe | | Enable SCM Basic Auth in portal if 401 |
 | Public URL DNS resolves | | |
+| Auth modes set to pat / publishProfile | | MI is for hosted AgentHub later |
 
 ---
 
@@ -148,7 +154,7 @@ cd poc
 ## 6. Gate E — Dual-mode still works locally
 
 ```bash
-unset IA_GIT_PROVIDER IA_GIT_TOKEN IA_DEPLOY_PROVIDER IA_DEPLOY_USER IA_DEPLOY_PASSWORD
+unset IA_GIT_PROVIDER IA_GIT_AUTH IA_GIT_TOKEN IA_DEPLOY_PROVIDER IA_DEPLOY_AUTH IA_DEPLOY_USER IA_DEPLOY_PASSWORD
 # or explicitly:
 export IA_GIT_PROVIDER=gitea
 export IA_DEPLOY_PROVIDER=compose

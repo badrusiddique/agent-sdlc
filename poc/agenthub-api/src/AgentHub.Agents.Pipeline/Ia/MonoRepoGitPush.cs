@@ -10,7 +10,8 @@ public static class MonoRepoGitPush
         string branch,
         string authenticatedCloneUrl,
         string commitMessage,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? bearerToken = null)
     {
         var cloneDir = Path.Combine(Path.GetTempPath(), "bgx-git-clone-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(cloneDir);
@@ -18,7 +19,9 @@ public static class MonoRepoGitPush
         {
             await RunAsync(
                     "git",
-                    $"clone --depth 50 \"{authenticatedCloneUrl}\" \"{cloneDir}\"",
+                    WithBearer(
+                        $"clone --depth 50 \"{authenticatedCloneUrl}\" \"{cloneDir}\"",
+                        bearerToken),
                     Path.GetTempPath(),
                     cancellationToken)
                 .ConfigureAwait(false);
@@ -44,7 +47,11 @@ public static class MonoRepoGitPush
             await GitAsync(cloneDir, "add -A", cancellationToken).ConfigureAwait(false);
             await GitAsync(cloneDir, $"commit -m \"{Escape(commitMessage)}\" --allow-empty", cancellationToken)
                 .ConfigureAwait(false);
-            await GitAsync(cloneDir, $"push -u origin HEAD:{branch} --force", cancellationToken)
+            await RunAsync(
+                    "git",
+                    WithBearer($"push -u origin HEAD:{branch} --force", bearerToken),
+                    cloneDir,
+                    cancellationToken)
                 .ConfigureAwait(false);
             return await GitRevAsync(cloneDir, cancellationToken).ConfigureAwait(false);
         }
@@ -71,6 +78,17 @@ public static class MonoRepoGitPush
         }
 
         return output.Trim();
+    }
+
+    private static string WithBearer(string gitArgs, string? bearerToken)
+    {
+        if (string.IsNullOrWhiteSpace(bearerToken))
+        {
+            return gitArgs;
+        }
+
+        // Azure DevOps git over HTTPS with Entra: AUTHORIZATION bearer <aad-token>
+        return $"-c http.extraHeader=\"AUTHORIZATION: bearer {bearerToken}\" {gitArgs}";
     }
 
     private static string Escape(string message) =>

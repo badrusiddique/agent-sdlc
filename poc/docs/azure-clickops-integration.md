@@ -56,7 +56,7 @@ Hybrid is supported: flip **one** concern to Azure at a time (recommended).
    Keep it only in a password manager / env — not git.
 5. (Optional tables) Table provider uses the same connection string; AgentHub creates tables on start when Provider=Azure.
 
-### Wire local process to Azure Storage
+### Wire local process to Azure Storage (key / connection string)
 
 ```bash
 export BlobStorage__Provider=Azure
@@ -64,6 +64,18 @@ export BlobStorage__ConnectionString='DefaultEndpointsProtocol=https;AccountName
 export BlobStorage__ContainerName=agenthub-artifacts
 export TableStorage__Provider=Azure
 export TableStorage__ConnectionString="$BlobStorage__ConnectionString"
+```
+
+### Cloud (AgentHub on App Service) — managed identity
+
+Leave `ConnectionString` empty; set ServiceUri and grant the App Service identity **Storage Blob Data Contributor** + **Storage Table Data Contributor**:
+
+```bash
+export BlobStorage__Provider=Azure
+export BlobStorage__ServiceUri='https://<account>.blob.core.windows.net'
+export BlobStorage__ContainerName=agenthub-artifacts
+export TableStorage__Provider=Azure
+export TableStorage__ServiceUri='https://<account>.table.core.windows.net'
 ```
 
 Or edit a **local-only** `appsettings.Development.local.json` (gitignored) using `appsettings.Azure.example.json` as a template.
@@ -86,7 +98,7 @@ Or edit a **local-only** `appsettings.Development.local.json` (gitignored) using
 2. **Repos** → **Files** → ensure repo exists (e.g. `inno-tech-aisdlc-apps` or a POC repo `app-monorepo`).
 3. If empty: **Initialize** with a README on `main` (required so clone has history).
 
-### ClickOps — PAT
+### ClickOps — PAT (local laptop → Azure DevOps)
 
 1. User icon → **Personal access tokens** → **+ New Token**  
    - Organization: All accessible or your org  
@@ -96,11 +108,27 @@ Or edit a **local-only** `appsettings.Development.local.json` (gitignored) using
 
 ```bash
 export IA_GIT_PROVIDER=azuredevops
+export IA_GIT_AUTH=pat
 export IA_GIT_ORGANIZATION=wcbbc
 export IA_GIT_PROJECT=AI-Operations
 export IA_GIT_REPO=inno-tech-aisdlc-apps   # or your POC repo
 export IA_GIT_TOKEN='…pat…'
 ```
+
+### Cloud — managed identity (AgentHub hosted on Azure)
+
+When AgentHub itself runs on App Service / ACA:
+
+```bash
+export IA_GIT_PROVIDER=azuredevops
+export IA_GIT_AUTH=managedIdentity
+export IA_GIT_ORGANIZATION=wcbbc
+export IA_GIT_PROJECT=AI-Operations
+export IA_GIT_REPO=inno-tech-aisdlc-apps
+# do NOT set IA_GIT_TOKEN
+```
+
+Grant the managed identity access to the AzDO org (Organization Settings → Users → add the service principal / identity; grant Basic + contribute to the repo). Tokens use Entra audience `499b84ac-1321-427f-aa17-267ca6975798`.
 
 ### Verify
 
@@ -134,15 +162,30 @@ export IA_GIT_TOKEN='…pat…'
    - Note `userName` and `userPWD` for the MSDeploy/profile profile (often `app-name\$app-name`).
 5. Web App → **Configuration** → **General settings** → enable **SCM Basic Auth Publishing Credentials** if zipdeploy with basic auth fails (portal toggle; required for publish-profile basic auth on newer apps).
 
-### Wire deploy
+### Wire deploy — local laptop (publish profile / key)
 
 ```bash
 export IA_DEPLOY_PROVIDER=appservice
+export IA_DEPLOY_AUTH=publishProfile
 export IA_DEPLOY_APP_NAME=app-bgx-poc-calc
 export IA_DEPLOY_PUBLIC_URL=https://app-bgx-poc-calc.azurewebsites.net
 export IA_DEPLOY_USER='app-bgx-poc-calc\$app-bgx-poc-calc'   # from profile
 export IA_DEPLOY_PASSWORD='…from profile…'
 ```
+
+### Wire deploy — cloud (managed identity)
+
+When AgentHub is hosted on Azure and deploys to a DEV App Service:
+
+```bash
+export IA_DEPLOY_PROVIDER=appservice
+export IA_DEPLOY_AUTH=managedIdentity
+export IA_DEPLOY_APP_NAME=app-bgx-poc-calc
+export IA_DEPLOY_PUBLIC_URL=https://app-bgx-poc-calc.azurewebsites.net
+# do NOT set IA_DEPLOY_USER / IA_DEPLOY_PASSWORD
+```
+
+Assign the AgentHub identity **Website Contributor** (or equivalent) on the target web app. Kudu zipdeploy uses Bearer (`https://management.azure.com/.default`).
 
 ### Verify
 
@@ -199,17 +242,29 @@ After each step: re-run local mode (`IA_GIT_PROVIDER=gitea`, `IA_DEPLOY_PROVIDER
 | Env | Purpose |
 |---|---|
 | `IA_GIT_PROVIDER` | `gitea` \| `azuredevops` |
+| `IA_GIT_AUTH` | `pat` (local→Azure) \| `managedIdentity` (cloud) |
 | `IA_GIT_ORGANIZATION` | AzDO org |
 | `IA_GIT_PROJECT` | AzDO project |
 | `IA_GIT_REPO` | Repo name |
-| `IA_GIT_TOKEN` / `AZDO_PAT` | PAT |
+| `IA_GIT_TOKEN` / `AZDO_PAT` | PAT when `IA_GIT_AUTH=pat` |
 | `IA_DEPLOY_PROVIDER` | `compose` \| `appservice` |
+| `IA_DEPLOY_AUTH` | `publishProfile` (local→Azure) \| `managedIdentity` (cloud) |
 | `IA_DEPLOY_APP_NAME` | Web app name |
 | `IA_DEPLOY_PUBLIC_URL` | https URL |
-| `IA_DEPLOY_USER` / `IA_DEPLOY_PASSWORD` | Publish profile |
+| `IA_DEPLOY_USER` / `IA_DEPLOY_PASSWORD` | Publish profile when `IA_DEPLOY_AUTH=publishProfile` |
 | `BlobStorage__Provider` | `File` \| `Azure` |
-| `BlobStorage__ConnectionString` | Azurite or Azure |
+| `BlobStorage__ConnectionString` | Azurite or Azure **key** (local) |
+| `BlobStorage__ServiceUri` | Blob endpoint + MI (cloud) |
 | `TableStorage__Provider` | `Memory` \| `Azure` |
+| `TableStorage__ConnectionString` | Azurite or Azure **key** (local) |
+| `TableStorage__ServiceUri` | Table endpoint + MI (cloud) |
+
+**Auth rule of thumb**
+
+| Where AgentHub runs | Storage | Git | Deploy |
+|---|---|---|---|
+| Laptop / local Docker | ConnectionString (key) | `Auth=pat` | `Auth=publishProfile` |
+| Azure App Service / ACA | ServiceUri + MI | `Auth=managedIdentity` | `Auth=managedIdentity` |
 
 Example file (no secrets): `poc/agenthub-api/src/AgentHub.WebApi/appsettings.Azure.example.json`.
 
@@ -220,9 +275,10 @@ Example file (no secrets): `poc/agenthub-api/src/AgentHub.WebApi/appsettings.Azu
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `Organization is required` | Provider=azuredevops without org | Set `IA_GIT_ORGANIZATION` |
-| `Token is required` | Missing PAT | Create PAT; set `IA_GIT_TOKEN` |
-| AzDO PR create 401/403 | PAT scopes | Code + PR read/write |
-| zipdeploy 401 | SCM basic auth off / wrong user | Enable SCM basic auth; copy publish profile user/pwd |
+| `Token is required` | Missing PAT with Auth=pat | Create PAT; set `IA_GIT_TOKEN` — or switch to `IA_GIT_AUTH=managedIdentity` |
+| AzDO PR create 401/403 | PAT scopes or MI not in AzDO | Code + PR read/write; or add identity to AzDO org |
+| zipdeploy 401 | SCM basic auth off / wrong user / MI rights | Enable SCM basic auth for publishProfile; or grant Website Contributor for MI |
+| Empty DefaultAzureCredential token | No MI / not logged in | Assign identity on App Service; locally use keys or `az login` |
 | Health timeout after zipdeploy | Wrong runtime / app crash | Log stream in portal; confirm `/health` exists in published app |
 | Local verify fails after Azure work | Defaults changed | Development JSON must stay `gitea` + `compose` |
 
@@ -231,6 +287,6 @@ Example file (no secrets): `poc/agenthub-api/src/AgentHub.WebApi/appsettings.Azu
 ## 8. What this POC still does not automate
 
 - Creating RG / storage / web app from the agent (you ClickOps once).
-- Managed Identity role assignments (person grants).
+- Managed Identity role assignments (person grants in portal / AzDO).
 - Full AzDO Boards epic/story sync (design prompt has it; POC IA focuses on mono folder + PR).
 - Frontend App Service as a second site (backend URL is enough for Calculator smoke).

@@ -9,6 +9,13 @@ public sealed class IaGitOptions
     public string Provider { get; set; } = "gitea";
 
     /// <summary>
+    /// Azure DevOps auth when Provider=azuredevops:
+    /// pat (local / key) | managedIdentity (cloud App Service / az login via DefaultAzureCredential).
+    /// Prefer env IA_GIT_AUTH.
+    /// </summary>
+    public string Auth { get; set; } = "pat";
+
+    /// <summary>
     /// Gitea: http://127.0.0.1:43185
     /// Azure DevOps: https://dev.azure.com/{organization} (org only; project/repo below)
     /// </summary>
@@ -29,8 +36,13 @@ public sealed class IaGitOptions
 
     public string Password { get; set; } = "pocpocpoc";
 
-    /// <summary>PAT for Azure DevOps (Code Read/Write + PR). Prefer env IA_GIT_TOKEN.</summary>
+    /// <summary>PAT for Azure DevOps when Auth=pat (Code Read/Write + PR). Prefer env IA_GIT_TOKEN.</summary>
     public string? Token { get; set; }
+
+    public bool UseManagedIdentity =>
+        string.Equals(Auth, "managedIdentity", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Auth, "mi", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Auth, "defaultazurecredential", StringComparison.OrdinalIgnoreCase);
 
     public string ApiVersion { get; set; } = "7.1";
 

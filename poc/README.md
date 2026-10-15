@@ -29,7 +29,7 @@ Design: [`docs/ia-local-docker-design.md`](docs/ia-local-docker-design.md), [`do
 
 **Azure QA Runbook (other machine + real subscription):** [`docs/qa/QA_Runbook-azure-dual-mode.md`](docs/qa/QA_Runbook-azure-dual-mode.md) — Gates A–E (`verify-ta`, contract tests, `verify-azure-preflight`, `verify-azure-e2e`, local dual-mode).
 
-**Azure dual-mode (same code):** defaults stay Gitea + Compose; flip via `IA_GIT_PROVIDER` / `IA_DEPLOY_PROVIDER` (or `Ia:*` config). ClickOps: [`docs/azure-clickops-integration.md`](docs/azure-clickops-integration.md). Design: [`docs/azure-dual-mode-design.md`](docs/azure-dual-mode-design.md). Example config: `agenthub-api/src/AgentHub.WebApi/appsettings.Azure.example.json`. Older stepwise notes: [`docs/azure-integration-next-steps.md`](docs/azure-integration-next-steps.md).
+**Azure dual-mode (same code):** defaults stay Gitea + Compose; flip via `IA_GIT_PROVIDER` / `IA_DEPLOY_PROVIDER` (or `Ia:*` config). **Auth:** local laptop → Azure uses keys (`IA_GIT_AUTH=pat`, `IA_DEPLOY_AUTH=publishProfile`, storage ConnectionString); AgentHub hosted in Azure uses managed identity (`Auth=managedIdentity`, storage ServiceUri). ClickOps: [`docs/azure-clickops-integration.md`](docs/azure-clickops-integration.md). Design: [`docs/azure-dual-mode-design.md`](docs/azure-dual-mode-design.md). Example config: `agenthub-api/src/AgentHub.WebApi/appsettings.Azure.example.json`. Older stepwise notes: [`docs/azure-integration-next-steps.md`](docs/azure-integration-next-steps.md).
 
 ```bash
 # From poc/ — Azurite + Gitea, then APIs, then IA+TA verify

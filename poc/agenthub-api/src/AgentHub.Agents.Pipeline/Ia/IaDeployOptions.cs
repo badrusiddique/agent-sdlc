@@ -8,6 +8,13 @@ public sealed class IaDeployOptions
     /// <summary>compose | appservice</summary>
     public string Provider { get; set; } = "compose";
 
+    /// <summary>
+    /// App Service auth when Provider=appservice:
+    /// publishProfile (local / key) | managedIdentity (cloud / DefaultAzureCredential Bearer to Kudu).
+    /// Prefer env IA_DEPLOY_AUTH.
+    /// </summary>
+    public string Auth { get; set; } = "publishProfile";
+
     /// <summary>App Service site name (e.g. app-bgx-poc-calc).</summary>
     public string? AppName { get; set; }
 
@@ -17,11 +24,16 @@ public sealed class IaDeployOptions
     /// <summary>https://{app}.scm.azurewebsites.net — optional override.</summary>
     public string? ScmBaseUrl { get; set; }
 
-    /// <summary>Publish-profile user (often ${AppName}). Prefer env IA_DEPLOY_USER.</summary>
+    /// <summary>Publish-profile user when Auth=publishProfile (often ${AppName}). Prefer env IA_DEPLOY_USER.</summary>
     public string? PublishUser { get; set; }
 
-    /// <summary>Publish-profile password. Prefer env IA_DEPLOY_PASSWORD. Never commit.</summary>
+    /// <summary>Publish-profile password when Auth=publishProfile. Prefer env IA_DEPLOY_PASSWORD. Never commit.</summary>
     public string? PublishPassword { get; set; }
+
+    public bool UseManagedIdentity =>
+        string.Equals(Auth, "managedIdentity", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Auth, "mi", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Auth, "defaultazurecredential", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Health path after deploy (default /health).</summary>
     public string HealthPath { get; set; } = "/health";

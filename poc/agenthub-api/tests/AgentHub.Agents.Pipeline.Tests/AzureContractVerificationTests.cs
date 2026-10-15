@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using AgentHub.Agents.Pipeline.Ia;
+using Azure.Core;
 
 namespace AgentHub.Agents.Pipeline.Tests;
 
@@ -31,6 +32,7 @@ public sealed class AzureContractVerificationTests
             new IaGitOptions
             {
                 Provider = "azuredevops",
+                Auth = "pat",
                 Organization = "wcbbc",
                 Project = "AI Operations",
                 Repo = "inno-tech-aisdlc-apps",
@@ -71,6 +73,48 @@ public sealed class AzureContractVerificationTests
     }
 
     [Fact]
+    public async Task Azdo_create_pr_uses_bearer_when_auth_managed_identity()
+    {
+        HttpRequestMessage? seen = null;
+        var handler = new ScriptedHandler();
+        handler.Map(
+            HttpMethod.Post,
+            uri => uri.AbsolutePath.Contains("/pullrequests", StringComparison.Ordinal),
+            (req, _) =>
+            {
+                seen = req;
+                return """{"pullRequestId":42,"url":"https://dev.azure.com/o/p/_apis/git/pullRequests/42"}""";
+            });
+
+        var client = new AzureDevOpsPullRequestClient(
+            new IaGitOptions
+            {
+                Provider = "azuredevops",
+                Auth = "managedIdentity",
+                Organization = "wcbbc",
+                Project = "AI Operations",
+                Repo = "inno-tech-aisdlc-apps",
+                TargetBranch = "main",
+                ApiVersion = "7.1"
+            },
+            new HttpClient(handler),
+            new FixedTokenCredential("aad-token-value"));
+
+        var method = typeof(AzureDevOpsPullRequestClient).GetMethod(
+            "CreatePullRequestAsync",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+        Assert.NotNull(method);
+        var task = (Task<PullRequestResult>)method!.Invoke(
+            client,
+            ["feature/wi-1", "title", "body", "deadbeef", CancellationToken.None])!;
+        await task;
+
+        Assert.NotNull(seen);
+        Assert.Equal("Bearer", seen!.Headers.Authorization?.Scheme);
+        Assert.Equal("aad-token-value", seen.Headers.Authorization?.Parameter);
+    }
+
+    [Fact]
     public void Azdo_clone_url_encodes_project_spaces()
     {
         var opts = new IaGitOptions
@@ -108,6 +152,7 @@ public sealed class AzureContractVerificationTests
             new IaDeployOptions
             {
                 Provider = "appservice",
+                Auth = "publishProfile",
                 AppName = "app-bgx-poc",
                 PublicBaseUrl = "https://app-bgx-poc.azurewebsites.net",
                 ScmBaseUrl = "https://app-bgx-poc.scm.azurewebsites.net",
@@ -129,6 +174,46 @@ public sealed class AzureContractVerificationTests
         Assert.Equal("Basic", zipReq.Headers.Authorization?.Scheme);
         var raw = Encoding.ASCII.GetString(Convert.FromBase64String(zipReq.Headers.Authorization!.Parameter!));
         Assert.Equal("$app-bgx-poc:secret", raw);
+    }
+
+    [Fact]
+    public async Task AppService_zipdeploy_uses_bearer_when_auth_managed_identity()
+    {
+        HttpRequestMessage? zipReq = null;
+        var handler = new ScriptedHandler();
+        handler.Map(
+            HttpMethod.Post,
+            uri => uri.AbsolutePath.Contains("/api/zipdeploy", StringComparison.Ordinal),
+            (req, _) =>
+            {
+                zipReq = req;
+                return "ok";
+            });
+        handler.Map(
+            HttpMethod.Get,
+            uri => uri.AbsolutePath.Contains("/health", StringComparison.Ordinal),
+            (_, _) => """{"status":"ok"}""");
+
+        var workspace = CreatePublishableBackend();
+        var host = new AzureAppServiceDeployHost(
+            new IaDeployOptions
+            {
+                Provider = "appservice",
+                Auth = "managedIdentity",
+                AppName = "app-bgx-poc",
+                PublicBaseUrl = "https://app-bgx-poc.azurewebsites.net",
+                ScmBaseUrl = "https://app-bgx-poc.scm.azurewebsites.net",
+                HealthPath = "/health",
+                HealthTimeoutSeconds = 30
+            },
+            new HttpClient(handler) { Timeout = TimeSpan.FromMinutes(5) },
+            new FixedTokenCredential("scm-aad-token"));
+
+        await host.DeployAsync(workspace, "wi1", CancellationToken.None);
+
+        Assert.NotNull(zipReq);
+        Assert.Equal("Bearer", zipReq!.Headers.Authorization?.Scheme);
+        Assert.Equal("scm-aad-token", zipReq.Headers.Authorization?.Parameter);
     }
 
     [Fact]
@@ -173,6 +258,21 @@ public sealed class AzureContractVerificationTests
             a.Run();
             """);
         return root;
+    }
+
+    private sealed class FixedTokenCredential : TokenCredential
+    {
+        private readonly string _token;
+
+        public FixedTokenCredential(string token) => _token = token;
+
+        public override AccessToken GetToken(TokenRequestContext requestContext, CancellationToken cancellationToken) =>
+            new(_token, DateTimeOffset.UtcNow.AddHours(1));
+
+        public override ValueTask<AccessToken> GetTokenAsync(
+            TokenRequestContext requestContext,
+            CancellationToken cancellationToken) =>
+            new(GetToken(requestContext, cancellationToken));
     }
 
     private sealed class ScriptedHandler : HttpMessageHandler

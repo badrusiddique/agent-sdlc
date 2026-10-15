@@ -76,6 +76,12 @@ public static class AgentWorkersServiceCollectionExtensions
             git.Provider = provider.Trim();
         }
 
+        var auth = Environment.GetEnvironmentVariable("IA_GIT_AUTH");
+        if (!string.IsNullOrWhiteSpace(auth))
+        {
+            git.Auth = auth.Trim();
+        }
+
         var org = Environment.GetEnvironmentVariable("IA_GIT_ORGANIZATION");
         if (!string.IsNullOrWhiteSpace(org))
         {
@@ -108,6 +114,12 @@ public static class AgentWorkersServiceCollectionExtensions
         if (!string.IsNullOrWhiteSpace(provider))
         {
             deploy.Provider = provider.Trim();
+        }
+
+        var auth = Environment.GetEnvironmentVariable("IA_DEPLOY_AUTH");
+        if (!string.IsNullOrWhiteSpace(auth))
+        {
+            deploy.Auth = auth.Trim();
         }
 
         var app = Environment.GetEnvironmentVariable("IA_DEPLOY_APP_NAME");

@@ -1,22 +1,34 @@
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using Azure.Core;
+using Azure.Identity;
 
 namespace AgentHub.Agents.Pipeline.Ia;
 
 /// <summary>
-/// Azure DevOps Repos PR open + complete (merge). Auth = PAT via Basic empty-user:token
-/// (docs: https://learn.microsoft.com/en-us/rest/api/azure/devops/git/pull-requests).
+/// Azure DevOps Repos PR open + complete (merge).
+/// Auth = PAT (Basic empty-user:token) locally, or managed identity / DefaultAzureCredential
+/// (Bearer) when hosted in Azure. Docs:
+/// https://learn.microsoft.com/en-us/rest/api/azure/devops/git/pull-requests
 /// </summary>
 public sealed class AzureDevOpsPullRequestClient : IGitPullRequestClient
 {
+    /// <summary>Azure DevOps resource application ID (Entra token audience).</summary>
+    public const string AzureDevOpsResourceId = "499b84ac-1321-427f-aa17-267ca6975798";
+
     private readonly IaGitOptions _options;
     private readonly HttpClient _http;
+    private readonly TokenCredential _credential;
 
-    public AzureDevOpsPullRequestClient(IaGitOptions options, HttpClient? http = null)
+    public AzureDevOpsPullRequestClient(
+        IaGitOptions options,
+        HttpClient? http = null,
+        TokenCredential? credential = null)
     {
         _options = options;
         _http = http ?? new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
+        _credential = credential ?? new DefaultAzureCredential();
     }
 
     public async Task<PullRequestResult> PushAndOpenPrAsync(
@@ -27,10 +39,27 @@ public sealed class AzureDevOpsPullRequestClient : IGitPullRequestClient
         CancellationToken cancellationToken)
     {
         EnsureConfigured();
-        var remote = BuildAuthenticatedCloneUrl();
+        string? bearer = null;
+        string remote;
+        if (_options.UseManagedIdentity)
+        {
+            bearer = await GetAccessTokenAsync(cancellationToken).ConfigureAwait(false);
+            remote = _options.CloneUrl;
+        }
+        else
+        {
+            remote = BuildPatCloneUrl();
+        }
+
         var folderName = new DirectoryInfo(monoRoot).Name;
         var head = await MonoRepoGitPush
-            .PushWorkItemFolderAsync(monoRoot, branch, remote, $"IA: {folderName}", cancellationToken)
+            .PushWorkItemFolderAsync(
+                monoRoot,
+                branch,
+                remote,
+                $"IA: {folderName}",
+                cancellationToken,
+                bearer)
             .ConfigureAwait(false);
         return await CreatePullRequestAsync(branch, title, body, head, cancellationToken)
             .ConfigureAwait(false);
@@ -48,7 +77,7 @@ public sealed class AzureDevOpsPullRequestClient : IGitPullRequestClient
         var api = $"https://dev.azure.com/{org}/{project}/_apis/git/repositories/{repo}/pullrequests/{prNumber}?api-version={_options.ApiVersion}";
 
         using var getReq = new HttpRequestMessage(HttpMethod.Get, api);
-        ApplyAuth(getReq);
+        await ApplyAuthAsync(getReq, cancellationToken).ConfigureAwait(false);
         using var getRes = await _http.SendAsync(getReq, cancellationToken).ConfigureAwait(false);
         var getJson = await getRes.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
         if (!getRes.IsSuccessStatusCode)
@@ -93,7 +122,7 @@ public sealed class AzureDevOpsPullRequestClient : IGitPullRequestClient
             });
 
         using var patchReq = new HttpRequestMessage(HttpMethod.Patch, api);
-        ApplyAuth(patchReq);
+        await ApplyAuthAsync(patchReq, cancellationToken).ConfigureAwait(false);
         patchReq.Content = new StringContent(patchBody, Encoding.UTF8, "application/json");
         using var patchRes = await _http.SendAsync(patchReq, cancellationToken).ConfigureAwait(false);
         var patchJson = await patchRes.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -146,7 +175,7 @@ public sealed class AzureDevOpsPullRequestClient : IGitPullRequestClient
             });
 
         using var req = new HttpRequestMessage(HttpMethod.Post, api);
-        ApplyAuth(req);
+        await ApplyAuthAsync(req, cancellationToken).ConfigureAwait(false);
         req.Content = new StringContent(payload, Encoding.UTF8, "application/json");
         using var res = await _http.SendAsync(req, cancellationToken).ConfigureAwait(false);
         var json = await res.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
@@ -181,7 +210,7 @@ public sealed class AzureDevOpsPullRequestClient : IGitPullRequestClient
         var api =
             $"https://dev.azure.com/{org}/{project}/_apis/git/repositories/{repo}/pullrequests?searchCriteria.status=active&searchCriteria.sourceRefName={source}&api-version={_options.ApiVersion}";
         using var req = new HttpRequestMessage(HttpMethod.Get, api);
-        ApplyAuth(req);
+        await ApplyAuthAsync(req, cancellationToken).ConfigureAwait(false);
         using var res = await _http.SendAsync(req, cancellationToken).ConfigureAwait(false);
         if (!res.IsSuccessStatusCode)
         {
@@ -219,31 +248,35 @@ public sealed class AzureDevOpsPullRequestClient : IGitPullRequestClient
                 "Ia:Git:Organization is required for Provider=azuredevops. See poc/docs/azure-clickops-integration.md.");
         }
 
-        var token = ResolveToken();
+        if (_options.UseManagedIdentity)
+        {
+            return;
+        }
+
+        var token = ResolvePat();
         if (string.IsNullOrWhiteSpace(token))
         {
             throw new InvalidOperationException(
-                "Ia:Git:Token (or env IA_GIT_TOKEN) is required for Azure DevOps. Create a PAT with Code Read & Write + Pull Request Read & Write. See poc/docs/azure-clickops-integration.md.");
+                "Ia:Git:Token (or env IA_GIT_TOKEN) is required when Ia:Git:Auth=pat. Create a PAT with Code Read & Write + Pull Request Read & Write, or set Auth=managedIdentity for cloud. See poc/docs/azure-clickops-integration.md.");
         }
 
         _options.Token = token;
     }
 
-    private string ResolveToken() =>
+    private string ResolvePat() =>
         FirstNonEmpty(
             _options.Token,
             Environment.GetEnvironmentVariable("IA_GIT_TOKEN"),
             Environment.GetEnvironmentVariable("AZDO_PAT"))
         ?? "";
 
-    private string BuildAuthenticatedCloneUrl()
+    private string BuildPatCloneUrl()
     {
-        var token = ResolveToken();
+        var token = ResolvePat();
         var org = Uri.EscapeDataString(_options.Organization!);
         var project = Uri.EscapeDataString(_options.AzdoProject);
         var repo = Uri.EscapeDataString(_options.Repo);
         // PAT over HTTPS: username can be anything; password is the PAT.
-        // Path segments are escaped so project names with spaces work.
         return $"https://pat:{Uri.EscapeDataString(token)}@dev.azure.com/{org}/{project}/_git/{repo}";
     }
 
@@ -255,11 +288,34 @@ public sealed class AzureDevOpsPullRequestClient : IGitPullRequestClient
         return $"https://dev.azure.com/{org}/{project}/_git/{repo}/pullrequest/{prNumber}";
     }
 
-    private void ApplyAuth(HttpRequestMessage req)
+    private async Task ApplyAuthAsync(HttpRequestMessage req, CancellationToken cancellationToken)
     {
-        var token = ResolveToken();
+        if (_options.UseManagedIdentity)
+        {
+            var accessToken = await GetAccessTokenAsync(cancellationToken).ConfigureAwait(false);
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            return;
+        }
+
+        var token = ResolvePat();
         var bytes = Encoding.ASCII.GetBytes($":{token}");
         req.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(bytes));
+    }
+
+    private async Task<string> GetAccessTokenAsync(CancellationToken cancellationToken)
+    {
+        var result = await _credential
+            .GetTokenAsync(
+                new TokenRequestContext([$"{AzureDevOpsResourceId}/.default"]),
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(result.Token))
+        {
+            throw new InvalidOperationException(
+                "DefaultAzureCredential returned an empty token for Azure DevOps. On App Service assign a managed identity with AzDO access; locally use Auth=pat or az login.");
+        }
+
+        return result.Token;
     }
 
     private static string? TryGetCommitId(JsonElement root, string property)
