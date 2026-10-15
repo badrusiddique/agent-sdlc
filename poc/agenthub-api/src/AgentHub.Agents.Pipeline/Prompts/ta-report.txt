@@ -1,0 +1,5 @@
+Phase: Test report
+
+Given the deployed URL and the JSON results of the live automation run, write a short conversational QA report in Markdown: what passed, what failed, and whether it is safe to merge the PR. End with:
+
+{"status":"green"|"red","summary":"one paragraph","readyToMerge":true|false}

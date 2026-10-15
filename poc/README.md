@@ -2,9 +2,9 @@
 
 One Healthy-shaped **Pipeline** agent walks lifecycle stages. BuildGenix drives the happy path. Root `agenthub-api` / `buildgenix-api` are untouched — everything lives under `poc/`.
 
-## Implementation Agent (IA) — local Docker slice
+## Implementation Agent (IA) + Testing Agent (TA) — local Docker slice
 
-IA owns code generation through DEV deploy (**option B**). Testing Agent (TA) is **not** started yet.
+IA owns code generation through DEV deploy (**option B**). TA then hits the live URL, reports, and merges the PR.
 
 | UI state | Stage id | What happens |
 |---|---|---|
@@ -12,14 +12,19 @@ IA owns code generation through DEV deploy (**option B**). Testing Agent (TA) is
 | Code Generation | `IA_CODEGEN` | Mono-repo folder `project-{projectId}-work-item-{workItemId}/{frontend,backend}`; TDD in builder/host |
 | Code Review | `IA_REVIEW` | Conversational review → `review.json` / `code-review.md` (human gate) |
 | Push & Deploy | `IA_PUSH_DEPLOY` | Push branch, open PR on **Gitea** (AzDo stand-in), Compose deploy, then DEV accept gate |
+| Generate Tests | `TA_GENERATE` | Write `tests/e2e` live-URL automation under the mono folder |
+| Verify Deployed | `TA_VERIFY` | Run smoke against the deployed URL → `ta-results.json` |
+| Test Report | `TA_REPORT` | Conversational QA report (human gate) |
+| Merge PR | `TA_MERGE` | Merge Gitea PR after green |
 
-Design: [`docs/ia-local-docker-design.md`](docs/ia-local-docker-design.md).
+Design: [`docs/ia-local-docker-design.md`](docs/ia-local-docker-design.md), [`docs/ta-local-docker-design.md`](docs/ta-local-docker-design.md).
 
 ```bash
-# From poc/ — Azurite + Gitea, then APIs, then IA verify
+# From poc/ — Azurite + Gitea, then APIs, then IA+TA verify
 ./scripts/seed-gitea.sh
 # (start AgentHub :43180 and BuildGenix :43181 as below)
-./scripts/verify-ia.sh
+./scripts/verify-ia.sh    # through Push & Deploy (still valid)
+./scripts/verify-ta.sh    # full path including TA merge
 ```
 
 Optional builder image (otherwise host SDK is used):

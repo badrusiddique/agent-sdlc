@@ -1,0 +1,5 @@
+Phase: Generate automation tests for the deployed app.
+
+In conversational Markdown, list the HTTP checks you will run against the live DEV URL (health plus stack-specific APIs). Then end with a JSON object:
+
+{"cases":[{"name":"...","method":"GET","path":"/...","expectStatus":200,"expectBodyContains":"optional substring"}]}

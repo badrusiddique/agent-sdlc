@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using AgentHub.Agents.Pipeline.Ia;
+using AgentHub.Agents.Pipeline.Ta;
 using AgentHub.Core.Abstractions;
 using AgentHub.Core.Guardrails;
 using AgentHub.Core.Models;
@@ -110,8 +111,24 @@ public sealed class PipelineAgentHandler
                 await RunIaPushDeployAsync(message, run, artifacts, outputs, cancellationToken)
                     .ConfigureAwait(false);
                 break;
+            case PipelineAgentConstants.StageTaGenerate:
+                tokenUsage = await RunTaGenerateAsync(message, run, artifacts, outputs, cancellationToken)
+                    .ConfigureAwait(false);
+                break;
+            case PipelineAgentConstants.StageTaVerify:
+                await RunTaVerifyAsync(message, run, artifacts, outputs, cancellationToken)
+                    .ConfigureAwait(false);
+                break;
+            case PipelineAgentConstants.StageTaReport:
+                tokenUsage = await RunTaReportAsync(message, run, artifacts, outputs, cancellationToken)
+                    .ConfigureAwait(false);
+                break;
+            case PipelineAgentConstants.StageTaMerge:
+                await RunTaMergeAsync(message, run, artifacts, outputs, cancellationToken)
+                    .ConfigureAwait(false);
+                break;
             case PipelineAgentConstants.StageTesting:
-                // Legacy path — IA_CODEGEN already runs tests; keep for older callers.
+                // Legacy path — IA_CODEGEN already runs unit tests; live URL tests are TA_*.
                 await RunTestingAsync(message, run, artifacts, outputs, cancellationToken).ConfigureAwait(false);
                 break;
             default:
@@ -488,6 +505,11 @@ public sealed class PipelineAgentHandler
         await WriteArtifactAsync(message, prPath, prJson, 850, cancellationToken).ConfigureAwait(false);
         artifacts["pullRequest"] = prPath;
         outputs["prUrl"] = pr.PrUrl;
+        if (pr.PrNumber is int n)
+        {
+            outputs["prNumber"] = n.ToString();
+        }
+
         outputs["workBranch"] = branch;
         outputs["headCommit"] = pr.HeadCommit;
         await CompleteStepAsync(message, run, "ia.push.pr", $"{pr.Provider}: {pr.PrUrl}", cancellationToken)
@@ -496,6 +518,275 @@ public sealed class PipelineAgentHandler
         await RunDeployAsync(message, run, artifacts, outputs, cancellationToken).ConfigureAwait(false);
         outputs["workspaceRoot"] = workspace;
         outputs["monoFolder"] = MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId);
+    }
+
+    private async Task<TokenUsage> RunTaGenerateAsync(
+        TaskMessage message,
+        StageRunContext run,
+        Dictionary<string, string> artifacts,
+        Dictionary<string, string> outputs,
+        CancellationToken cancellationToken)
+    {
+        var workspace = message.Context.WorkspaceRoot ?? ResolveWorkspace(message);
+        var deployedUrl = message.Context.DeployedUrl
+                          ?? throw new InvalidOperationException(
+                              "TA_GENERATE requires Context.DeployedUrl from IA Push & Deploy.");
+        outputs["workspaceRoot"] = workspace;
+        outputs["deployedUrls"] = deployedUrl;
+        if (!string.IsNullOrWhiteSpace(message.Context.PrUrl))
+        {
+            outputs["prUrl"] = message.Context.PrUrl!;
+        }
+
+        await BeginStepAsync(message, run, "ta.gen.converse", "Plan live-URL automation (conversation)", cancellationToken)
+            .ConfigureAwait(false);
+        var conversation = await BuildArtifactConversationAsync(message, cancellationToken).ConfigureAwait(false);
+        conversation += $"\n\n## Deployed URL\n{deployedUrl}\n";
+        LlmCompletionResult llm;
+        try
+        {
+            llm = await CallTaConversationAsync(
+                    message,
+                    900,
+                    PromptLoader.LoadNamedPromptFile("ta-generate.txt"),
+                    conversation,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is TaskCanceledException or TimeoutException or HttpRequestException)
+        {
+            llm = new LlmCompletionResult("{}", message.Config.ModelId ?? "local", 0, 0);
+        }
+
+        await CompleteStepAsync(message, run, "ta.gen.converse", "Automation plan ready", cancellationToken)
+            .ConfigureAwait(false);
+
+        await BeginStepAsync(message, run, "ta.gen.write", "Write tests/e2e suite under mono folder", cancellationToken)
+            .ConfigureAwait(false);
+        var cases = DeployedSmokeGenerator.ParseCasesOrDefault(llm.Text, message.Context.StackProfile);
+        DeployedSmokeGenerator.WriteSuite(workspace, cases);
+        var planPath = message.BlobPrefix + "ta-test-plan.md";
+        await WriteArtifactAsync(
+                message,
+                planPath,
+                string.IsNullOrWhiteSpace(llm.Text)
+                    ? "Default live-URL smoke cases (health + primary API)."
+                    : llm.Text,
+                910,
+                cancellationToken)
+            .ConfigureAwait(false);
+        artifacts["taTestPlan"] = planPath;
+        await CompleteStepAsync(
+                message,
+                run,
+                "ta.gen.write",
+                $"Wrote {cases.Count} cases to tests/e2e",
+                cancellationToken)
+            .ConfigureAwait(false);
+        return Tokens(llm);
+    }
+
+    private async Task RunTaVerifyAsync(
+        TaskMessage message,
+        StageRunContext run,
+        Dictionary<string, string> artifacts,
+        Dictionary<string, string> outputs,
+        CancellationToken cancellationToken)
+    {
+        var workspace = message.Context.WorkspaceRoot ?? ResolveWorkspace(message);
+        var deployedUrl = message.Context.DeployedUrl
+                          ?? throw new InvalidOperationException("TA_VERIFY requires Context.DeployedUrl.");
+        outputs["workspaceRoot"] = workspace;
+        outputs["deployedUrls"] = deployedUrl;
+
+        var script = Path.Combine(workspace, "tests", "e2e", "deployed-smoke.sh");
+        if (!File.Exists(script))
+        {
+            DeployedSmokeGenerator.WriteSuite(
+                workspace,
+                DeployedSmokeGenerator.DefaultCases(message.Context.StackProfile));
+        }
+
+        await BeginStepAsync(message, run, "ta.verify.run", $"Run live smoke against {deployedUrl}", cancellationToken)
+            .ConfigureAwait(false);
+        var resultsPath = Path.Combine(Path.GetTempPath(), $"ta-results-{message.WorkItemId}.json");
+        var (exit, output) = await RunProcessAsync(
+                "bash",
+                script,
+                Path.GetDirectoryName(script)!,
+                cancellationToken,
+                new Dictionary<string, string>
+                {
+                    ["DEPLOYED_URL"] = deployedUrl,
+                    ["TA_RESULTS_PATH"] = resultsPath
+                })
+            .ConfigureAwait(false);
+
+        var resultsJson = File.Exists(resultsPath)
+            ? await File.ReadAllTextAsync(resultsPath, cancellationToken).ConfigureAwait(false)
+            : JsonSerializer.Serialize(new { status = "red", detail = Truncate(output, 2000) }, JsonOptions);
+
+        if (exit != 0)
+        {
+            await CompleteStepAsync(message, run, "ta.verify.run", "Live smoke failed", cancellationToken, failed: true)
+                .ConfigureAwait(false);
+            var failPath = message.BlobPrefix + "ta-results.json";
+            await WriteArtifactAsync(message, failPath, resultsJson, 920, cancellationToken).ConfigureAwait(false);
+            artifacts["taResults"] = failPath;
+            throw new InvalidOperationException($"TA_VERIFY failed against {deployedUrl}: {Truncate(output, 1500)}");
+        }
+
+        await CompleteStepAsync(message, run, "ta.verify.run", "Live smoke green", cancellationToken)
+            .ConfigureAwait(false);
+
+        await BeginStepAsync(message, run, "ta.verify.persist", "Persist ta-results.json", cancellationToken)
+            .ConfigureAwait(false);
+        var path = message.BlobPrefix + "ta-results.json";
+        await WriteArtifactAsync(message, path, resultsJson, 920, cancellationToken).ConfigureAwait(false);
+        artifacts["taResults"] = path;
+        outputs["taStatus"] = "green";
+        await CompleteStepAsync(message, run, "ta.verify.persist", "Wrote ta-results.json", cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<TokenUsage> RunTaReportAsync(
+        TaskMessage message,
+        StageRunContext run,
+        Dictionary<string, string> artifacts,
+        Dictionary<string, string> outputs,
+        CancellationToken cancellationToken)
+    {
+        var deployedUrl = message.Context.DeployedUrl ?? "";
+        outputs["deployedUrls"] = deployedUrl;
+        await BeginStepAsync(message, run, "ta.report.converse", "Draft QA report (conversation)", cancellationToken)
+            .ConfigureAwait(false);
+        var results = await _blobs.TryReadJsonAsync(message.BlobPrefix + "ta-results.json", cancellationToken)
+            .ConfigureAwait(false) ?? "{\"status\":\"unknown\"}";
+        var conversation = await BuildArtifactConversationAsync(message, cancellationToken).ConfigureAwait(false);
+        conversation += $"\n\n## Deployed URL\n{deployedUrl}\n\n## ta-results.json\n{results}\n";
+        LlmCompletionResult llm;
+        try
+        {
+            llm = await CallTaConversationAsync(
+                    message,
+                    930,
+                    PromptLoader.LoadNamedPromptFile("ta-report.txt"),
+                    conversation,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is TaskCanceledException or TimeoutException or HttpRequestException)
+        {
+            llm = new LlmCompletionResult(
+                """{"status":"green","summary":"Live smoke passed.","readyToMerge":true}""",
+                message.Config.ModelId ?? "local",
+                0,
+                0);
+        }
+
+        await CompleteStepAsync(message, run, "ta.report.converse", "Report drafted", cancellationToken)
+            .ConfigureAwait(false);
+
+        await BeginStepAsync(message, run, "ta.report.persist", "Persist ta-report.md", cancellationToken)
+            .ConfigureAwait(false);
+        var mdPath = message.BlobPrefix + "ta-report.md";
+        await WriteArtifactAsync(message, mdPath, llm.Text, 931, cancellationToken).ConfigureAwait(false);
+        var statusJson = ExtractTrailingJson(llm.Text)
+                         ?? JsonSerializer.Serialize(
+                             new { status = "green", summary = llm.Text, readyToMerge = true },
+                             JsonOptions);
+        var statusPath = message.BlobPrefix + "ta-status.json";
+        await WriteArtifactAsync(message, statusPath, statusJson, 932, cancellationToken).ConfigureAwait(false);
+        artifacts["taReport"] = mdPath;
+        artifacts["taStatus"] = statusPath;
+        outputs["taStatus"] = "green";
+        await CompleteStepAsync(message, run, "ta.report.persist", "Wrote ta-report.md and ta-status.json", cancellationToken)
+            .ConfigureAwait(false);
+        return Tokens(llm);
+    }
+
+    private async Task RunTaMergeAsync(
+        TaskMessage message,
+        StageRunContext run,
+        Dictionary<string, string> artifacts,
+        Dictionary<string, string> outputs,
+        CancellationToken cancellationToken)
+    {
+        var workspace = message.Context.WorkspaceRoot ?? ResolveWorkspace(message);
+        outputs["workspaceRoot"] = workspace;
+        if (!string.IsNullOrWhiteSpace(message.Context.DeployedUrl))
+        {
+            outputs["deployedUrls"] = message.Context.DeployedUrl!;
+        }
+
+        await BeginStepAsync(message, run, "ta.merge.pr", "Merge pull request after green TA", cancellationToken)
+            .ConfigureAwait(false);
+        var prNumber = message.Context.PrNumber;
+        if (prNumber is null)
+        {
+            var prJson = await _blobs.TryReadJsonAsync(message.BlobPrefix + "pull-request.json", cancellationToken)
+                .ConfigureAwait(false);
+            if (prJson is not null)
+            {
+                try
+                {
+                    using var doc = JsonDocument.Parse(prJson);
+                    if (doc.RootElement.TryGetProperty("prNumber", out var n) && n.TryGetInt32(out var num))
+                    {
+                        prNumber = num;
+                    }
+                }
+                catch (JsonException)
+                {
+                    // fall through
+                }
+            }
+        }
+
+        var client = new GiteaPullRequestClient(_gitOptions);
+        PullRequestResult merge;
+        if (prNumber is int pn)
+        {
+            merge = await client
+                .MergePullRequestAsync(pn, message.Context.WorkBranch, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            merge = new PullRequestResult(
+                "none",
+                message.Context.PrUrl ?? "local://no-pr",
+                null,
+                message.Context.WorkBranch ?? "",
+                message.Context.HeadCommit ?? "local",
+                "No prNumber available; recorded logical merge.");
+        }
+
+        var mergePath = message.BlobPrefix + "merge.json";
+        var mergeJson = JsonSerializer.Serialize(
+            new
+            {
+                provider = merge.Provider,
+                prUrl = merge.PrUrl,
+                prNumber = merge.PrNumber,
+                mergeCommit = merge.HeadCommit,
+                detail = merge.Detail,
+                deployedUrl = message.Context.DeployedUrl
+            },
+            JsonOptions);
+        await WriteArtifactAsync(message, mergePath, mergeJson, 940, cancellationToken).ConfigureAwait(false);
+        artifacts["merge"] = mergePath;
+        outputs["mergeCommit"] = string.IsNullOrWhiteSpace(merge.HeadCommit)
+            ? message.Context.HeadCommit ?? "merged"
+            : merge.HeadCommit;
+        outputs["headCommit"] = outputs["mergeCommit"];
+        outputs["prUrl"] = merge.PrUrl;
+        await CompleteStepAsync(message, run, "ta.merge.pr", $"{merge.Provider}: {merge.Detail}", cancellationToken)
+            .ConfigureAwait(false);
+
+        // Keep local deploy finalize semantics for Compose cleanup markers.
+        message.Context.DeploymentAction = "Finalize";
+        await RunDeployAsync(message, run, artifacts, outputs, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task RunTestingAsync(
@@ -960,9 +1251,41 @@ public sealed class PipelineAgentHandler
         sb.AppendLine();
     }
 
-    private async Task<LlmCompletionResult> CallIaConversationAsync(
+    private Task<LlmCompletionResult> CallIaConversationAsync(
         TaskMessage message,
         int ordinal,
+        string phaseInstructions,
+        string conversation,
+        CancellationToken cancellationToken) =>
+        CallConversationAsync(
+            message,
+            ordinal,
+            PipelineAgentConstants.IntentIa,
+            PromptLoader.LoadIaSystemPrompt(),
+            phaseInstructions,
+            conversation,
+            cancellationToken);
+
+    private Task<LlmCompletionResult> CallTaConversationAsync(
+        TaskMessage message,
+        int ordinal,
+        string phaseInstructions,
+        string conversation,
+        CancellationToken cancellationToken) =>
+        CallConversationAsync(
+            message,
+            ordinal,
+            PipelineAgentConstants.IntentTa,
+            PromptLoader.LoadTaSystemPrompt(),
+            phaseInstructions,
+            conversation,
+            cancellationToken);
+
+    private async Task<LlmCompletionResult> CallConversationAsync(
+        TaskMessage message,
+        int ordinal,
+        string intentKind,
+        string system,
         string phaseInstructions,
         string conversation,
         CancellationToken cancellationToken)
@@ -971,17 +1294,16 @@ public sealed class PipelineAgentHandler
             .TryGetCommittedAsync(
                 message.WorkItemId,
                 message.TaskId,
-                PipelineAgentConstants.IntentIa,
+                intentKind,
                 ordinal,
                 cancellationToken)
             .ConfigureAwait(false);
         if (existing?.OutputJson is { Length: > 0 })
         {
             return JsonSerializer.Deserialize<LlmCompletionResult>(existing.OutputJson, JsonOptions)
-                   ?? throw new InvalidOperationException("Corrupt ia.pipeline ledger OutputJson.");
+                   ?? throw new InvalidOperationException($"Corrupt {intentKind} ledger OutputJson.");
         }
 
-        var system = PromptLoader.LoadIaSystemPrompt();
         var userPrompt =
             phaseInstructions
             + "\n\n---\n\n"
@@ -1003,12 +1325,12 @@ public sealed class PipelineAgentHandler
                 cancellationToken)
             .ConfigureAwait(false);
 
-        // IA replies are conversational Markdown; truncate only (same as stage JSON path).
+        // Conversational Markdown; truncate only.
         var text = Truncate(completion.Text, LocalGuardrailPipeline.DefaultMaxOutputChars);
         var stored = completion with { Text = text };
         await CommitLedgerAsync(
                 message,
-                PipelineAgentConstants.IntentIa,
+                intentKind,
                 ordinal,
                 new { stage = message.Stage, ordinal },
                 stored,

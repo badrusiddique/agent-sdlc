@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Interactive happy path: PRD → SD → IA_PLAN → IA_CODEGEN → IA_REVIEW → IA_PUSH_DEPLOY → finalize.
+# Interactive: PRD → SD → IA_PLAN → IA_REVIEW → IA_PUSH_DEPLOY → TA_REPORT → TA_MERGE.
 set -euo pipefail
 
 BGX_URL="${BGX_URL:-http://127.0.0.1:43181}"
@@ -71,10 +71,14 @@ approve
 
 wait_gate IA_PUSH_DEPLOY
 curl -fsS "$BGX_URL/api/poc/pipeline/$WI/artifacts" | tee "$OUT_DIR/artifacts-deploy.json"
+approve
+
+wait_gate TA_REPORT
+curl -fsS "$BGX_URL/api/poc/pipeline/$WI/artifacts" | tee "$OUT_DIR/artifacts-ta.json"
 curl -fsS "$BGX_URL/api/poc/pipeline/$WI/logs" | tee "$OUT_DIR/logs.json" >/dev/null
 approve
 
-for i in $(seq 1 60); do
+for i in $(seq 1 90); do
   STATUS=$(curl -fsS "$BGX_URL/api/poc/pipeline/$WI/status")
   echo "$STATUS" > "$OUT_DIR/final.json"
   STATE=$(python3 -c "import json; print(json.load(open('$OUT_DIR/final.json'))['status'])")

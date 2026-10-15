@@ -94,5 +94,9 @@ public sealed class TaskMessageContext
     public string? WorkBranch { get; set; }
     public string? HeadCommit { get; set; }
     public string? WorkspaceRoot { get; set; }
+    /// <summary>Live DEV URL from IA Push & Deploy — consumed by the Testing Agent.</summary>
+    public string? DeployedUrl { get; set; }
+    public string? PrUrl { get; set; }
+    public int? PrNumber { get; set; }
     public Dictionary<string, string> BaselineArtifacts { get; set; } = new(StringComparer.Ordinal);
 }

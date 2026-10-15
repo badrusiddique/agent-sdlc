@@ -29,6 +29,11 @@ public static class PipelineAgentConstants
     public const string StageIaReview = "IA_REVIEW";
     public const string StageIaPushDeploy = "IA_PUSH_DEPLOY";
 
+    public const string StageTaGenerate = "TA_GENERATE";
+    public const string StageTaVerify = "TA_VERIFY";
+    public const string StageTaReport = "TA_REPORT";
+    public const string StageTaMerge = "TA_MERGE";
+
     public static readonly IReadOnlyList<string> SupportedStages =
     [
         StagePrd,
@@ -37,6 +42,10 @@ public static class PipelineAgentConstants
         StageIaCodegen,
         StageIaReview,
         StageIaPushDeploy,
+        StageTaGenerate,
+        StageTaVerify,
+        StageTaReport,
+        StageTaMerge,
         StageImplementation,
         StageTesting,
         StageDeployDev
@@ -49,6 +58,7 @@ public static class PipelineAgentConstants
     public const string IntentWorkspace = "workspace.pipeline";
     public const string IntentDeploy = "deploy.pipeline";
     public const string IntentIa = "ia.pipeline";
+    public const string IntentTa = "ta.pipeline";
 
     public static string StateContextId(string projectId, string workItemId) =>
         MessageIds.StateContextId(projectId, workItemId);

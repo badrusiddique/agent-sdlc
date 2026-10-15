@@ -28,7 +28,11 @@ public sealed class PocPipelineOrchestrator
         "IA_PLAN",
         "IA_CODEGEN",
         "IA_REVIEW",
-        "IA_PUSH_DEPLOY"
+        "IA_PUSH_DEPLOY",
+        "TA_GENERATE",
+        "TA_VERIFY",
+        "TA_REPORT",
+        "TA_MERGE"
     ];
 
     private static readonly (string Id, string Label)[] StageStrip =
@@ -40,6 +44,10 @@ public sealed class PocPipelineOrchestrator
         ("IA_CODEGEN", "Code Generation"),
         ("IA_REVIEW", "Code Review"),
         ("IA_PUSH_DEPLOY", "Push & Deploy"),
+        ("TA_GENERATE", "Generate Tests"),
+        ("TA_VERIFY", "Verify Deployed"),
+        ("TA_REPORT", "Test Report"),
+        ("TA_MERGE", "Merge PR"),
         ("DONE", "Done")
     ];
 
@@ -672,6 +680,8 @@ public sealed class PocPipelineOrchestrator
         string? workspaceRoot = null;
         string? headCommit = null;
         string? deployedUrl = null;
+        string? prUrl = null;
+        int? prNumber = null;
         var artifacts = new Dictionary<string, string>(StringComparer.Ordinal)
         {
             ["intakeSummary"] = intakePath
@@ -720,30 +730,38 @@ public sealed class PocPipelineOrchestrator
                         artifacts,
                         workspaceRoot,
                         headCommit,
+                        deployedUrl,
+                        prUrl,
+                        prNumber,
                         request.BaselineArtifacts,
                         cancellationToken)
                     .ConfigureAwait(false);
                 MergeArtifacts(artifacts, deployResult.Artifacts);
                 workspaceRoot = deployResult.Outputs.GetValueOrDefault("workspaceRoot") ?? workspaceRoot;
                 headCommit = deployResult.Outputs.GetValueOrDefault("headCommit") ?? headCommit;
-                deployedUrl = deployResult.Outputs.GetValueOrDefault("deployedUrls");
+                deployedUrl = deployResult.Outputs.GetValueOrDefault("deployedUrls") ?? deployedUrl;
                 session.DeployedUrl = deployedUrl;
-                var prUrl = deployResult.Outputs.GetValueOrDefault("prUrl");
+                prUrl = deployResult.Outputs.GetValueOrDefault("prUrl") ?? prUrl;
+                if (int.TryParse(deployResult.Outputs.GetValueOrDefault("prNumber"), out var parsedPr))
+                {
+                    prNumber = parsedPr;
+                }
+
                 item.RepoFactsJson = JsonSerializer.Serialize(
-                    new { headCommit, deployedUrl, workspaceRoot, prUrl },
+                    new { headCommit, deployedUrl, workspaceRoot, prUrl, prNumber },
                     JsonOptions);
 
                 var deployApproved = await RaiseGateAndWaitAsync(
                         session,
                         stage,
-                        "DEV acceptance — open the app (and PR), then approve to finalize",
+                        "DEV ready — open the app/PR, then approve to start the Testing Agent",
                         deployResult.TaskId,
                         cancellationToken)
                     .ConfigureAwait(false);
                 if (!deployApproved)
                 {
                     await HonorSteerAfterStageAsync(session, cancellationToken).ConfigureAwait(false);
-                    stageIndex = -1; // loop + ResumeFromStage will retarget
+                    stageIndex = -1;
                     continue;
                 }
 
@@ -751,13 +769,17 @@ public sealed class PocPipelineOrchestrator
                 if (session.ResumeFromStage is not null)
                 {
                     stageIndex = -1;
-                    continue;
                 }
 
-                var finalizeResult = await RunStageAsync(
+                continue;
+            }
+
+            if (stage == "TA_MERGE")
+            {
+                var mergeResult = await RunStageAsync(
                         session,
                         stage,
-                        "Finalize",
+                        deploymentAction: null,
                         projectName,
                         projectSlug,
                         stack,
@@ -765,27 +787,31 @@ public sealed class PocPipelineOrchestrator
                         artifacts,
                         workspaceRoot,
                         headCommit,
+                        deployedUrl,
+                        prUrl,
+                        prNumber,
                         request.BaselineArtifacts,
                         cancellationToken)
                     .ConfigureAwait(false);
-                MergeArtifacts(artifacts, finalizeResult.Artifacts);
-                var mergeCommit = finalizeResult.Outputs.GetValueOrDefault("mergeCommit") ?? headCommit;
+                MergeArtifacts(artifacts, mergeResult.Artifacts);
+                var mergeCommit = mergeResult.Outputs.GetValueOrDefault("mergeCommit") ?? headCommit;
+                prUrl = mergeResult.Outputs.GetValueOrDefault("prUrl") ?? prUrl;
                 item.Status = WorkItemStatuses.Completed;
                 item.CurrentStage = "DONE";
                 item.RepoFactsJson = JsonSerializer.Serialize(
-                    new { headCommit, deployedUrl, workspaceRoot, mergeCommit, prUrl },
+                    new { headCommit, deployedUrl, workspaceRoot, mergeCommit, prUrl, prNumber },
                     JsonOptions);
                 item.UpdatedAt = DateTimeOffset.UtcNow;
-                item.LastAppliedResultId = $"result:{finalizeResult.TaskId}:{item.CurrentInputVersion}";
+                item.LastAppliedResultId = $"result:{mergeResult.TaskId}:{item.CurrentInputVersion}";
                 await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
                 await AppendEventAsync(
                         session,
                         "DONE",
                         WorkItemStatuses.Completed,
                         "Finalized",
-                        $"Completed with URL {deployedUrl}"
+                        $"TA merged PR; app at {deployedUrl}"
                         + (string.IsNullOrWhiteSpace(prUrl) ? string.Empty : $"; PR {prUrl}"),
-                        finalizeResult.TaskId,
+                        mergeResult.TaskId,
                         cancellationToken)
                     .ConfigureAwait(false);
                 await WriteBaselineAsync(item, artifacts, mergeCommit, cancellationToken).ConfigureAwait(false);
@@ -803,14 +829,20 @@ public sealed class PocPipelineOrchestrator
                     artifacts,
                     workspaceRoot,
                     headCommit,
+                    deployedUrl,
+                    prUrl,
+                    prNumber,
                     request.BaselineArtifacts,
                     cancellationToken)
                 .ConfigureAwait(false);
             MergeArtifacts(artifacts, result.Artifacts);
             workspaceRoot = result.Outputs.GetValueOrDefault("workspaceRoot") ?? workspaceRoot;
             headCommit = result.Outputs.GetValueOrDefault("headCommit") ?? headCommit;
+            deployedUrl = result.Outputs.GetValueOrDefault("deployedUrls") ?? deployedUrl;
+            session.DeployedUrl = deployedUrl ?? session.DeployedUrl;
+            prUrl = result.Outputs.GetValueOrDefault("prUrl") ?? prUrl;
 
-            if (stage is "PRD" or "SYSTEM_DESIGN" or "IA_PLAN" or "IA_REVIEW")
+            if (stage is "PRD" or "SYSTEM_DESIGN" or "IA_PLAN" or "IA_REVIEW" or "TA_REPORT")
             {
                 var label = stage switch
                 {
@@ -818,6 +850,7 @@ public sealed class PocPipelineOrchestrator
                     "SYSTEM_DESIGN" => "Review the System Design document, then approve to continue",
                     "IA_PLAN" => "Review the Implementation Plan, then approve Code Generation",
                     "IA_REVIEW" => "Review the generated code summary, then approve Push & Deploy",
+                    "TA_REPORT" => "Review the Testing Agent report, then approve Merge PR",
                     _ => "Review and approve to continue"
                 };
                 var approved = await RaiseGateAndWaitAsync(session, stage, label, result.TaskId, cancellationToken)
@@ -993,6 +1026,9 @@ public sealed class PocPipelineOrchestrator
         Dictionary<string, string> artifacts,
         string? workspaceRoot,
         string? headCommit,
+        string? deployedUrl,
+        string? prUrl,
+        int? prNumber,
         Dictionary<string, string>? baseline,
         CancellationToken cancellationToken)
     {
@@ -1045,6 +1081,9 @@ public sealed class PocPipelineOrchestrator
                 workBranch = $"feature/project-{item.ProjectId}-work-item-{item.WorkItemId}",
                 headCommit,
                 workspaceRoot,
+                deployedUrl = deployedUrl ?? session.DeployedUrl,
+                prUrl,
+                prNumber,
                 baselineArtifacts = baseline ?? new Dictionary<string, string>()
             },
             config = new

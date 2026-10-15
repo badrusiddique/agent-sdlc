@@ -51,17 +51,61 @@ public sealed class GiteaPullRequestClient
         {
             await EnsureGiteaRepoAsync(cancellationToken).ConfigureAwait(false);
             var remoteUrl = BuildAuthenticatedCloneUrl();
-            await GitAsync(monoRoot, "remote remove origin", cancellationToken, ignoreExit: true)
-                .ConfigureAwait(false);
-            await GitAsync(monoRoot, $"remote add origin {remoteUrl}", cancellationToken)
-                .ConfigureAwait(false);
-            await GitAsync(monoRoot, $"checkout -B {branch}", cancellationToken).ConfigureAwait(false);
-            await GitAsync(monoRoot, $"push -u origin HEAD:{branch} --force", cancellationToken)
-                .ConfigureAwait(false);
-            var head = await GitRevAsync(monoRoot, cancellationToken).ConfigureAwait(false);
-            var pr = await CreatePullRequestAsync(branch, title, body, cancellationToken)
-                .ConfigureAwait(false);
-            return pr with { HeadCommit = head };
+            // Clone main, copy the work-item folder in, commit + push — shared history for merge.
+            var cloneDir = Path.Combine(Path.GetTempPath(), "bgx-gitea-clone-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(cloneDir);
+            try
+            {
+                await RunHostAsync(
+                        "git",
+                        $"clone --depth 50 \"{remoteUrl}\" \"{cloneDir}\"",
+                        Path.GetTempPath(),
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                await GitAsync(cloneDir, "config user.email poc@buildgenix.local", cancellationToken)
+                    .ConfigureAwait(false);
+                await GitAsync(cloneDir, "config user.name poc", cancellationToken).ConfigureAwait(false);
+                await GitAsync(cloneDir, $"checkout -B {branch}", cancellationToken).ConfigureAwait(false);
+
+                var folderName = new DirectoryInfo(monoRoot).Name;
+                var dest = Path.Combine(cloneDir, folderName);
+                if (Directory.Exists(dest))
+                {
+                    Directory.Delete(dest, recursive: true);
+                }
+
+                CopyDirectory(monoRoot, dest);
+                // Do not copy nested .git from the work-item workspace into the mono clone.
+                var nestedGit = Path.Combine(dest, ".git");
+                if (Directory.Exists(nestedGit))
+                {
+                    Directory.Delete(nestedGit, recursive: true);
+                }
+
+                await GitAsync(cloneDir, "add -A", cancellationToken).ConfigureAwait(false);
+                await GitAsync(
+                        cloneDir,
+                        $"commit -m \"IA: {folderName}\" --allow-empty",
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                await GitAsync(cloneDir, $"push -u origin HEAD:{branch} --force", cancellationToken)
+                    .ConfigureAwait(false);
+                var head = await GitRevAsync(cloneDir, cancellationToken).ConfigureAwait(false);
+                var pr = await CreatePullRequestAsync(branch, title, body, cancellationToken)
+                    .ConfigureAwait(false);
+                return pr with { HeadCommit = head };
+            }
+            finally
+            {
+                try
+                {
+                    Directory.Delete(cloneDir, recursive: true);
+                }
+                catch
+                {
+                    // best-effort cleanup
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -177,6 +221,76 @@ public sealed class GiteaPullRequestClient
         }
 
         throw new InvalidOperationException("Gitea token response missing sha1.");
+    }
+
+    public async Task<PullRequestResult> MergePullRequestAsync(
+        int prNumber,
+        string? branchHint,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(_options.Provider, "none", StringComparison.OrdinalIgnoreCase))
+        {
+            return new PullRequestResult(
+                "none",
+                "local://no-remote",
+                prNumber,
+                branchHint ?? "",
+                "local",
+                "Merge skipped (Ia:Git:Provider=none).");
+        }
+
+        var token = await EnsureTokenAsync(cancellationToken).ConfigureAwait(false);
+        _options.Token = token;
+        var baseUrl = _options.BaseUrl.TrimEnd('/');
+        using var req = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"{baseUrl}/api/v1/repos/{_options.Owner}/{_options.Repo}/pulls/{prNumber}/merge");
+        ApplyAuth(req, token);
+        req.Content = new StringContent(
+            """{"Do":"merge","merge_message_field":"TA merge after deployed verification","merge_title_field":"Merge IA work item","force_merge":false}""",
+            Encoding.UTF8,
+            "application/json");
+        using var res = await _http.SendAsync(req, cancellationToken).ConfigureAwait(false);
+        var json = await res.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (!res.IsSuccessStatusCode)
+        {
+            // Already merged is success for idempotent TA reruns.
+            if (json.Contains("already merged", StringComparison.OrdinalIgnoreCase)
+                || json.Contains("has been merged", StringComparison.OrdinalIgnoreCase))
+            {
+                return new PullRequestResult(
+                    "gitea",
+                    $"{baseUrl}/{_options.Owner}/{_options.Repo}/pulls/{prNumber}",
+                    prNumber,
+                    branchHint ?? "",
+                    "",
+                    "PR already merged on Gitea.");
+            }
+
+            throw new InvalidOperationException($"Gitea merge failed ({(int)res.StatusCode}): {json}");
+        }
+
+        var sha = "";
+        try
+        {
+            using var doc = JsonDocument.Parse(string.IsNullOrWhiteSpace(json) ? "{}" : json);
+            if (doc.RootElement.TryGetProperty("sha", out var s))
+            {
+                sha = s.GetString() ?? "";
+            }
+        }
+        catch (JsonException)
+        {
+            // empty body on some Gitea versions
+        }
+
+        return new PullRequestResult(
+            "gitea",
+            $"{baseUrl}/{_options.Owner}/{_options.Repo}/pulls/{prNumber}",
+            prNumber,
+            branchHint ?? "",
+            sha,
+            "PR merged on Gitea.");
     }
 
     private async Task<PullRequestResult> CreatePullRequestAsync(
@@ -303,4 +417,36 @@ public sealed class GiteaPullRequestClient
 
     private static string Truncate(string text, int max) =>
         text.Length <= max ? text : text[..max] + "…";
+
+    private static void CopyDirectory(string source, string destination)
+    {
+        Directory.CreateDirectory(destination);
+        foreach (var dir in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(source, dir);
+            if (rel.Equals(".git", StringComparison.OrdinalIgnoreCase)
+                || rel.StartsWith(".git" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                || rel.StartsWith(".git/", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            Directory.CreateDirectory(Path.Combine(destination, rel));
+        }
+
+        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+        {
+            var rel = Path.GetRelativePath(source, file);
+            if (rel.StartsWith(".git" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)
+                || rel.StartsWith(".git/", StringComparison.OrdinalIgnoreCase)
+                || rel.Equals(".git", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var target = Path.Combine(destination, rel);
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target, overwrite: true);
+        }
+    }
 }

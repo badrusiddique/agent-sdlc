@@ -48,8 +48,14 @@ public static class PromptLoader
     public static string LoadIaSystemPrompt() =>
         LoadNamedPrompt("ia-system.txt", "You are the BuildGenix Implementation Agent.");
 
+    public static string LoadTaSystemPrompt() =>
+        LoadNamedPrompt("ta-system.txt", "You are the BuildGenix Testing Agent.");
+
     public static string LoadIaPhasePrompt(string phaseFile) =>
         LoadNamedPrompt(phaseFile, $"Phase instructions for {phaseFile}.");
+
+    public static string LoadNamedPromptFile(string fileName) =>
+        LoadNamedPrompt(fileName, $"Phase instructions for {fileName}.");
 
     private static string LoadNamedPrompt(string fileName, string fallback)
     {
