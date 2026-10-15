@@ -239,13 +239,21 @@ public sealed class AzureDevOpsPullRequestClient : IGitPullRequestClient
     private string BuildAuthenticatedCloneUrl()
     {
         var token = ResolveToken();
-        var org = _options.Organization!;
+        var org = Uri.EscapeDataString(_options.Organization!);
+        var project = Uri.EscapeDataString(_options.AzdoProject);
+        var repo = Uri.EscapeDataString(_options.Repo);
         // PAT over HTTPS: username can be anything; password is the PAT.
-        return $"https://pat:{Uri.EscapeDataString(token)}@dev.azure.com/{org}/{_options.AzdoProject}/_git/{_options.Repo}";
+        // Path segments are escaped so project names with spaces work.
+        return $"https://pat:{Uri.EscapeDataString(token)}@dev.azure.com/{org}/{project}/_git/{repo}";
     }
 
-    private string BuildPrWebUrl(int prNumber) =>
-        $"https://dev.azure.com/{_options.Organization}/{_options.AzdoProject}/_git/{_options.Repo}/pullrequest/{prNumber}";
+    private string BuildPrWebUrl(int prNumber)
+    {
+        var org = Uri.EscapeDataString(_options.Organization!);
+        var project = Uri.EscapeDataString(_options.AzdoProject);
+        var repo = Uri.EscapeDataString(_options.Repo);
+        return $"https://dev.azure.com/{org}/{project}/_git/{repo}/pullrequest/{prNumber}";
+    }
 
     private void ApplyAuth(HttpRequestMessage req)
     {

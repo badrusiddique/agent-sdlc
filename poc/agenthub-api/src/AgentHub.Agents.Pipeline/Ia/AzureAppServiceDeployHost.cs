@@ -159,19 +159,18 @@ public sealed class AzureAppServiceDeployHost : IDeployHost
     private static string NormalizeHealthPath(string path) =>
         path.StartsWith('/') ? path : "/" + path;
 
-    private static async Task<bool> WaitForHealthyAsync(
+    private async Task<bool> WaitForHealthyAsync(
         string url,
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
         var deadline = DateTime.UtcNow + timeout;
-        using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                using var res = await http.GetAsync(url, cancellationToken).ConfigureAwait(false);
+                using var res = await _http.GetAsync(url, cancellationToken).ConfigureAwait(false);
                 if (res.IsSuccessStatusCode)
                 {
                     return true;
@@ -182,7 +181,7 @@ public sealed class AzureAppServiceDeployHost : IDeployHost
                 // retry
             }
 
-            await Task.Delay(3000, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken).ConfigureAwait(false);
         }
 
         return false;

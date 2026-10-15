@@ -47,7 +47,8 @@ public sealed class IaGitOptions
             {
                 var org = Organization ?? throw new InvalidOperationException(
                     "Ia:Git:Organization is required when Provider=azuredevops.");
-                return $"https://dev.azure.com/{org}/{AzdoProject}/_git/{Repo}";
+                return
+                    $"https://dev.azure.com/{Uri.EscapeDataString(org)}/{Uri.EscapeDataString(AzdoProject)}/_git/{Uri.EscapeDataString(Repo)}";
             }
 
             return $"{BaseUrl.TrimEnd('/')}/{Owner}/{Repo}.git";
