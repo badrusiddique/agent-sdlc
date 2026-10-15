@@ -36,11 +36,15 @@ Design: [`docs/ia-local-docker-design.md`](docs/ia-local-docker-design.md), [`do
 ./scripts/verify-interactive.sh  # human gates through TA_REPORT then merge
 ```
 
-Optional builder image (otherwise host SDK is used):
+Optional IA/TA toolchain image (otherwise host SDK is used). Includes .NET 10, Node 22, Angular CLI, Python 3, Azure CLI, git:
 
 ```bash
-docker build -t agenthub-ia-builder:local poc/agenthub-api/docker/ia-builder
+./poc/scripts/build-ia-builder.sh
+./poc/scripts/save-ia-builder.sh   # tar.gz for manual ACR / blob upload (gitignored)
+# Point at ACR later: export IA_BUILDER_IMAGE=youracr.azurecr.io/agenthub-ia-builder:YYYYMMDD
 ```
+
+See `poc/agenthub-api/docker/ia-builder/TOOLCHAIN.md`.
 
 ## Was this verified for real?
 

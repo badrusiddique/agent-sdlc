@@ -6,6 +6,15 @@
 
 ---
 
+## 0a. IA/TA builder image (optional, for Docker build/test isolation)
+
+```bash
+./poc/scripts/build-ia-builder.sh
+./poc/scripts/save-ia-builder.sh   # → poc/docker-images/*.tar.gz (gitignored) for ACR/blob upload
+```
+
+Toolchain: .NET 10, Node 22, Angular CLI, Python 3, Azure CLI, git. Details: `poc/agenthub-api/docker/ia-builder/TOOLCHAIN.md` and `EXPORT-NOTE.md`. After ACR push, `export IA_BUILDER_IMAGE=youracr.azurecr.io/agenthub-ia-builder:YYYYMMDD`.
+
 ## 0. What you already have locally (keep working)
 
 | Concern | Local default | How to verify |

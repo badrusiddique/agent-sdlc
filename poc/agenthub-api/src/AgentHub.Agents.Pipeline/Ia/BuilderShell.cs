@@ -9,7 +9,13 @@ namespace AgentHub.Agents.Pipeline.Ia;
 /// </summary>
 public static class BuilderShell
 {
-    public const string ImageName = "agenthub-ia-builder:local";
+    public const string DefaultImageName = "agenthub-ia-builder:local";
+
+    /// <summary>Override with env IA_BUILDER_IMAGE (e.g. youracr.azurecr.io/agenthub-ia-builder:20261015).</summary>
+    public static string ImageName =>
+        string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("IA_BUILDER_IMAGE"))
+            ? DefaultImageName
+            : Environment.GetEnvironmentVariable("IA_BUILDER_IMAGE")!.Trim();
 
     public static bool DockerAvailable()
     {
@@ -52,13 +58,13 @@ public static class BuilderShell
                         ?? throw new InvalidOperationException("ia-builder Dockerfile directory not found.");
         var (buildExit, buildOut) = await RunCaptureAsync(
                 "docker",
-                $"build -t {ImageName} \"{dockerDir}\"",
+                $"build -t {DefaultImageName} \"{dockerDir}\"",
                 dockerDir,
                 cancellationToken)
             .ConfigureAwait(false);
         if (buildExit != 0)
         {
-            throw new InvalidOperationException($"Failed to build {ImageName}: {Truncate(buildOut, 2000)}");
+            throw new InvalidOperationException($"Failed to build {DefaultImageName}: {Truncate(buildOut, 2000)}");
         }
     }
 
