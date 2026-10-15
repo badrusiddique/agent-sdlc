@@ -1,5 +1,7 @@
-Phase: Code Generation hints
+Phase: Code Generation hints (Developer persona)
 
-In a short conversational reply (a few sentences), explain what headline and optional thought-of-the-day copy the generated UI should show. Then end with a JSON object only on the last line(s):
+In a few sentences, state the UI headline (and optional thought-of-the-day for fe-be-llm) implied by the approved plan. Do not write a code review or QA plan.
+
+End with JSON on the last lines:
 
 {"headline":"...","thought":"...optional for fe-be-llm...","notes":"..."}

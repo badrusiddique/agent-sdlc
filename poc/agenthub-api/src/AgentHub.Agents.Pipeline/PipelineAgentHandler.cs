@@ -251,13 +251,16 @@ public sealed class PipelineAgentHandler
 
         await BeginStepAsync(message, run, "ia.plan.converse", "Draft implementation plan in conversation", cancellationToken)
             .ConfigureAwait(false);
-        var conversation = await BuildArtifactConversationAsync(message, cancellationToken).ConfigureAwait(false);
+        var conversation = await BuildPersonaContextAsync(message, PersonaKind.Planner, cancellationToken)
+            .ConfigureAwait(false);
         LlmCompletionResult llm;
         try
         {
-            llm = await CallIaConversationAsync(
+            llm = await CallPersonaAsync(
                     message,
                     520,
+                    PipelineAgentConstants.IntentIa,
+                    PersonaKind.Planner,
                     PromptLoader.LoadIaPhasePrompt("ia-plan.txt"),
                     conversation,
                     cancellationToken)
@@ -299,10 +302,13 @@ public sealed class PipelineAgentHandler
         LlmCompletionResult llm;
         try
         {
-            var conversation = await BuildArtifactConversationAsync(message, cancellationToken).ConfigureAwait(false);
-            llm = await CallIaConversationAsync(
+            var conversation = await BuildPersonaContextAsync(message, PersonaKind.Developer, cancellationToken)
+                .ConfigureAwait(false);
+            llm = await CallPersonaAsync(
                     message,
                     500,
+                    PipelineAgentConstants.IntentIa,
+                    PersonaKind.Developer,
                     PromptLoader.LoadIaPhasePrompt("ia-codegen.txt"),
                     conversation,
                     cancellationToken)
@@ -410,21 +416,28 @@ public sealed class PipelineAgentHandler
 
         await BeginStepAsync(message, run, "ia.review.converse", "Draft code review in conversation", cancellationToken)
             .ConfigureAwait(false);
-        var files = Directory.Exists(workspace)
+        var allFiles = Directory.Exists(workspace)
             ? Directory.EnumerateFiles(workspace, "*", SearchOption.AllDirectories)
                 .Select(p => Path.GetRelativePath(workspace, p).Replace('\\', '/'))
+                .Where(p => !p.StartsWith(".git/", StringComparison.Ordinal))
                 .OrderBy(p => p, StringComparer.Ordinal)
-                .Take(80)
                 .ToArray()
             : [];
-        var conversation = await BuildArtifactConversationAsync(message, cancellationToken).ConfigureAwait(false);
-        conversation += "\n\nGenerated files (sample):\n- " + string.Join("\n- ", files);
+        // Keep the independent-reviewer pack small (guardrail input_too_long); structure > dump.
+        var sample = allFiles.Take(40).ToArray();
+        var appendix =
+            $"\n\n## Generated file inventory (independent review)\nTotal files: {allFiles.Length}\nSample (first {sample.Length}):\n- "
+            + string.Join("\n- ", sample);
+        var conversation = await BuildPersonaContextAsync(message, PersonaKind.Reviewer, cancellationToken, appendix)
+            .ConfigureAwait(false);
         LlmCompletionResult llm;
         try
         {
-            llm = await CallIaConversationAsync(
+            llm = await CallPersonaAsync(
                     message,
                     710,
+                    PipelineAgentConstants.IntentIa,
+                    PersonaKind.Reviewer,
                     PromptLoader.LoadIaPhasePrompt("ia-review.txt"),
                     conversation,
                     cancellationToken)
@@ -540,14 +553,16 @@ public sealed class PipelineAgentHandler
 
         await BeginStepAsync(message, run, "ta.gen.converse", "Plan live-URL automation (conversation)", cancellationToken)
             .ConfigureAwait(false);
-        var conversation = await BuildArtifactConversationAsync(message, cancellationToken).ConfigureAwait(false);
-        conversation += $"\n\n## Deployed URL\n{deployedUrl}\n";
+        var conversation = await BuildPersonaContextAsync(message, PersonaKind.QaAutomation, cancellationToken)
+            .ConfigureAwait(false);
         LlmCompletionResult llm;
         try
         {
-            llm = await CallTaConversationAsync(
+            llm = await CallPersonaAsync(
                     message,
                     900,
+                    PipelineAgentConstants.IntentTa,
+                    PersonaKind.QaAutomation,
                     PromptLoader.LoadNamedPromptFile("ta-generate.txt"),
                     conversation,
                     cancellationToken)
@@ -660,16 +675,16 @@ public sealed class PipelineAgentHandler
         outputs["deployedUrls"] = deployedUrl;
         await BeginStepAsync(message, run, "ta.report.converse", "Draft QA report (conversation)", cancellationToken)
             .ConfigureAwait(false);
-        var results = await _blobs.TryReadJsonAsync(message.BlobPrefix + "ta-results.json", cancellationToken)
-            .ConfigureAwait(false) ?? "{\"status\":\"unknown\"}";
-        var conversation = await BuildArtifactConversationAsync(message, cancellationToken).ConfigureAwait(false);
-        conversation += $"\n\n## Deployed URL\n{deployedUrl}\n\n## ta-results.json\n{results}\n";
+        var conversation = await BuildPersonaContextAsync(message, PersonaKind.QaReporter, cancellationToken)
+            .ConfigureAwait(false);
         LlmCompletionResult llm;
         try
         {
-            llm = await CallTaConversationAsync(
+            llm = await CallPersonaAsync(
                     message,
                     930,
+                    PipelineAgentConstants.IntentTa,
+                    PersonaKind.QaReporter,
                     PromptLoader.LoadNamedPromptFile("ta-report.txt"),
                     conversation,
                     cancellationToken)
@@ -986,13 +1001,20 @@ public sealed class PipelineAgentHandler
                    ?? throw new InvalidOperationException("Corrupt llm.pipeline ledger OutputJson.");
         }
 
-        var system = PromptLoader.LoadSystemPrompt();
+        var persona = message.Stage switch
+        {
+            PipelineAgentConstants.StagePrd => PersonaKind.Product,
+            PipelineAgentConstants.StageSystemDesign => PersonaKind.Architect,
+            _ => PersonaKind.Developer
+        };
+        var system = PromptLoader.LoadPersonaSystemPrompt(persona);
         var stageSection = PromptLoader.LoadStageSection(message.Stage);
-        var userPrompt =
-            $"Stage={message.Stage}\nStackProfile={message.Context.StackProfile}\nProjectMode={message.Context.ProjectMode}\nUserRequest={message.Context.UserRequest}\n\n{stageSection}";
+        var evidence = await BuildPersonaContextAsync(message, persona, cancellationToken).ConfigureAwait(false);
+        var userPrompt = Truncate(
+            stageSection + "\n\n---\n\n" + evidence,
+            LocalGuardrailPipeline.DefaultMaxInputChars);
 
-        // Pipeline LLM output is JSON by design; skip Healthy-style markdown-heading blocks by
-        // evaluating input only, then storing truncated text.
+        // Pipeline LLM output is JSON by design; evaluate input only, then store truncated text.
         await EnforceGuardrailAsync(
                 _guardrails.EvaluateInput(userPrompt, message.CorrelationId),
                 message,
@@ -1200,12 +1222,19 @@ public sealed class PipelineAgentHandler
     private static string ResolveWorkspace(TaskMessage message) =>
         MonoRepoLayout.ResolveMonoRoot(message.ProjectId, message.WorkItemId, message.Context.WorkspaceRoot);
 
-    private async Task<string> BuildArtifactConversationAsync(
+    /// <summary>
+    /// Builds a persona-scoped evidence pack. Reviewer/QA never receive implementer self-talk
+    /// (codegen hints, review drafts they didn't write, etc.) — only the artifacts that persona is allowed to judge.
+    /// </summary>
+    private async Task<string> BuildPersonaContextAsync(
         TaskMessage message,
-        CancellationToken cancellationToken)
+        PersonaKind persona,
+        CancellationToken cancellationToken,
+        string? extraAppendix = null)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Here is the conversation context for this work item.");
+        sb.AppendLine($"Persona context pack for: {persona}");
+        sb.AppendLine("These materials were produced by other personas or the runtime. Treat them as evidence, not as your own prior reasoning.");
         sb.AppendLine();
         sb.AppendLine($"Project id: {message.ProjectId}");
         sb.AppendLine($"Work item id: {message.WorkItemId}");
@@ -1217,17 +1246,99 @@ public sealed class PipelineAgentHandler
         sb.AppendLine(message.Context.UserRequest ?? "(missing)");
         sb.AppendLine();
 
-        await AppendBlobSectionAsync(sb, message, "prd.json", "PRD (prd.json)", cancellationToken)
-            .ConfigureAwait(false);
-        await AppendBlobSectionAsync(sb, message, "system-design.md", "System design (system-design.md)", cancellationToken)
-            .ConfigureAwait(false);
-        await AppendBlobSectionAsync(
-                sb,
-                message,
-                "implementation-plan.md",
-                "Implementation plan (implementation-plan.md)",
-                cancellationToken)
-            .ConfigureAwait(false);
+        switch (persona)
+        {
+            case PersonaKind.Product:
+                // Request only — product owns the PRD draft.
+                break;
+            case PersonaKind.Architect:
+                await AppendBlobSectionAsync(sb, message, "prd.json", "PRD (input from Product)", cancellationToken)
+                    .ConfigureAwait(false);
+                break;
+            case PersonaKind.Planner:
+                await AppendBlobSectionAsync(sb, message, "prd.json", "PRD (input from Product)", cancellationToken)
+                    .ConfigureAwait(false);
+                await AppendBlobSectionAsync(
+                        sb,
+                        message,
+                        "system-design.md",
+                        "System design (input from Architect)",
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                break;
+            case PersonaKind.Developer:
+                await AppendBlobSectionAsync(sb, message, "prd.json", "PRD (requirements)", cancellationToken)
+                    .ConfigureAwait(false);
+                await AppendBlobSectionAsync(
+                        sb,
+                        message,
+                        "implementation-plan.md",
+                        "Implementation plan (input from Planner)",
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                break;
+            case PersonaKind.Reviewer:
+                // Independent review: plan + inventory only — never codegen LLM prose or prior review drafts.
+                await AppendBlobSectionAsync(
+                        sb,
+                        message,
+                        "implementation-plan.md",
+                        "Approved implementation plan (requirements bar)",
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                await AppendBlobSectionAsync(
+                        sb,
+                        message,
+                        "code-state.json",
+                        "Generated file inventory (code-state.json)",
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                break;
+            case PersonaKind.QaAutomation:
+                // Independent QA: PRD + design APIs + URL — not reviewer pass/fail cheerleading.
+                await AppendBlobSectionAsync(sb, message, "prd.json", "PRD acceptance criteria", cancellationToken)
+                    .ConfigureAwait(false);
+                await AppendBlobSectionAsync(
+                        sb,
+                        message,
+                        "techspec.json",
+                        "System design APIs (techspec.json)",
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(message.Context.DeployedUrl))
+                {
+                    sb.AppendLine("## Deployed URL (runtime)");
+                    sb.AppendLine(message.Context.DeployedUrl);
+                    sb.AppendLine();
+                }
+
+                break;
+            case PersonaKind.QaReporter:
+                await AppendBlobSectionAsync(sb, message, "prd.json", "PRD acceptance bar", cancellationToken)
+                    .ConfigureAwait(false);
+                await AppendBlobSectionAsync(
+                        sb,
+                        message,
+                        "ta-results.json",
+                        "Live automation results (ta-results.json)",
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                if (!string.IsNullOrWhiteSpace(message.Context.DeployedUrl))
+                {
+                    sb.AppendLine("## Deployed URL (runtime)");
+                    sb.AppendLine(message.Context.DeployedUrl);
+                    sb.AppendLine();
+                }
+
+                break;
+        }
+
+        if (!string.IsNullOrWhiteSpace(extraAppendix))
+        {
+            sb.AppendLine(extraAppendix.Trim());
+            sb.AppendLine();
+        }
+
         return sb.ToString();
     }
 
@@ -1251,32 +1362,19 @@ public sealed class PipelineAgentHandler
         sb.AppendLine();
     }
 
-    private Task<LlmCompletionResult> CallIaConversationAsync(
+    private Task<LlmCompletionResult> CallPersonaAsync(
         TaskMessage message,
         int ordinal,
+        string intentKind,
+        PersonaKind persona,
         string phaseInstructions,
         string conversation,
         CancellationToken cancellationToken) =>
         CallConversationAsync(
             message,
             ordinal,
-            PipelineAgentConstants.IntentIa,
-            PromptLoader.LoadIaSystemPrompt(),
-            phaseInstructions,
-            conversation,
-            cancellationToken);
-
-    private Task<LlmCompletionResult> CallTaConversationAsync(
-        TaskMessage message,
-        int ordinal,
-        string phaseInstructions,
-        string conversation,
-        CancellationToken cancellationToken) =>
-        CallConversationAsync(
-            message,
-            ordinal,
-            PipelineAgentConstants.IntentTa,
-            PromptLoader.LoadTaSystemPrompt(),
+            intentKind,
+            PromptLoader.LoadPersonaSystemPrompt(persona),
             phaseInstructions,
             conversation,
             cancellationToken);
@@ -1309,8 +1407,10 @@ public sealed class PipelineAgentHandler
             + "\n\n---\n\n"
             + conversation;
 
+        // Truncate evidence packs so independent personas never trip input_too_long.
+        var boundedPrompt = Truncate(userPrompt, LocalGuardrailPipeline.DefaultMaxInputChars);
         await EnforceGuardrailAsync(
-                _guardrails.EvaluateInput(userPrompt, message.CorrelationId),
+                _guardrails.EvaluateInput(boundedPrompt, message.CorrelationId),
                 message,
                 cancellationToken)
             .ConfigureAwait(false);
@@ -1319,7 +1419,7 @@ public sealed class PipelineAgentHandler
             .CompleteAsync(
                 new LlmCompletionRequest(
                     system,
-                    userPrompt,
+                    boundedPrompt,
                     message.Config.ModelId,
                     message.Config.ReasoningEffort),
                 cancellationToken)

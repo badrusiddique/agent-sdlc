@@ -19,12 +19,19 @@ IA owns code generation through DEV deploy (**option B**). TA then hits the live
 
 Design: [`docs/ia-local-docker-design.md`](docs/ia-local-docker-design.md), [`docs/ta-local-docker-design.md`](docs/ta-local-docker-design.md).
 
+**Independent personas:** each stage uses its own `Prompts/persona-*.txt` and a filtered evidence pack (Reviewer does not see implementer narrative; QA does not inherit “review passed”). See [`docs/persona-independence.md`](docs/persona-independence.md).
+
+**Verified 2026-10-15:** Docker + Gitea + Compose + studio UI e2e + six-persona sign-off → [`docs/ia-ta-six-persona-verification-2026-10-15.md`](docs/ia-ta-six-persona-verification-2026-10-15.md).
+
+**Next (Azure):** replace stand-ins one at a time → [`docs/azure-integration-next-steps.md`](docs/azure-integration-next-steps.md).
+
 ```bash
 # From poc/ — Azurite + Gitea, then APIs, then IA+TA verify
 ./scripts/seed-gitea.sh
 # (start AgentHub :43180 and BuildGenix :43181 as below)
 ./scripts/verify-ia.sh    # through Push & Deploy (still valid)
 ./scripts/verify-ta.sh    # full path including TA merge
+./scripts/verify-interactive.sh  # human gates through TA_REPORT then merge
 ```
 
 Optional builder image (otherwise host SDK is used):

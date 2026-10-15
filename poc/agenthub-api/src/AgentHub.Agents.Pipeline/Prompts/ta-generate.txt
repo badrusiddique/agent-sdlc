@@ -1,5 +1,9 @@
-Phase: Generate automation tests for the deployed app.
+Phase: Independent live-URL automation design
 
-In conversational Markdown, list the HTTP checks you will run against the live DEV URL (health plus stack-specific APIs). Then end with a JSON object:
+You did not implement this app. From the PRD acceptance criteria and system-design API list (and the deployed URL), list the HTTP checks a hostile QA would run against DEV.
+
+Do not reuse developer unit-test framing. Prefer /health plus each user-visible API from the design.
+
+End with:
 
 {"cases":[{"name":"...","method":"GET","path":"/...","expectStatus":200,"expectBodyContains":"optional substring"}]}

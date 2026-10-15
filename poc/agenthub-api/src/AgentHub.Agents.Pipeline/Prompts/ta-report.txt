@@ -1,5 +1,7 @@
-Phase: Test report
+Phase: Independent QA report
 
-Given the deployed URL and the JSON results of the live automation run, write a short conversational QA report in Markdown: what passed, what failed, and whether it is safe to merge the PR. End with:
+Report only from ta-results.json and the PRD acceptance bar. You are not the automation author defending the suite.
+
+State clearly whether merge is safe. End with:
 
 {"status":"green"|"red","summary":"one paragraph","readyToMerge":true|false}

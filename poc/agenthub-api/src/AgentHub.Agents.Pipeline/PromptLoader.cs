@@ -51,6 +51,19 @@ public static class PromptLoader
     public static string LoadTaSystemPrompt() =>
         LoadNamedPrompt("ta-system.txt", "You are the BuildGenix Testing Agent.");
 
+    public static string LoadPersonaSystemPrompt(PersonaKind persona) =>
+        persona switch
+        {
+            PersonaKind.Product => LoadNamedPrompt("persona-product.txt", "Independent Product Manager."),
+            PersonaKind.Architect => LoadNamedPrompt("persona-architect.txt", "Independent Solution Architect."),
+            PersonaKind.Planner => LoadNamedPrompt("persona-planner.txt", "Independent Implementation Planner."),
+            PersonaKind.Developer => LoadNamedPrompt("persona-developer.txt", "Independent Developer."),
+            PersonaKind.Reviewer => LoadNamedPrompt("persona-reviewer.txt", "Independent Code Reviewer."),
+            PersonaKind.QaAutomation => LoadNamedPrompt("persona-qa-automation.txt", "Independent QA Automation Engineer."),
+            PersonaKind.QaReporter => LoadNamedPrompt("persona-qa-reporter.txt", "Independent QA Lead."),
+            _ => LoadIaSystemPrompt()
+        };
+
     public static string LoadIaPhasePrompt(string phaseFile) =>
         LoadNamedPrompt(phaseFile, $"Phase instructions for {phaseFile}.");
 

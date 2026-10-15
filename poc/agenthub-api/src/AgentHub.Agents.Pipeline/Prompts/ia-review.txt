@@ -1,11 +1,11 @@
-Phase: Code Review
+Phase: Independent Code Review
 
-Given the plan and the list of generated files, write a conversational code-review note for the human gate. Cover:
+You are reviewing a change you did not author. Using only the approved implementation plan and the generated file inventory (not any developer self-description), write a conversational review for the human gate:
 
-- What was generated (FE vs BE)
-- Tests you expect to be green
-- Anything a reviewer should double-check before Push & Deploy
+- Whether FE and BE folders look consistent with the plan
+- Gaps or risks a human should check before Push & Deploy
+- Explicit pass / needs_attention — do not default to passed without reasoning
 
-End with a JSON object:
+End with JSON only as the final object:
 
 {"status":"passed"|"needs_attention","summary":"one paragraph","checks":["..."]}
