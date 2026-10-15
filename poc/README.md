@@ -25,7 +25,8 @@ Design: [`docs/ia-local-docker-design.md`](docs/ia-local-docker-design.md), [`do
 
 **Production SD/IA/TA work prompts:** [`docs/prompts/system-design-system.txt`](../docs/prompts/system-design-system.txt), [`implementation-agent-system.txt`](../docs/prompts/implementation-agent-system.txt), [`testing-agent-system.txt`](../docs/prompts/testing-agent-system.txt); alignment [`sd-ia-ta-prompt-alignment-2026-10-15.md`](../docs/prompts/sd-ia-ta-prompt-alignment-2026-10-15.md).
 
-**Start here on a clean machine (zip only):** [`docs/OTHER-MACHINE-SETUP.md`](docs/OTHER-MACHINE-SETUP.md) — install → local Docker → Azure/AzDO.
+**Start here on a clean machine (zip only):** [`docs/OTHER-MACHINE-SETUP.md`](docs/OTHER-MACHINE-SETUP.md) — install → local Docker → Azure/AzDO.  
+**Integrate IA into an existing agenthub (local first):** [`docs/INTEGRATE-IA-LOCAL-FROM-ZIP.md`](docs/INTEGRATE-IA-LOCAL-FROM-ZIP.md).
 
 **Hand to DevOps (provision `abc-agent-sg` / ACR / builder MI):** [`docs/azure-devops-provision-brief.md`](docs/azure-devops-provision-brief.md).
 
