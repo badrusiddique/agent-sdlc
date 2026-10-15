@@ -48,7 +48,7 @@ Names below are **conventions** — rename to your org standard; return the fina
 
 | # | Resource | Suggested name / notes | Done |
 |---|---|---|---|
-| 1 | **Azure Container Registry** | e.g. `caisdlcappsacr` (globally unique). Basic/Standard. Admin user **off**. | ☐ |
+| 1 | **Azure Container Registry** | e.g. `ccsbaisdlcappsacr` (globally unique; your naming OK). Basic/Standard. Admin user **off**. | ☐ |
 | 2 | **User-assigned managed identity — builder** | e.g. `id-aisdlc-builder`. Used as builder App Service identity **and** runtime (`AZURE_CLIENT_ID`). | ☐ |
 | 3 | **App Service plan — builder** | Linux. Size from peak memory (start P2v3 or similar until measured). Always On. | ☐ |
 | 4 | **Web App — builder (container)** | e.g. `agenthub-builder-dev`. Deploy **container** from ACR image `agenthub-ia-builder:<tag>`. Always On, 1 instance. Attach identity from #2. `acrUseManagedIdentityCreds=true`, `acrUserManagedIdentityID` = #2. | ☐ |
@@ -66,13 +66,19 @@ Names below are **conventions** — rename to your org standard; return the fina
 | 11 | Platform managed identity (or App Service system/user MI) | The one that already has **Contributor** on `cc-sb-sb-aisdlc-apps-rg` | ☐ |
 | 12 | App settings for dual-mode Azure | See §4 — `Auth=managedIdentity`, ServiceUri for storage, no PAT/publish profile in cloud | ☐ |
 
-### 2.3 Azure DevOps (org / project)
+### 2.3 Azure DevOps / GitHub — what is needed now
+
+| System | Needed now? | Detail |
+|---|---|---|
+| **Azure DevOps** | **Yes** (once builder MI exists) | Org **`wcbbc`**, project **`AI-Operations`**, repo **`inno-tech-aisdlc-apps`**. Agents push + PR there — not GitHub. |
+| **GitHub** | **No** | Platform source only for engineers. DevOps does not need GitHub for this provision; agents do not use GitHub at runtime. |
 
 | # | Item | Notes | Done |
 |---|---|---|---|
-| 13 | Repo for generated mono / apps | Initialized `main` (README). | ☐ |
-| 14 | Add **builder identity** service principal to the AzDO org | Organization Settings → Users → add the Entra app/SP for `id-aisdlc-builder`. Grant **Basic** + contribute on the target project/repos (Code + PR). | ☐ |
+| 13 | Repo `inno-tech-aisdlc-apps` | Initialized `main` (README). URL: `https://dev.azure.com/wcbbc/AI-Operations/_git/inno-tech-aisdlc-apps`. | ☐ |
+| 14 | Add **builder identity** service principal to the AzDO org | Organization Settings → Users → add the Entra app/SP for `id-aisdlc-builder`. Grant **Basic** + contribute on the project/repo (**Code** read/write + **Pull Request** read/write). | ☐ |
 | 15 | Do **not** rely on human PATs in cloud | Laptop may still use PAT for local→Azure; cloud AgentHub/builder uses MI Bearer. | ☐ |
+| 16 | GitHub | Out of scope for DevOps — no PAT, no webhook, no deploy key. | ☐ |
 
 ### 2.4 RBAC matrix (minimum)
 
@@ -101,15 +107,15 @@ cd poc
 DevOps push:
 
 ```bash
-az acr login --name <caisdlcappsacr>
-docker tag agenthub-ia-builder:local <caisdlcappsacr>.azurecr.io/agenthub-ia-builder:<yyyyMMdd>
-docker push <caisdlcappsacr>.azurecr.io/agenthub-ia-builder:<yyyyMMdd>
+az acr login --name <acr-name>
+docker tag agenthub-ia-builder:local <acr-name>.azurecr.io/agenthub-ia-builder:<yyyyMMdd>
+docker push <acr-name>.azurecr.io/agenthub-ia-builder:<yyyyMMdd>
 ```
 
 Point the builder Web App container setting at that tag. App setting for runs that still use Docker locally against ACR:
 
 ```bash
-IA_BUILDER_IMAGE=<caisdlcappsacr>.azurecr.io/agenthub-ia-builder:<yyyyMMdd>
+IA_BUILDER_IMAGE=<acr-name>.azurecr.io/agenthub-ia-builder:<yyyyMMdd>
 ```
 
 Details: `poc/agenthub-api/docker/ia-builder/EXPORT-NOTE.md`.

@@ -3,10 +3,10 @@
 **Use when:** asking DevOps to provision `cc-sb-sb-aisdlc-apps-rg` for IA/TA.  
 **Longer checklist:** [`azure-devops-provision-brief.md`](azure-devops-provision-brief.md)
 
-| Shorthand (old) | Real resource group |
+| Role | Resource group |
 |---|---|
-| `abc-sg` | **`cc-sb-sb-aisdlc-rg`** |
-| `abc-agent-sg` | **`cc-sb-sb-aisdlc-apps-rg`** |
+| Platform (AgentHub / BuildGenix) | **`cc-sb-sb-aisdlc-rg`** |
+| IA/TA builder + generated apps | **`cc-sb-sb-aisdlc-apps-rg`** |
 
 ---
 
@@ -28,14 +28,17 @@ Reason: the image is only for the IA/TA builder. Registry, builder host, and gen
 2. **User-assigned managed identity** for the builder (e.g. `id-aisdlc-builder`).
 3. **Linux App Service plan + Web App (container)** for the builder — Always On; pull the image from that ACR using the builder identity (`AcrPull`, managed-identity ACR pull enabled).
 4. **Separate Linux App Service plan** for generated DEV apps (FE/BE the agents deploy). Empty placeholder app optional.
-5. **Storage account** (if we are not reusing platform storage) with a private container named `agenthub-artifacts` — for agent artifacts via managed identity (Blob/Table Data Contributor), not account keys in cloud settings.
-6. (Optional) Key Vault + a second user-assigned identity for generated apps later.
+5. **Storage account** (if we are not reusing platform storage in `cc-sb-sb-aisdlc-rg`) with a private container named `agenthub-artifacts` (or `aisdlc-artifacts` if that is the org standard) — MI data-plane roles, not account keys in cloud app settings.
+6. (Optional for later) Key Vault + a second user-assigned identity for generated apps.
 
-**RBAC / access we need confirmed**
-- `cc-sb-sb-aisdlc-rg` platform identity → still **Contributor** on `cc-sb-sb-aisdlc-apps-rg`.
-- Builder identity → **AcrPull** on the ACR; **Contributor** (or Website Contributor + storage data roles) on `cc-sb-sb-aisdlc-apps-rg` / storage.
-- Builder identity’s Entra service principal added to our **Azure DevOps** org/project with rights to push code and open/complete PRs (no human PAT in cloud app settings).
-- Someone who can push the first builder image gets **AcrPush** on the ACR (we will hand you the image or a tar once ACR exists).
+**Access needed for now (AzDO / GitHub / etc.)**
+
+| System | Needed now? | What |
+|---|---|---|
+| **Azure (RBAC)** | **Yes** | Keep Contributor from platform MI in `cc-sb-sb-aisdlc-rg` → `cc-sb-sb-aisdlc-apps-rg`. Grant builder MI **AcrPull** on the new ACR; builder MI rights on the apps RG / storage as above. Give **AcrPush** to whoever will push the first builder image (you or us). |
+| **Azure DevOps** | **Yes — after builder MI exists** | Agents push code and open/complete PRs in AzDO (not GitHub). Org/project/repo we use: **`wcbbc` / `AI-Operations` / `inno-tech-aisdlc-apps`**. Please: (1) confirm that repo exists with an initialized `main`; (2) add the **builder managed identity’s service principal** to the AzDO org and grant **Basic** + **contribute** (Code read/write + Pull Request read/write) on that project/repo. No human PAT in cloud app settings. |
+| **GitHub** | **No for this ticket** | GitHub is only for our platform source (engineering). Agents and generated apps do **not** use GitHub. You do not need a GitHub account, PAT, or webhook for this provision. |
+| **Other (Service Bus, AI Gateway, etc.)** | **Not for this ticket** | Assume platform in `cc-sb-sb-aisdlc-rg` already has what AgentHub needs; we are only expanding the apps RG + AzDO identity binding. |
 
 **Please reply with**
 - Region  
@@ -44,13 +47,15 @@ Reason: the image is only for the IA/TA builder. Registry, builder host, and gen
 - Builder identity client id / principal id  
 - Generated-apps plan name  
 - Storage blob endpoint (if new)  
-- AzDO org / project / repo name  
-- Confirm: builder SP in AzDO? AcrPull on builder? Contributor `cc-sb-sb-aisdlc-rg` → `cc-sb-sb-aisdlc-apps-rg` still OK?
+- Confirm AzDO: repo `inno-tech-aisdlc-apps` ready? builder SP added to `wcbbc` / `AI-Operations`?  
+- Confirm: AcrPull on builder? Contributor `cc-sb-sb-aisdlc-rg` → `cc-sb-sb-aisdlc-apps-rg` still OK?
 
 Thanks — happy to jump on a quick call if naming standards differ; we can rename anything to match your convention.
 
 ---
 
-## One-line answer (if they only ask about the image)
+## One-line answers
 
-**Put the IA/TA Docker registry and the builder App Service in `cc-sb-sb-aisdlc-apps-rg`; keep AgentHub/BuildGenix in `cc-sb-sb-aisdlc-rg`.**
+**Image / ACR:** put in **`cc-sb-sb-aisdlc-apps-rg`**; keep platform in **`cc-sb-sb-aisdlc-rg`**.  
+**AzDO:** yes — builder MI into `wcbbc` / `AI-Operations` / `inno-tech-aisdlc-apps` (Code + PR).  
+**GitHub:** no — not required for DevOps provision or agent runtime.
