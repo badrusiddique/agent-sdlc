@@ -8,8 +8,12 @@ DATE_TAG="${DATE_TAG:-$(date -u +%Y%m%d)}"
 LOCAL_TAG="${LOCAL_TAG:-agenthub-ia-builder:local}"
 DATED_TAG="${DATED_TAG:-agenthub-ia-builder:${DATE_TAG}}"
 
-echo "Building $LOCAL_TAG and $DATED_TAG from $DOCKER_DIR"
+# Pin linux/amd64 so Apple Silicon / mixed hosts still produce an ACR-friendly image.
+PLATFORM="${DOCKER_PLATFORM:-linux/amd64}"
+
+echo "Building $LOCAL_TAG and $DATED_TAG from $DOCKER_DIR (platform=$PLATFORM)"
 docker build \
+  --platform "$PLATFORM" \
   -t "$LOCAL_TAG" \
   -t "$DATED_TAG" \
   -f "$DOCKER_DIR/Dockerfile" \

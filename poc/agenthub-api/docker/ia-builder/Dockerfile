@@ -4,11 +4,14 @@
 #
 # Build:  ./scripts/build-ia-builder.sh
 # Save:   ./scripts/save-ia-builder.sh   → tar for manual ACR / blob upload
+#
+# Node comes from the official node image (COPY), not NodeSource apt and not
+# a curl to nodejs.org — those fail on many corporate networks.
+
+FROM node:22-bookworm AS node_upstream
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0
 
-# Pin Node binary (avoid flaky deb.nodesource.com setup_*.x apt scripts)
-ARG NODE_VERSION=22.16.0
 ARG DEBIAN_FRONTEND=noninteractive
 
 USER root
@@ -24,7 +27,6 @@ RUN apt-get update \
         jq \
         unzip \
         zip \
-        xz-utils \
         python3 \
         python3-pip \
         python3-venv \
@@ -33,16 +35,13 @@ RUN apt-get update \
         lsb-release \
     && rm -rf /var/lib/apt/lists/*
 
-# Node.js + npm from official tarball, then Angular CLI
+# Node + npm (+ corepack) from official image — no outbound curl to nodejs.org
+COPY --from=node_upstream /usr/local/bin/node /usr/local/bin/node
+COPY --from=node_upstream /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN set -eux; \
-    arch="$(uname -m)"; \
-    case "$arch" in \
-      x86_64) node_arch=x64 ;; \
-      aarch64|arm64) node_arch=arm64 ;; \
-      *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
-    esac; \
-    curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${node_arch}.tar.xz" \
-      | tar -xJ -C /usr/local --strip-components=1; \
+    ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm; \
+    ln -sf /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx; \
+    ln -sf /usr/local/lib/node_modules/corepack/dist/corepack.js /usr/local/bin/corepack || true; \
     node --version; \
     npm --version; \
     npm install -g @angular/cli@19; \
