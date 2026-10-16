@@ -32,6 +32,15 @@
 | `Artifacts/` | Versioned paths + LATEST/state-context writer |
 | `Ia/`, `Prd/`, `Sd/` | Unchanged behaviour (IA still regenerates on RouteBack) |
 
+## Follow-up added (same tip family)
+
+| Artifact | Purpose |
+|---|---|
+| `ta-verification-report.json` / `.md` | Explicit TA test-plan + results pass report **before** DEPLOY_SANDBOX |
+| `decision-log.json` + `DECISION_LOG.json` / `DECISION_LOG_V{n}.json` | Per-agent decision entries + rolling `decisionSummary` for next agent + UI |
+
+Verified locally: Calculator Completed; agents PRD/SystemDesign/IA/TA/Deploy present in decision log; sandbox embeds `taVerificationReport`.
+
 ## Other machine
 
 Do **not** change LLM Gateway settings. Port `Ia/` first, then `Ta/`, then enhance Prd/Sd using this layout as reference.
