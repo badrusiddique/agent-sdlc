@@ -43,10 +43,12 @@ public static class VersionedArtifactPaths
         "taReport" => "TA_REPORT",
         "taStatus" => "TA_STATUS",
         "taConcerns" => "TA_CONCERNS",
+        "taVerificationReport" => "TA_VERIFICATION_REPORT",
         "merge" => "MERGE",
         "completionSummary" => "COMPLETION",
         "sandboxUrl" => "SANDBOX_URL",
         "stateContext" => "STATE_CONTEXT",
+        "decisionLog" => "DECISION_LOG",
         _ => null
     };
 }

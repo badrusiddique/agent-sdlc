@@ -218,6 +218,20 @@ public sealed class PipelineAgentHandler
         artifacts["prdMd"] = mdPath;
         await CompleteStepAsync(message, run, "prd.persistMd", "Wrote prd.md", cancellationToken)
             .ConfigureAwait(false);
+        await AppendDecisionAsync(
+                message,
+                artifacts,
+                agent: "PRD",
+                stage: PipelineAgentConstants.StagePrd,
+                phase: "persist",
+                summary: $"Drafted PRD for '{message.Context.ProjectName ?? "app"}' from user request.",
+                decisions:
+                [
+                    "Product owns acceptance criteria; Implementation must not invent product behaviour.",
+                    "deliveryMode recorded for downstream IA/TA smoke selection."
+                ],
+                cancellationToken)
+            .ConfigureAwait(false);
         return Tokens(llm);
     }
 
@@ -250,6 +264,20 @@ public sealed class PipelineAgentHandler
             .ConfigureAwait(false);
         artifacts["techSpecMd"] = mdPath;
         await CompleteStepAsync(message, run, "sd.persistMd", "Wrote system-design.md", cancellationToken)
+            .ConfigureAwait(false);
+        await AppendDecisionAsync(
+                message,
+                artifacts,
+                agent: "SystemDesign",
+                stage: PipelineAgentConstants.StageSystemDesign,
+                phase: "persist",
+                summary: "Published techspec + system-design for IA/TA spoon-feed.",
+                decisions:
+                [
+                    "Primary API and deliveryMode locked for Implementation and Testing.",
+                    "IA must not invent routes outside this design; TA derives live checks from it."
+                ],
+                cancellationToken)
             .ConfigureAwait(false);
         return Tokens(llm);
     }
@@ -302,6 +330,20 @@ public sealed class PipelineAgentHandler
         await WriteArtifactAsync(message, planPath, planText, 530, cancellationToken).ConfigureAwait(false);
         artifacts["implementationPlan"] = planPath;
         await CompleteStepAsync(message, run, "ia.plan.persist", "Wrote implementation-plan.md", cancellationToken)
+            .ConfigureAwait(false);
+        await AppendDecisionAsync(
+                message,
+                artifacts,
+                agent: "IA",
+                stage: PipelineAgentConstants.StageIaPlan,
+                phase: "plan",
+                summary: "Implementation plan ready for codegen.",
+                decisions:
+                [
+                    "Plan follows PRD + system design; no new product scope.",
+                    "Codegen will materialize request-driven / rewrite / feature-increment per deliveryMode."
+                ],
+                cancellationToken)
             .ConfigureAwait(false);
         return Tokens(llm);
     }
@@ -460,6 +502,23 @@ public sealed class PipelineAgentHandler
         outputs["headCommit"] = headCommit;
         outputs["workspaceRoot"] = workspace;
         outputs["monoFolder"] = MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId);
+        await AppendDecisionAsync(
+                message,
+                artifacts,
+                agent: "IA",
+                stage: PipelineAgentConstants.StageIaCodegen,
+                phase: "codegen",
+                summary:
+                    $"Generated/fixed workspace ({outputs.GetValueOrDefault("deliveryMode") ?? "Basic"} / {outputs.GetValueOrDefault("appKind") ?? "app"}); TDD green; head={headCommit}.",
+                decisions:
+                [
+                    "Workspace is the source of truth for this revision.",
+                    message.Artifacts.ContainsKey("taConcerns")
+                        ? "Applied TA RouteBack concerns before regenerating."
+                        : "Fresh generation from approved plan/design."
+                ],
+                cancellationToken)
+            .ConfigureAwait(false);
         return Tokens(llm);
     }
 
@@ -562,6 +621,20 @@ public sealed class PipelineAgentHandler
                 cancellationToken)
             .ConfigureAwait(false);
 
+        await AppendDecisionAsync(
+                message,
+                artifacts,
+                agent: "IA",
+                stage: PipelineAgentConstants.StageIaReview,
+                phase: "review",
+                summary: "Independent code review completed; graphify code-state recorded.",
+                decisions:
+                [
+                    "Reviewer did not re-implement; evidence was plan + code-state.",
+                    "code-state command locked: graphify extract . --code-only."
+                ],
+                cancellationToken)
+            .ConfigureAwait(false);
         return Tokens(llm);
     }
 
@@ -623,6 +696,20 @@ public sealed class PipelineAgentHandler
         await RunDeployAsync(message, run, artifacts, outputs, cancellationToken).ConfigureAwait(false);
         outputs["workspaceRoot"] = workspace;
         outputs["monoFolder"] = MonoRepoLayout.FolderName(message.ProjectId, message.WorkItemId);
+        await AppendDecisionAsync(
+                message,
+                artifacts,
+                agent: "IA",
+                stage: PipelineAgentConstants.StageIaPushDeploy,
+                phase: "push-deploy",
+                summary: $"Opened PR and deployed DEV at {outputs.GetValueOrDefault("deployedUrls") ?? "(pending)"}.",
+                decisions:
+                [
+                    "Feature branch PR — not direct push to main.",
+                    "DeployedUrl is the live base for Testing Agent HTTP + Playwright."
+                ],
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task<TokenUsage> RunTaGenerateAsync(
@@ -708,6 +795,20 @@ public sealed class PipelineAgentHandler
                 $"Wrote {cases.Count} HTTP cases + Playwright FE suite",
                 cancellationToken)
             .ConfigureAwait(false);
+        await AppendDecisionAsync(
+                message,
+                artifacts,
+                agent: "TA",
+                stage: PipelineAgentConstants.StageTaGenerate,
+                phase: "generate",
+                summary: $"Wrote {cases.Count} live HTTP cases plus Playwright FE suite against deployed URL.",
+                decisions:
+                [
+                    "Cases derived from deliveryMode / request classifier — not from review.json cheerleading.",
+                    "Playwright soft-skips if browsers unavailable; HTTP smoke remains hard gate."
+                ],
+                cancellationToken)
+            .ConfigureAwait(false);
         return Tokens(llm);
     }
 
@@ -779,6 +880,20 @@ public sealed class PipelineAgentHandler
                 .ConfigureAwait(false);
             await CompleteStepAsync(message, run, "ta.verify.persist", "Wrote ta-results + ta-concerns (RouteBack)", cancellationToken)
                 .ConfigureAwait(false);
+            await AppendDecisionAsync(
+                    message,
+                    artifacts,
+                    agent: "TA",
+                    stage: PipelineAgentConstants.StageTaVerify,
+                    phase: "verify-red",
+                    summary: "Live verification red — RouteBack to IA with ta-concerns.json.",
+                    decisions:
+                    [
+                        "AgentResult stays Completed with signal.kind=RouteBack (not Failed).",
+                        "IA must fix, re-test, re-deploy; artifact revision will bump."
+                    ],
+                    cancellationToken)
+                .ConfigureAwait(false);
             // Completed AgentResult (not Failed) — orchestrator routes back to IA.
             return;
         }
@@ -788,6 +903,20 @@ public sealed class PipelineAgentHandler
         await CompleteStepAsync(message, run, "ta.verify.run", "HTTP + Playwright green", cancellationToken)
             .ConfigureAwait(false);
         await CompleteStepAsync(message, run, "ta.verify.persist", "Wrote ta-results.json", cancellationToken)
+            .ConfigureAwait(false);
+        await AppendDecisionAsync(
+                message,
+                artifacts,
+                agent: "TA",
+                stage: PipelineAgentConstants.StageTaVerify,
+                phase: "verify-green",
+                summary: $"Live verification green against {deployedUrl}.",
+                decisions:
+                [
+                    "HTTP smoke hard-gate passed.",
+                    "Playwright FE ran or soft-skipped; overall status green."
+                ],
+                cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -802,7 +931,41 @@ public sealed class PipelineAgentHandler
         outputs["deployedUrls"] = deployedUrl ?? "";
         await BeginStepAsync(message, run, "deploy.sandbox.publish", "Publish sandbox URL for acceptance", cancellationToken)
             .ConfigureAwait(false);
+
+        // Require TA verification report when present (proof before deployment handoff).
+        var reportJson = await _blobs
+            .TryReadJsonAsync(message.BlobPrefix + "ta-verification-report.json", cancellationToken)
+            .ConfigureAwait(false);
+        if (string.IsNullOrWhiteSpace(reportJson) && artifacts.TryGetValue("taVerificationReport", out var reportPath))
+        {
+            reportJson = await _blobs.TryReadJsonAsync(reportPath, cancellationToken).ConfigureAwait(false);
+        }
+
         var json = SandboxDeployPublisher.BuildArtifact(message, deployedUrl, message.Context.PrUrl);
+        if (!string.IsNullOrWhiteSpace(reportJson))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(json);
+                using var report = JsonDocument.Parse(reportJson);
+                var merged = new Dictionary<string, object?>();
+                foreach (var p in doc.RootElement.EnumerateObject())
+                {
+                    merged[p.Name] = JsonSerializer.Deserialize<object>(p.Value.GetRawText());
+                }
+
+                merged["taVerificationReport"] = JsonSerializer.Deserialize<object>(reportJson);
+                merged["taVerificationReady"] =
+                    report.RootElement.TryGetProperty("readyForDeployment", out var ready)
+                    && ready.ValueKind == JsonValueKind.True;
+                json = JsonSerializer.Serialize(merged, JsonOptions);
+            }
+            catch (JsonException)
+            {
+                // keep sandbox artifact without embed
+            }
+        }
+
         var path = message.BlobPrefix + "sandbox-url.json";
         await WriteArtifactAsync(message, path, json, 960, cancellationToken, "sandboxUrl")
             .ConfigureAwait(false);
@@ -818,6 +981,20 @@ public sealed class PipelineAgentHandler
         artifacts["sandboxUrlMd"] = mdPath;
         outputs["sandboxUrl"] = deployedUrl ?? "";
         outputs["deploymentStatus"] = "waiting_for_approval";
+        await AppendDecisionAsync(
+                message,
+                artifacts,
+                agent: "Deploy",
+                stage: PipelineAgentConstants.StageDeploySandbox,
+                phase: "publish",
+                summary: $"Sandbox URL published for acceptance: {deployedUrl ?? "(missing)"}.",
+                decisions:
+                [
+                    "No re-deploy — URL comes from IA Push & Deploy.",
+                    "TA verification report attached when available; waiting for approval to leave sandbox."
+                ],
+                cancellationToken)
+            .ConfigureAwait(false);
         await CompleteStepAsync(
                 message,
                 run,
@@ -911,7 +1088,7 @@ public sealed class PipelineAgentHandler
         await CompleteStepAsync(message, run, "ta.report.converse", "Report drafted", cancellationToken)
             .ConfigureAwait(false);
 
-        await BeginStepAsync(message, run, "ta.report.persist", "Persist ta-report.md", cancellationToken)
+        await BeginStepAsync(message, run, "ta.report.persist", "Persist ta-report + verification report", cancellationToken)
             .ConfigureAwait(false);
         var mdPath = message.BlobPrefix + "ta-report.md";
         await WriteArtifactAsync(message, mdPath, llm.Text, 931, cancellationToken).ConfigureAwait(false);
@@ -924,7 +1101,90 @@ public sealed class PipelineAgentHandler
         artifacts["taReport"] = mdPath;
         artifacts["taStatus"] = statusPath;
         outputs["taStatus"] = "green";
-        await CompleteStepAsync(message, run, "ta.report.persist", "Wrote ta-report.md and ta-status.json", cancellationToken)
+
+        // Explicit verification report (test plan + results) before Deployment Agent.
+        var planText = await _blobs.TryReadJsonAsync(message.BlobPrefix + "ta-test-plan.md", cancellationToken)
+            .ConfigureAwait(false);
+        var resultsText = await _blobs.TryReadJsonAsync(message.BlobPrefix + "ta-results.json", cancellationToken)
+            .ConfigureAwait(false);
+        var decisionRaw = await DecisionLogWriter
+            .TryLoadLatestAsync(
+                _blobs,
+                message.ProjectId,
+                message.WorkItemId,
+                message.BlobPrefix,
+                cancellationToken)
+            .ConfigureAwait(false);
+        var decisionSummary = "";
+        if (!string.IsNullOrWhiteSpace(decisionRaw))
+        {
+            try
+            {
+                using var ddoc = JsonDocument.Parse(decisionRaw);
+                if (ddoc.RootElement.TryGetProperty("decisionSummary", out var ds))
+                {
+                    decisionSummary = ds.GetString() ?? "";
+                }
+            }
+            catch (JsonException)
+            {
+                decisionSummary = Truncate(decisionRaw!, 400);
+            }
+        }
+
+        var rev = message.OutputRevision < 1 ? 1 : message.OutputRevision;
+        var verificationJson = TaVerificationReportBuilder.BuildJson(
+            deployedUrl,
+            planText,
+            resultsText,
+            statusJson,
+            decisionSummary,
+            rev);
+        var verificationPath = message.BlobPrefix + "ta-verification-report.json";
+        await WriteArtifactAsync(
+                message,
+                verificationPath,
+                verificationJson,
+                933,
+                cancellationToken,
+                "taVerificationReport")
+            .ConfigureAwait(false);
+        artifacts["taVerificationReport"] = verificationPath;
+        var verificationMd = TaVerificationReportBuilder.BuildMarkdown(
+            deployedUrl,
+            "green",
+            planText,
+            decisionSummary);
+        var verificationMdPath = message.BlobPrefix + "ta-verification-report.md";
+        await WriteArtifactAsync(
+                message,
+                verificationMdPath,
+                JsonSerializer.Serialize(new { content = verificationMd }, JsonOptions),
+                934,
+                cancellationToken)
+            .ConfigureAwait(false);
+        artifacts["taVerificationReportMd"] = verificationMdPath;
+
+        await AppendDecisionAsync(
+                message,
+                artifacts,
+                agent: "TA",
+                stage: PipelineAgentConstants.StageTaReport,
+                phase: "verification-report",
+                summary: "Published TA verification report; ready for DEPLOY_SANDBOX.",
+                decisions:
+                [
+                    "Report consolidates test plan, live results, and pipeline decision summary.",
+                    "Deployment Agent must not re-test; it shares the sandbox URL for acceptance."
+                ],
+                cancellationToken)
+            .ConfigureAwait(false);
+        await CompleteStepAsync(
+                message,
+                run,
+                "ta.report.persist",
+                "Wrote ta-report, ta-status, and ta-verification-report",
+                cancellationToken)
             .ConfigureAwait(false);
         return Tokens(llm);
     }
@@ -1010,6 +1270,20 @@ public sealed class PipelineAgentHandler
         // Keep local deploy finalize semantics for Compose cleanup markers.
         message.Context.DeploymentAction = "Finalize";
         await RunDeployAsync(message, run, artifacts, outputs, cancellationToken).ConfigureAwait(false);
+        await AppendDecisionAsync(
+                message,
+                artifacts,
+                agent: "TA",
+                stage: PipelineAgentConstants.StageTaMerge,
+                phase: "merge",
+                summary: $"Merged PR after green TA; deployed URL remains {message.Context.DeployedUrl ?? outputs.GetValueOrDefault("deployedUrls")}.",
+                decisions:
+                [
+                    "Merge only after verification report green.",
+                    "Next: DEPLOY_SANDBOX publishes URL for acceptance (no re-deploy)."
+                ],
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private async Task RunTestingAsync(
@@ -1339,11 +1613,48 @@ public sealed class PipelineAgentHandler
             "ta-report.md" => "taReport",
             "ta-status.json" => "taStatus",
             "ta-concerns.json" => "taConcerns",
+            "ta-verification-report.json" => "taVerificationReport",
             "merge.json" => "merge",
             "completion-summary.json" => "completionSummary",
             "sandbox-url.json" => "sandboxUrl",
+            "decision-log.json" => "decisionLog",
             _ => null
         };
+    }
+
+    private async Task AppendDecisionAsync(
+        TaskMessage message,
+        Dictionary<string, string> artifacts,
+        string agent,
+        string stage,
+        string phase,
+        string summary,
+        IReadOnlyList<string> decisions,
+        CancellationToken cancellationToken)
+    {
+        var revision = message.OutputRevision < 1 ? 1 : message.OutputRevision;
+        var prefix = message.BlobPrefix
+                     ?? VersionedArtifactPaths.RevisionPrefix(message.ProjectId, message.WorkItemId, revision);
+        await DecisionLogWriter
+            .AppendAsync(
+                _blobs,
+                message.ProjectId,
+                message.WorkItemId,
+                revision,
+                prefix,
+                agent,
+                stage,
+                phase,
+                summary,
+                decisions,
+                extras: new Dictionary<string, string>
+                {
+                    ["deployedUrl"] = message.Context.DeployedUrl ?? "",
+                    ["projectMode"] = message.Context.ProjectMode ?? ""
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
+        artifacts["decisionLog"] = prefix.TrimEnd('/') + "/decision-log.json";
     }
 
     private async Task CommitLedgerAsync(
@@ -1517,10 +1828,26 @@ public sealed class PipelineAgentHandler
         sb.AppendLine(message.Context.UserRequest ?? "(missing)");
         sb.AppendLine();
 
+        // Shared decision log — what prior agents decided (crash-safe artifact).
+        var decisionLog = await DecisionLogWriter
+            .TryLoadLatestAsync(
+                _blobs,
+                message.ProjectId,
+                message.WorkItemId,
+                message.BlobPrefix,
+                cancellationToken)
+            .ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(decisionLog))
+        {
+            sb.AppendLine("## Decision log so far (prior agents)");
+            sb.AppendLine(Truncate(decisionLog!, 4000));
+            sb.AppendLine();
+        }
+
         switch (persona)
         {
             case PersonaKind.Product:
-                // Request only — product owns the PRD draft.
+                // Request + decision log — product owns the PRD draft.
                 break;
             case PersonaKind.Architect:
                 await AppendBlobSectionAsync(sb, message, "prd.json", "PRD (input from Product)", cancellationToken)
