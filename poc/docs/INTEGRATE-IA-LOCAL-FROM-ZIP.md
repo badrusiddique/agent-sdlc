@@ -2,7 +2,7 @@
 
 **You have:** a zip of branch **`main-azure`** from GitHub. Nothing Azure required for this guide.  
 **Goal:** (1) Run this reference POC green locally with Docker stand-ins, (2) copy the IA pieces into your similar project (same agent structure / AgentHub background workers).  
-**Tip to prefer:** latest `main-azure` (includes IA stages, Gitea + Compose, dual-mode Azure code you can ignore for now).
+**Tip to prefer:** latest `main-greenfield` (or `main-azure` for dual-mode-only). Includes IA stages, Gitea + Compose, dual-mode Azure seams.
 
 Longer Azure path later: [`OTHER-MACHINE-SETUP.md`](OTHER-MACHINE-SETUP.md).
 

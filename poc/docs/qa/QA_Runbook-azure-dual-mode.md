@@ -1,8 +1,9 @@
 # QA Runbook — Azure dual-mode (IA + TA)
 
 **Purpose:** After ClickOps wires a real Azure subscription on another machine, run this runbook to prove the **same code** works locally (Docker stand-ins) **and** against Azure / Azure DevOps.  
-**Code branch:** `main-azure` (tip must include dual-mode providers + builder image).  
-**Companion ClickOps:** [`../azure-clickops-integration.md`](../azure-clickops-integration.md)
+**Code branch:** `main-greenfield` (or `main-azure` for dual-mode-only tip). Tip must include dual-mode providers + builder image + request-driven/greenfield IA.  
+**Companion ClickOps:** [`../azure-clickops-integration.md`](../azure-clickops-integration.md)  
+**Local Manual QA (Docker Gitea+Compose):** `./scripts/manual-qa-greenfield-deep.sh` then `./scripts/verify-greenfield.sh`.
 
 ---
 
@@ -29,7 +30,7 @@ Senior QA does **not** mark Azure Manual QA done on Fixture-only or mock-only ru
 ```bash
 git clone https://github.com/badrusiddique/agent-sdlc.git
 cd agent-sdlc
-git checkout main-azure
+git checkout main-greenfield   # or main-azure for dual-mode-only tip
 git rev-parse HEAD   # record SHA in the evidence section below
 ```
 

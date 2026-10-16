@@ -1,0 +1,1913 @@
+{
+  "startedAt": "2026-10-16T01:03:00Z",
+  "finishedAt": "2026-10-16T01:12:07Z",
+  "branch": "main-greenfield",
+  "tip": "2cd7b48+LocalComposeHost-network-prune",
+  "infra": {
+    "gitea": "http://127.0.0.1:43185 up",
+    "azurite": "up",
+    "agenthub": "http://127.0.0.1:43180 (ServiceBus emulator unhealthy; InProcessOnly OK)",
+    "buildgenix": "http://127.0.0.1:43181 up",
+    "dockerComposeDeployments": [
+      "42851 MultiWI_Add",
+      "45491 MultiWI_Subtract"
+    ],
+    "fixApplied": "LocalComposeHost docker network prune+retry on fully-subnetted"
+  },
+  "overallPass": true,
+  "failures": [],
+  "cases": [
+    {
+      "name": "HP_Calculator",
+      "pass": true,
+      "checkCount": 56,
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_REVIEW",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true
+        },
+        {
+          "check": "events_include_ArtifactReady",
+          "pass": true
+        },
+        {
+          "check": "events_include_GateApproved",
+          "pass": true
+        },
+        {
+          "check": "events_include_Finalized",
+          "pass": true
+        },
+        {
+          "check": "deploy_health_200",
+          "pass": true
+        },
+        {
+          "check": "smoke_/api/add?a=2&b=3",
+          "pass": true
+        },
+        {
+          "check": "blob_intake-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.md",
+          "pass": true
+        },
+        {
+          "check": "blob_techspec.json",
+          "pass": true
+        },
+        {
+          "check": "blob_system-design.md",
+          "pass": true
+        },
+        {
+          "check": "blob_implementation-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_test-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_review.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-review.md",
+          "pass": true
+        },
+        {
+          "check": "blob_code-state.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-graph.json",
+          "pass": true
+        },
+        {
+          "check": "blob_pull-request.json",
+          "pass": true
+        },
+        {
+          "check": "blob_completion-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-test-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_merge.json",
+          "pass": true
+        },
+        {
+          "check": "intake_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "techspec_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "code_state_graphify_command",
+          "pass": true
+        },
+        {
+          "check": "code_state_mode_request_driven",
+          "pass": true
+        },
+        {
+          "check": "code_state_graph_nodes",
+          "pass": true
+        },
+        {
+          "check": "code_graph_has_nodes",
+          "pass": true
+        },
+        {
+          "check": "review_blob_nonempty",
+          "pass": true
+        },
+        {
+          "check": "tdd_test_results_present",
+          "pass": true
+        },
+        {
+          "check": "pr_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "pr_url_present",
+          "pass": true
+        },
+        {
+          "check": "pr_branch_feature",
+          "pass": true
+        },
+        {
+          "check": "pr_not_main_branch",
+          "pass": true
+        },
+        {
+          "check": "merge_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "merge_completed_or_flagged",
+          "pass": true
+        },
+        {
+          "check": "ta_results_green",
+          "pass": true
+        },
+        {
+          "check": "ta_case_HealthOk",
+          "pass": true
+        },
+        {
+          "check": "ta_case_Add",
+          "pass": true
+        },
+        {
+          "check": "audit_log_present",
+          "pass": true
+        },
+        {
+          "check": "audit_has_transitions",
+          "pass": true
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_backend_cs",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_frontend",
+          "pass": true
+        },
+        {
+          "check": "code_contains_MapGet",
+          "pass": true
+        },
+        {
+          "check": "code_route_/api/add",
+          "pass": true
+        },
+        {
+          "check": "code_route_/health",
+          "pass": true
+        },
+        {
+          "check": "gitea_pr_page_reachable",
+          "pass": true
+        }
+      ],
+      "deployedUrl": "http://127.0.0.1:38939",
+      "deliveryModes": {
+        "intake": "Basic",
+        "prd": "Basic"
+      },
+      "prUrl": "http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/23",
+      "taStatus": "green",
+      "tddStatus": "green"
+    },
+    {
+      "name": "Todo",
+      "pass": true,
+      "checkCount": 54,
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_REVIEW",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true
+        },
+        {
+          "check": "events_include_ArtifactReady",
+          "pass": true
+        },
+        {
+          "check": "events_include_GateApproved",
+          "pass": true
+        },
+        {
+          "check": "events_include_Finalized",
+          "pass": true
+        },
+        {
+          "check": "deploy_health_200",
+          "pass": true
+        },
+        {
+          "check": "smoke_/api/todos",
+          "pass": true
+        },
+        {
+          "check": "blob_intake-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.md",
+          "pass": true
+        },
+        {
+          "check": "blob_techspec.json",
+          "pass": true
+        },
+        {
+          "check": "blob_system-design.md",
+          "pass": true
+        },
+        {
+          "check": "blob_implementation-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_test-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_review.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-review.md",
+          "pass": true
+        },
+        {
+          "check": "blob_code-state.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-graph.json",
+          "pass": true
+        },
+        {
+          "check": "blob_pull-request.json",
+          "pass": true
+        },
+        {
+          "check": "blob_completion-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-test-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_merge.json",
+          "pass": true
+        },
+        {
+          "check": "intake_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "techspec_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "code_state_graphify_command",
+          "pass": true
+        },
+        {
+          "check": "code_state_mode_request_driven",
+          "pass": true
+        },
+        {
+          "check": "code_state_graph_nodes",
+          "pass": true
+        },
+        {
+          "check": "code_graph_has_nodes",
+          "pass": true
+        },
+        {
+          "check": "review_blob_nonempty",
+          "pass": true
+        },
+        {
+          "check": "tdd_test_results_present",
+          "pass": true
+        },
+        {
+          "check": "pr_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "pr_url_present",
+          "pass": true
+        },
+        {
+          "check": "pr_branch_feature",
+          "pass": true
+        },
+        {
+          "check": "pr_not_main_branch",
+          "pass": true
+        },
+        {
+          "check": "merge_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "merge_completed_or_flagged",
+          "pass": true
+        },
+        {
+          "check": "ta_results_green",
+          "pass": true
+        },
+        {
+          "check": "ta_case_HealthOk",
+          "pass": true
+        },
+        {
+          "check": "ta_case_Todos",
+          "pass": true
+        },
+        {
+          "check": "audit_log_present",
+          "pass": true
+        },
+        {
+          "check": "audit_has_transitions",
+          "pass": true
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_backend_cs",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_frontend",
+          "pass": true
+        },
+        {
+          "check": "code_route_/api/todos",
+          "pass": true
+        },
+        {
+          "check": "gitea_pr_page_reachable",
+          "pass": true
+        }
+      ],
+      "deployedUrl": "http://127.0.0.1:36339",
+      "deliveryModes": {
+        "intake": "Basic",
+        "prd": "Basic"
+      },
+      "prUrl": "http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/24",
+      "taStatus": "green",
+      "tddStatus": "green"
+    },
+    {
+      "name": "Hello_no_LLM",
+      "pass": true,
+      "checkCount": 54,
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_REVIEW",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true
+        },
+        {
+          "check": "events_include_ArtifactReady",
+          "pass": true
+        },
+        {
+          "check": "events_include_GateApproved",
+          "pass": true
+        },
+        {
+          "check": "events_include_Finalized",
+          "pass": true
+        },
+        {
+          "check": "deploy_health_200",
+          "pass": true
+        },
+        {
+          "check": "smoke_/api/hello",
+          "pass": true
+        },
+        {
+          "check": "blob_intake-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.md",
+          "pass": true
+        },
+        {
+          "check": "blob_techspec.json",
+          "pass": true
+        },
+        {
+          "check": "blob_system-design.md",
+          "pass": true
+        },
+        {
+          "check": "blob_implementation-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_test-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_review.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-review.md",
+          "pass": true
+        },
+        {
+          "check": "blob_code-state.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-graph.json",
+          "pass": true
+        },
+        {
+          "check": "blob_pull-request.json",
+          "pass": true
+        },
+        {
+          "check": "blob_completion-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-test-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_merge.json",
+          "pass": true
+        },
+        {
+          "check": "intake_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "techspec_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "code_state_graphify_command",
+          "pass": true
+        },
+        {
+          "check": "code_state_mode_request_driven",
+          "pass": true
+        },
+        {
+          "check": "code_state_graph_nodes",
+          "pass": true
+        },
+        {
+          "check": "code_graph_has_nodes",
+          "pass": true
+        },
+        {
+          "check": "review_blob_nonempty",
+          "pass": true
+        },
+        {
+          "check": "tdd_test_results_present",
+          "pass": true
+        },
+        {
+          "check": "pr_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "pr_url_present",
+          "pass": true
+        },
+        {
+          "check": "pr_branch_feature",
+          "pass": true
+        },
+        {
+          "check": "pr_not_main_branch",
+          "pass": true
+        },
+        {
+          "check": "merge_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "merge_completed_or_flagged",
+          "pass": true
+        },
+        {
+          "check": "ta_results_green",
+          "pass": true
+        },
+        {
+          "check": "ta_case_HealthOk",
+          "pass": true
+        },
+        {
+          "check": "ta_case_Hello",
+          "pass": true
+        },
+        {
+          "check": "audit_log_present",
+          "pass": true
+        },
+        {
+          "check": "audit_has_transitions",
+          "pass": true
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_backend_cs",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_frontend",
+          "pass": true
+        },
+        {
+          "check": "code_route_/api/hello",
+          "pass": true
+        },
+        {
+          "check": "gitea_pr_page_reachable",
+          "pass": true
+        }
+      ],
+      "deployedUrl": "http://127.0.0.1:37049",
+      "deliveryModes": {
+        "intake": "Basic",
+        "prd": "Basic"
+      },
+      "prUrl": "http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/25",
+      "taStatus": "green",
+      "tddStatus": "green"
+    },
+    {
+      "name": "Hello_LLM",
+      "pass": true,
+      "checkCount": 54,
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_REVIEW",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true
+        },
+        {
+          "check": "events_include_ArtifactReady",
+          "pass": true
+        },
+        {
+          "check": "events_include_GateApproved",
+          "pass": true
+        },
+        {
+          "check": "events_include_Finalized",
+          "pass": true
+        },
+        {
+          "check": "deploy_health_200",
+          "pass": true
+        },
+        {
+          "check": "smoke_/api/thought",
+          "pass": true
+        },
+        {
+          "check": "blob_intake-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.md",
+          "pass": true
+        },
+        {
+          "check": "blob_techspec.json",
+          "pass": true
+        },
+        {
+          "check": "blob_system-design.md",
+          "pass": true
+        },
+        {
+          "check": "blob_implementation-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_test-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_review.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-review.md",
+          "pass": true
+        },
+        {
+          "check": "blob_code-state.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-graph.json",
+          "pass": true
+        },
+        {
+          "check": "blob_pull-request.json",
+          "pass": true
+        },
+        {
+          "check": "blob_completion-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-test-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_merge.json",
+          "pass": true
+        },
+        {
+          "check": "intake_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "techspec_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "code_state_graphify_command",
+          "pass": true
+        },
+        {
+          "check": "code_state_mode_request_driven",
+          "pass": true
+        },
+        {
+          "check": "code_state_graph_nodes",
+          "pass": true
+        },
+        {
+          "check": "code_graph_has_nodes",
+          "pass": true
+        },
+        {
+          "check": "review_blob_nonempty",
+          "pass": true
+        },
+        {
+          "check": "tdd_test_results_present",
+          "pass": true
+        },
+        {
+          "check": "pr_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "pr_url_present",
+          "pass": true
+        },
+        {
+          "check": "pr_branch_feature",
+          "pass": true
+        },
+        {
+          "check": "pr_not_main_branch",
+          "pass": true
+        },
+        {
+          "check": "merge_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "merge_completed_or_flagged",
+          "pass": true
+        },
+        {
+          "check": "ta_results_green",
+          "pass": true
+        },
+        {
+          "check": "ta_case_HealthOk",
+          "pass": true
+        },
+        {
+          "check": "ta_case_Thought",
+          "pass": true
+        },
+        {
+          "check": "audit_log_present",
+          "pass": true
+        },
+        {
+          "check": "audit_has_transitions",
+          "pass": true
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_backend_cs",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_frontend",
+          "pass": true
+        },
+        {
+          "check": "code_route_/api/thought",
+          "pass": true
+        },
+        {
+          "check": "gitea_pr_page_reachable",
+          "pass": true
+        }
+      ],
+      "deployedUrl": "http://127.0.0.1:41487",
+      "deliveryModes": {
+        "intake": "Basic",
+        "prd": "Basic"
+      },
+      "prUrl": "http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/26",
+      "taStatus": "green",
+      "tddStatus": "green"
+    },
+    {
+      "name": "Generic",
+      "pass": true,
+      "checkCount": 54,
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_REVIEW",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true
+        },
+        {
+          "check": "events_include_ArtifactReady",
+          "pass": true
+        },
+        {
+          "check": "events_include_GateApproved",
+          "pass": true
+        },
+        {
+          "check": "events_include_Finalized",
+          "pass": true
+        },
+        {
+          "check": "deploy_health_200",
+          "pass": true
+        },
+        {
+          "check": "smoke_/api/hello",
+          "pass": true
+        },
+        {
+          "check": "blob_intake-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.md",
+          "pass": true
+        },
+        {
+          "check": "blob_techspec.json",
+          "pass": true
+        },
+        {
+          "check": "blob_system-design.md",
+          "pass": true
+        },
+        {
+          "check": "blob_implementation-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_test-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_review.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-review.md",
+          "pass": true
+        },
+        {
+          "check": "blob_code-state.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-graph.json",
+          "pass": true
+        },
+        {
+          "check": "blob_pull-request.json",
+          "pass": true
+        },
+        {
+          "check": "blob_completion-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-test-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_merge.json",
+          "pass": true
+        },
+        {
+          "check": "intake_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "techspec_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "code_state_graphify_command",
+          "pass": true
+        },
+        {
+          "check": "code_state_mode_request_driven",
+          "pass": true
+        },
+        {
+          "check": "code_state_graph_nodes",
+          "pass": true
+        },
+        {
+          "check": "code_graph_has_nodes",
+          "pass": true
+        },
+        {
+          "check": "review_blob_nonempty",
+          "pass": true
+        },
+        {
+          "check": "tdd_test_results_present",
+          "pass": true
+        },
+        {
+          "check": "pr_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "pr_url_present",
+          "pass": true
+        },
+        {
+          "check": "pr_branch_feature",
+          "pass": true
+        },
+        {
+          "check": "pr_not_main_branch",
+          "pass": true
+        },
+        {
+          "check": "merge_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "merge_completed_or_flagged",
+          "pass": true
+        },
+        {
+          "check": "ta_results_green",
+          "pass": true
+        },
+        {
+          "check": "ta_case_HealthOk",
+          "pass": true
+        },
+        {
+          "check": "ta_case_Hello",
+          "pass": true
+        },
+        {
+          "check": "audit_log_present",
+          "pass": true
+        },
+        {
+          "check": "audit_has_transitions",
+          "pass": true
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_backend_cs",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_frontend",
+          "pass": true
+        },
+        {
+          "check": "code_route_/api/hello",
+          "pass": true
+        },
+        {
+          "check": "gitea_pr_page_reachable",
+          "pass": true
+        }
+      ],
+      "deployedUrl": "http://127.0.0.1:46155",
+      "deliveryModes": {
+        "intake": "Basic",
+        "prd": "Basic"
+      },
+      "prUrl": "http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/27",
+      "taStatus": "green",
+      "tddStatus": "green"
+    },
+    {
+      "name": "Rewrite_net8_to_net10",
+      "pass": true,
+      "checkCount": 58,
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_REVIEW",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true
+        },
+        {
+          "check": "events_include_ArtifactReady",
+          "pass": true
+        },
+        {
+          "check": "events_include_GateApproved",
+          "pass": true
+        },
+        {
+          "check": "events_include_Finalized",
+          "pass": true
+        },
+        {
+          "check": "deploy_health_200",
+          "pass": true
+        },
+        {
+          "check": "smoke_/api/add?a=2&b=3",
+          "pass": true
+        },
+        {
+          "check": "smoke_/health",
+          "pass": true
+        },
+        {
+          "check": "blob_intake-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.md",
+          "pass": true
+        },
+        {
+          "check": "blob_techspec.json",
+          "pass": true
+        },
+        {
+          "check": "blob_system-design.md",
+          "pass": true
+        },
+        {
+          "check": "blob_implementation-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_test-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_review.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-review.md",
+          "pass": true
+        },
+        {
+          "check": "blob_code-state.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-graph.json",
+          "pass": true
+        },
+        {
+          "check": "blob_pull-request.json",
+          "pass": true
+        },
+        {
+          "check": "blob_completion-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-test-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_merge.json",
+          "pass": true
+        },
+        {
+          "check": "intake_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "techspec_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "code_state_graphify_command",
+          "pass": true
+        },
+        {
+          "check": "code_state_mode_request_driven",
+          "pass": true
+        },
+        {
+          "check": "code_state_graph_nodes",
+          "pass": true
+        },
+        {
+          "check": "code_graph_has_nodes",
+          "pass": true
+        },
+        {
+          "check": "review_blob_nonempty",
+          "pass": true
+        },
+        {
+          "check": "tdd_test_results_present",
+          "pass": true
+        },
+        {
+          "check": "pr_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "pr_url_present",
+          "pass": true
+        },
+        {
+          "check": "pr_branch_feature",
+          "pass": true
+        },
+        {
+          "check": "pr_not_main_branch",
+          "pass": true
+        },
+        {
+          "check": "merge_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "merge_completed_or_flagged",
+          "pass": true
+        },
+        {
+          "check": "ta_results_green",
+          "pass": true
+        },
+        {
+          "check": "ta_case_HealthOk",
+          "pass": true
+        },
+        {
+          "check": "ta_case_Add",
+          "pass": true
+        },
+        {
+          "check": "audit_log_present",
+          "pass": true
+        },
+        {
+          "check": "audit_has_transitions",
+          "pass": true
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_backend_cs",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_frontend",
+          "pass": true
+        },
+        {
+          "check": "code_contains_net10",
+          "pass": true
+        },
+        {
+          "check": "code_route_/api/add",
+          "pass": true
+        },
+        {
+          "check": "REWRITE_md_present",
+          "pass": true
+        },
+        {
+          "check": "csproj_net10",
+          "pass": true
+        },
+        {
+          "check": "gitea_pr_page_reachable",
+          "pass": true
+        }
+      ],
+      "deployedUrl": "http://127.0.0.1:33455",
+      "deliveryModes": {
+        "intake": "Rewrite",
+        "prd": "Rewrite"
+      },
+      "prUrl": "http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/28",
+      "taStatus": "green",
+      "tddStatus": "green"
+    },
+    {
+      "name": "MultiWI_Add",
+      "pass": true,
+      "checkCount": 56,
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_REVIEW",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true
+        },
+        {
+          "check": "events_include_ArtifactReady",
+          "pass": true
+        },
+        {
+          "check": "events_include_GateApproved",
+          "pass": true
+        },
+        {
+          "check": "events_include_Finalized",
+          "pass": true
+        },
+        {
+          "check": "deploy_health_200",
+          "pass": true
+        },
+        {
+          "check": "smoke_/api/add?a=2&b=3",
+          "pass": true
+        },
+        {
+          "check": "blob_intake-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.md",
+          "pass": true
+        },
+        {
+          "check": "blob_techspec.json",
+          "pass": true
+        },
+        {
+          "check": "blob_system-design.md",
+          "pass": true
+        },
+        {
+          "check": "blob_implementation-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_test-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_review.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-review.md",
+          "pass": true
+        },
+        {
+          "check": "blob_code-state.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-graph.json",
+          "pass": true
+        },
+        {
+          "check": "blob_pull-request.json",
+          "pass": true
+        },
+        {
+          "check": "blob_completion-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-test-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_merge.json",
+          "pass": true
+        },
+        {
+          "check": "intake_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "techspec_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "code_state_graphify_command",
+          "pass": true
+        },
+        {
+          "check": "code_state_mode_request_driven",
+          "pass": true
+        },
+        {
+          "check": "code_state_graph_nodes",
+          "pass": true
+        },
+        {
+          "check": "code_graph_has_nodes",
+          "pass": true
+        },
+        {
+          "check": "review_blob_nonempty",
+          "pass": true
+        },
+        {
+          "check": "tdd_test_results_present",
+          "pass": true
+        },
+        {
+          "check": "pr_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "pr_url_present",
+          "pass": true
+        },
+        {
+          "check": "pr_branch_feature",
+          "pass": true
+        },
+        {
+          "check": "pr_not_main_branch",
+          "pass": true
+        },
+        {
+          "check": "merge_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "merge_completed_or_flagged",
+          "pass": true
+        },
+        {
+          "check": "ta_results_green",
+          "pass": true
+        },
+        {
+          "check": "ta_case_HealthOk",
+          "pass": true
+        },
+        {
+          "check": "ta_case_Add",
+          "pass": true
+        },
+        {
+          "check": "audit_log_present",
+          "pass": true
+        },
+        {
+          "check": "audit_has_transitions",
+          "pass": true
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_backend_cs",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_frontend",
+          "pass": true
+        },
+        {
+          "check": "code_contains_MapGet",
+          "pass": true
+        },
+        {
+          "check": "code_route_/api/add",
+          "pass": true
+        },
+        {
+          "check": "code_route_/health",
+          "pass": true
+        },
+        {
+          "check": "gitea_pr_page_reachable",
+          "pass": true
+        }
+      ],
+      "deployedUrl": "http://127.0.0.1:42851",
+      "deliveryModes": {
+        "intake": "Basic",
+        "prd": "Basic"
+      },
+      "prUrl": "http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/30",
+      "taStatus": "green",
+      "tddStatus": "green"
+    },
+    {
+      "name": "MultiWI_Subtract",
+      "pass": true,
+      "checkCount": 57,
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_REVIEW",
+          "pass": true
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true
+        },
+        {
+          "check": "events_include_ArtifactReady",
+          "pass": true
+        },
+        {
+          "check": "events_include_GateApproved",
+          "pass": true
+        },
+        {
+          "check": "events_include_Finalized",
+          "pass": true
+        },
+        {
+          "check": "deploy_health_200",
+          "pass": true
+        },
+        {
+          "check": "smoke_/api/add?a=2&b=3",
+          "pass": true
+        },
+        {
+          "check": "smoke_/api/subtract?a=5&b=2",
+          "pass": true
+        },
+        {
+          "check": "blob_intake-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.json",
+          "pass": true
+        },
+        {
+          "check": "blob_prd.md",
+          "pass": true
+        },
+        {
+          "check": "blob_techspec.json",
+          "pass": true
+        },
+        {
+          "check": "blob_system-design.md",
+          "pass": true
+        },
+        {
+          "check": "blob_implementation-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_test-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_review.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-review.md",
+          "pass": true
+        },
+        {
+          "check": "blob_code-state.json",
+          "pass": true
+        },
+        {
+          "check": "blob_code-graph.json",
+          "pass": true
+        },
+        {
+          "check": "blob_pull-request.json",
+          "pass": true
+        },
+        {
+          "check": "blob_completion-summary.json",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-test-plan.md",
+          "pass": true
+        },
+        {
+          "check": "blob_ta-results.json",
+          "pass": true
+        },
+        {
+          "check": "blob_merge.json",
+          "pass": true
+        },
+        {
+          "check": "intake_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "techspec_deliveryMode",
+          "pass": true
+        },
+        {
+          "check": "code_state_graphify_command",
+          "pass": true
+        },
+        {
+          "check": "code_state_mode_request_driven",
+          "pass": true
+        },
+        {
+          "check": "code_state_graph_nodes",
+          "pass": true
+        },
+        {
+          "check": "code_graph_has_nodes",
+          "pass": true
+        },
+        {
+          "check": "review_blob_nonempty",
+          "pass": true
+        },
+        {
+          "check": "tdd_test_results_present",
+          "pass": true
+        },
+        {
+          "check": "pr_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "pr_url_present",
+          "pass": true
+        },
+        {
+          "check": "pr_branch_feature",
+          "pass": true
+        },
+        {
+          "check": "pr_not_main_branch",
+          "pass": true
+        },
+        {
+          "check": "merge_provider_gitea",
+          "pass": true
+        },
+        {
+          "check": "merge_completed_or_flagged",
+          "pass": true
+        },
+        {
+          "check": "ta_results_green",
+          "pass": true
+        },
+        {
+          "check": "ta_case_HealthOk",
+          "pass": true
+        },
+        {
+          "check": "ta_case_Subtract",
+          "pass": true
+        },
+        {
+          "check": "audit_log_present",
+          "pass": true
+        },
+        {
+          "check": "audit_has_transitions",
+          "pass": true
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_backend_cs",
+          "pass": true
+        },
+        {
+          "check": "workspace_has_frontend",
+          "pass": true
+        },
+        {
+          "check": "code_route_/api/add",
+          "pass": true
+        },
+        {
+          "check": "code_route_/api/subtract",
+          "pass": true
+        },
+        {
+          "check": "FEATURE_md_present",
+          "pass": true
+        },
+        {
+          "check": "gitea_pr_page_reachable",
+          "pass": true
+        }
+      ],
+      "deployedUrl": "http://127.0.0.1:45491",
+      "deliveryModes": {
+        "intake": "FeatureIncrement",
+        "prd": "FeatureIncrement"
+      },
+      "prUrl": "http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/31",
+      "taStatus": "green",
+      "tddStatus": "green"
+    }
+  ]
+}

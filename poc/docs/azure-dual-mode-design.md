@@ -1,6 +1,6 @@
 # Azure dual-mode design (local + cloud, same code)
 
-**Branch:** `cursor/main-azure-4837` (also pushed as `main-azure`)  
+**Branch:** `main-greenfield` (includes dual-mode seams from `main-azure` / `cursor/main-azure-4837`)  
 **Invariant:** One codebase. Config selects stand-in vs Azure. Local Docker path stays the default and must stay green.
 
 ## Modes

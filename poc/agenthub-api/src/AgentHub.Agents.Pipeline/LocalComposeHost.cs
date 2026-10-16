@@ -38,12 +38,21 @@ public static class LocalComposeHost
             var runtimeCompose = Path.Combine(workspace, "docker-compose.runtime.yml");
             await File.WriteAllTextAsync(runtimeCompose, composeText, cancellationToken).ConfigureAwait(false);
 
-            await RunAsync(
-                    "docker",
-                    $"compose -p \"{SanitizeProjectName(workItemId)}\" -f \"{runtimeCompose}\" up -d --build",
-                    workspace,
-                    cancellationToken)
-                .ConfigureAwait(false);
+            var composeArgs =
+                $"compose -p \"{SanitizeProjectName(workItemId)}\" -f \"{runtimeCompose}\" up -d --build";
+            try
+            {
+                await RunAsync("docker", composeArgs, workspace, cancellationToken).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex) when (
+                ex.Message.Contains("fully subnetted", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("address pools", StringComparison.OrdinalIgnoreCase))
+            {
+                // Long Manual QA / many work items leave unused compose networks; reclaim and retry once.
+                await RunCaptureAsync("docker", "network prune -f", workspace, cancellationToken)
+                    .ConfigureAwait(false);
+                await RunAsync("docker", composeArgs, workspace, cancellationToken).ConfigureAwait(false);
+            }
 
             var mapped = $"http://127.0.0.1:{hostPort}";
             var composeHealthy = await WaitForHealthyAsync(mapped, TimeSpan.FromSeconds(120), cancellationToken)

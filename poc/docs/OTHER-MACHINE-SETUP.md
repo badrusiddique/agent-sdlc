@@ -2,7 +2,7 @@
 
 **You start with:** a zip of this repo (or a clone). Nothing else installed yet.  
 **Goal:** (1) Local Docker path green, then (2) Azure DevOps + Azure App Service integration.  
-**Branch to use:** `main-azure` (includes IA/TA, dual-mode Azure providers, key-local / MI-cloud auth, builder image, QA runbook).  
+**Branch to use:** `main-greenfield` (greenfield rewrite + multi-WI + dual-mode Azure; or `main-azure` for dual-mode-only tip).  
 **Tip when this guide was written:** re-check `git rev-parse HEAD` (or the commit in the zip folder name) after you unpack.
 
 Related docs:

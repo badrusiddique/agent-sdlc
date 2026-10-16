@@ -1,7 +1,7 @@
 # Azure integration — ClickOps (portal) step-by-step + verification
 
 **Goal:** Same `poc/` code runs **locally** (Docker stand-ins) and can point at **real Azure** via config/env.  
-**Code tip:** branch `main-azure` / `cursor/main-azure-4837`.  
+**Code tip:** branch `main-greenfield` (greenfield rewrite + multi-WI; based on `main-azure`). Dual-mode Azure seams unchanged.  
 **Do not commit secrets.** Use portal download + env vars.
 
 ---
