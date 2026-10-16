@@ -49,7 +49,8 @@ HARD RULES
    Paths are same-host relative (leading slash). Do not invent an absolute URL for these checks.
 
 7) Browser
-   No Playwright and no generated browser test in Phase 0. browserAutomation is none in the design. The person checks the screen on the deployed app at DEV acceptance.
+   Phase 0 production design may set browserAutomation=none (person checks screens after Deploy).
+   Local POC option B (IA deploys first): the host generates Playwright FE specs under tests/e2e/playwright that click primary UI controls against context.deployedUrl. Playwright soft-skips when browsers cannot install; HTTP smoke remains the hard gate.
 
 8) Live deployed URL
    Phase 0 Testing runs before Deploy. Do not require context.deployedUrl.

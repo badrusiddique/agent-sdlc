@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using AgentHub.Agents.Pipeline.Artifacts;
+using AgentHub.Agents.Pipeline.Deploy;
 using AgentHub.Agents.Pipeline.Ia;
 using AgentHub.Agents.Pipeline.Prd;
 using AgentHub.Agents.Pipeline.Sd;
@@ -136,6 +138,10 @@ public sealed class PipelineAgentHandler
                 break;
             case PipelineAgentConstants.StageTaMerge:
                 await RunTaMergeAsync(message, run, artifacts, outputs, cancellationToken)
+                    .ConfigureAwait(false);
+                break;
+            case PipelineAgentConstants.StageDeploySandbox:
+                await RunDeploySandboxAsync(message, run, artifacts, outputs, cancellationToken)
                     .ConfigureAwait(false);
                 break;
             case PipelineAgentConstants.StageTesting:
@@ -672,22 +678,34 @@ public sealed class PipelineAgentHandler
             message.Context.ProjectMode,
             message.Context.BaselineArtifacts);
         DeployedSmokeGenerator.WriteSuite(workspace, cases);
+        PlaywrightSuiteGenerator.WriteSuite(
+            workspace,
+            cases,
+            message.Context.UserRequest,
+            message.Context.StackProfile,
+            message.Context.ProjectName);
+        // Optional probe: first TA pass writes a poisoned expect so Manual QA can prove RouteBack.
+        if (message.Artifacts.ContainsKey("taRoutebackProbe")
+            || string.Equals(
+                Environment.GetEnvironmentVariable("BGX_TA_ROUTEBACK_PROBE"),
+                "1",
+                StringComparison.Ordinal))
+        {
+            PoisonHttpExpectOnce(workspace);
+        }
+
         var planPath = message.BlobPrefix + "ta-test-plan.md";
-        await WriteArtifactAsync(
-                message,
-                planPath,
-                string.IsNullOrWhiteSpace(llm.Text)
-                    ? "Default live-URL smoke cases (health + primary API)."
-                    : llm.Text,
-                910,
-                cancellationToken)
+        var planBody = string.IsNullOrWhiteSpace(llm.Text)
+            ? "Live HTTP smoke + Playwright FE cases (health + primary API / UI action)."
+            : llm.Text;
+        await WriteArtifactAsync(message, planPath, planBody, 910, cancellationToken, "taTestPlan")
             .ConfigureAwait(false);
         artifacts["taTestPlan"] = planPath;
         await CompleteStepAsync(
                 message,
                 run,
                 "ta.gen.write",
-                $"Wrote {cases.Count} cases to tests/e2e",
+                $"Wrote {cases.Count} HTTP cases + Playwright FE suite",
                 cancellationToken)
             .ConfigureAwait(false);
         return Tokens(llm);
@@ -706,54 +724,153 @@ public sealed class PipelineAgentHandler
         outputs["workspaceRoot"] = workspace;
         outputs["deployedUrls"] = deployedUrl;
 
-        var script = Path.Combine(workspace, "tests", "e2e", "deployed-smoke.sh");
-        if (!File.Exists(script))
+        if (!Directory.Exists(Path.Combine(workspace, "tests", "e2e")))
         {
-            DeployedSmokeGenerator.WriteSuite(
+            var defaults = DeployedSmokeGenerator.DefaultCases(
+                message.Context.StackProfile,
+                message.Context.UserRequest,
+                message.Context.ProjectName,
+                message.Context.ProjectMode,
+                message.Context.BaselineArtifacts);
+            DeployedSmokeGenerator.WriteSuite(workspace, defaults);
+            PlaywrightSuiteGenerator.WriteSuite(
                 workspace,
-                DeployedSmokeGenerator.DefaultCases(message.Context.StackProfile));
+                defaults,
+                message.Context.UserRequest,
+                message.Context.StackProfile,
+                message.Context.ProjectName);
         }
 
-        await BeginStepAsync(message, run, "ta.verify.run", $"Run live smoke against {deployedUrl}", cancellationToken)
+        await BeginStepAsync(
+                message,
+                run,
+                "ta.verify.run",
+                $"Run HTTP + Playwright against {deployedUrl}",
+                cancellationToken)
             .ConfigureAwait(false);
-        var resultsPath = Path.Combine(Path.GetTempPath(), $"ta-results-{message.WorkItemId}.json");
-        var (exit, output) = await RunProcessAsync(
-                "bash",
-                script,
-                Path.GetDirectoryName(script)!,
-                cancellationToken,
-                new Dictionary<string, string>
-                {
-                    ["DEPLOYED_URL"] = deployedUrl,
-                    ["TA_RESULTS_PATH"] = resultsPath
-                })
-            .ConfigureAwait(false);
-
-        var resultsJson = File.Exists(resultsPath)
-            ? await File.ReadAllTextAsync(resultsPath, cancellationToken).ConfigureAwait(false)
-            : JsonSerializer.Serialize(new { status = "red", detail = Truncate(output, 2000) }, JsonOptions);
-
-        if (exit != 0)
-        {
-            await CompleteStepAsync(message, run, "ta.verify.run", "Live smoke failed", cancellationToken, failed: true)
-                .ConfigureAwait(false);
-            var failPath = message.BlobPrefix + "ta-results.json";
-            await WriteArtifactAsync(message, failPath, resultsJson, 920, cancellationToken).ConfigureAwait(false);
-            artifacts["taResults"] = failPath;
-            throw new InvalidOperationException($"TA_VERIFY failed against {deployedUrl}: {Truncate(output, 1500)}");
-        }
-
-        await CompleteStepAsync(message, run, "ta.verify.run", "Live smoke green", cancellationToken)
+        var outcome = await TaVerifyRunner.RunAsync(workspace, deployedUrl, cancellationToken)
             .ConfigureAwait(false);
 
         await BeginStepAsync(message, run, "ta.verify.persist", "Persist ta-results.json", cancellationToken)
             .ConfigureAwait(false);
         var path = message.BlobPrefix + "ta-results.json";
-        await WriteArtifactAsync(message, path, resultsJson, 920, cancellationToken).ConfigureAwait(false);
+        await WriteArtifactAsync(message, path, outcome.ResultsJson, 920, cancellationToken, "taResults")
+            .ConfigureAwait(false);
         artifacts["taResults"] = path;
+
+        if (!outcome.Green)
+        {
+            var attempt = Math.Max(1, message.InputVersion);
+            var concerns = TaConcernPackage.Build(
+                deployedUrl,
+                outcome.ResultsJson,
+                TaConcernPackage.FailingNames(outcome.ResultsJson),
+                attempt);
+            var concernPath = message.BlobPrefix + "ta-concerns.json";
+            await WriteArtifactAsync(message, concernPath, concerns, 921, cancellationToken, "taConcerns")
+                .ConfigureAwait(false);
+            artifacts["taConcerns"] = concernPath;
+            outputs["taStatus"] = "red";
+            outputs["signal.kind"] = "RouteBack";
+            outputs["signal.routeBackTo"] = PipelineAgentConstants.StageIaCodegen;
+            outputs["signal.detail"] = Truncate(outcome.Detail, 500);
+            ClearHttpPoison(workspace);
+            await CompleteStepAsync(message, run, "ta.verify.run", "Live verification red — RouteBack to IA", cancellationToken, failed: true)
+                .ConfigureAwait(false);
+            await CompleteStepAsync(message, run, "ta.verify.persist", "Wrote ta-results + ta-concerns (RouteBack)", cancellationToken)
+                .ConfigureAwait(false);
+            // Completed AgentResult (not Failed) — orchestrator routes back to IA.
+            return;
+        }
+
         outputs["taStatus"] = "green";
+        ClearHttpPoison(workspace);
+        await CompleteStepAsync(message, run, "ta.verify.run", "HTTP + Playwright green", cancellationToken)
+            .ConfigureAwait(false);
         await CompleteStepAsync(message, run, "ta.verify.persist", "Wrote ta-results.json", cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    private async Task RunDeploySandboxAsync(
+        TaskMessage message,
+        StageRunContext run,
+        Dictionary<string, string> artifacts,
+        Dictionary<string, string> outputs,
+        CancellationToken cancellationToken)
+    {
+        var deployedUrl = message.Context.DeployedUrl ?? outputs.GetValueOrDefault("deployedUrls");
+        outputs["deployedUrls"] = deployedUrl ?? "";
+        await BeginStepAsync(message, run, "deploy.sandbox.publish", "Publish sandbox URL for acceptance", cancellationToken)
+            .ConfigureAwait(false);
+        var json = SandboxDeployPublisher.BuildArtifact(message, deployedUrl, message.Context.PrUrl);
+        var path = message.BlobPrefix + "sandbox-url.json";
+        await WriteArtifactAsync(message, path, json, 960, cancellationToken, "sandboxUrl")
+            .ConfigureAwait(false);
+        artifacts["sandboxUrl"] = path;
+        var mdPath = message.BlobPrefix + "sandbox-url.md";
+        await WriteArtifactAsync(
+                message,
+                mdPath,
+                JsonSerializer.Serialize(new { content = SandboxDeployPublisher.BuildMarkdown(deployedUrl) }, JsonOptions),
+                961,
+                cancellationToken)
+            .ConfigureAwait(false);
+        artifacts["sandboxUrlMd"] = mdPath;
+        outputs["sandboxUrl"] = deployedUrl ?? "";
+        outputs["deploymentStatus"] = "waiting_for_approval";
+        await CompleteStepAsync(
+                message,
+                run,
+                "deploy.sandbox.publish",
+                string.IsNullOrWhiteSpace(deployedUrl)
+                    ? "Sandbox stub wrote waiting_for_approval (URL missing)"
+                    : $"Sandbox URL shared: {deployedUrl}",
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static void PoisonHttpExpectOnce(string workspace)
+    {
+        var casesPath = Path.Combine(workspace, "tests", "e2e", "cases.json");
+        if (!File.Exists(casesPath))
+        {
+            return;
+        }
+
+        try
+        {
+            using var doc = JsonDocument.Parse(File.ReadAllText(casesPath));
+            var list = new List<object>();
+            foreach (var el in doc.RootElement.GetProperty("cases").EnumerateArray())
+            {
+                var name = el.GetProperty("name").GetString() ?? "case";
+                var method = el.TryGetProperty("method", out var m) ? m.GetString() ?? "GET" : "GET";
+                var path = el.TryGetProperty("path", out var p) ? p.GetString() ?? "/health" : "/health";
+                var status = el.TryGetProperty("expectStatus", out var s) && s.TryGetInt32(out var code) ? code : 200;
+                var contains = name.Equals("HealthOk", StringComparison.OrdinalIgnoreCase)
+                    ? (el.TryGetProperty("expectBodyContains", out var c) ? c.GetString() : "ok")
+                    : "__ROUTEBACK_PROBE_FAIL__";
+                list.Add(new { name, method, path, expectStatus = status, expectBodyContains = contains });
+            }
+
+            File.WriteAllText(
+                casesPath,
+                JsonSerializer.Serialize(new { cases = list }, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(Path.Combine(workspace, "tests", "e2e", ".routeback-probe"), "1");
+        }
+        catch
+        {
+            // ignore probe failures
+        }
+    }
+
+    private static void ClearHttpPoison(string workspace)
+    {
+        var marker = Path.Combine(workspace, "tests", "e2e", ".routeback-probe");
+        if (File.Exists(marker))
+        {
+            try { File.Delete(marker); } catch { /* ignore */ }
+        }
     }
 
     private async Task<TokenUsage> RunTaReportAsync(
@@ -1150,7 +1267,8 @@ public sealed class PipelineAgentHandler
         string blobPath,
         string jsonBody,
         int ordinal,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? artifactKey = null)
     {
         var existing = await _ledger
             .TryGetCommittedAsync(
@@ -1165,15 +1283,67 @@ public sealed class PipelineAgentHandler
             return;
         }
 
-        await _blobs.WriteJsonAsync(blobPath, jsonBody, cancellationToken).ConfigureAwait(false);
+        var key = artifactKey ?? InferArtifactKey(blobPath);
+        var revision = message.OutputRevision < 1 ? 1 : message.OutputRevision;
+        if (key is not null)
+        {
+            await VersionedArtifactWriter
+                .WriteAsync(
+                    _blobs,
+                    message.ProjectId,
+                    message.WorkItemId,
+                    revision,
+                    key,
+                    blobPath,
+                    jsonBody,
+                    cancellationToken,
+                    new Dictionary<string, string>
+                    {
+                        ["stage"] = message.Stage,
+                        ["deployedUrl"] = message.Context.DeployedUrl ?? ""
+                    })
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            await _blobs.WriteJsonAsync(blobPath, jsonBody, cancellationToken).ConfigureAwait(false);
+        }
+
         await CommitLedgerAsync(
                 message,
                 PipelineAgentConstants.IntentArtifact,
                 ordinal,
                 null,
-                new { blobPath, bytes = jsonBody.Length },
+                new { blobPath, bytes = jsonBody.Length, key, revision },
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    private static string? InferArtifactKey(string blobPath)
+    {
+        var name = Path.GetFileName(blobPath);
+        return name switch
+        {
+            "prd.json" => "prd",
+            "prd.md" => "prdMd",
+            "techspec.json" => "techSpec",
+            "system-design.md" => "techSpecMd",
+            "implementation-plan.md" => "implementationPlan",
+            "code-state.json" => "codeState",
+            "code-graph.json" => "codeGraph",
+            "review.json" => "review",
+            "test-results.json" => "testResults",
+            "pull-request.json" => "pullRequest",
+            "ta-test-plan.md" => "taTestPlan",
+            "ta-results.json" => "taResults",
+            "ta-report.md" => "taReport",
+            "ta-status.json" => "taStatus",
+            "ta-concerns.json" => "taConcerns",
+            "merge.json" => "merge",
+            "completion-summary.json" => "completionSummary",
+            "sandbox-url.json" => "sandboxUrl",
+            _ => null
+        };
     }
 
     private async Task CommitLedgerAsync(
@@ -1377,6 +1547,30 @@ public sealed class PipelineAgentHandler
                         "Implementation plan (input from Planner)",
                         cancellationToken)
                     .ConfigureAwait(false);
+                // RouteBack from Testing Agent — fix these red cases then re-deploy.
+                if (message.Artifacts.TryGetValue("taConcerns", out var concernPath)
+                    && !string.IsNullOrWhiteSpace(concernPath))
+                {
+                    var concernBody = await _blobs.TryReadJsonAsync(concernPath, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (!string.IsNullOrWhiteSpace(concernBody))
+                    {
+                        sb.AppendLine("## TA concerns (RouteBack — must fix)");
+                        sb.AppendLine(Truncate(concernBody!, 6000));
+                        sb.AppendLine();
+                    }
+                }
+                else
+                {
+                    await AppendBlobSectionAsync(
+                            sb,
+                            message,
+                            "ta-concerns.json",
+                            "TA concerns (RouteBack — must fix)",
+                            cancellationToken)
+                        .ConfigureAwait(false);
+                }
+
                 break;
             case PersonaKind.Reviewer:
                 // Independent review: plan + inventory only — never codegen LLM prose or prior review drafts.

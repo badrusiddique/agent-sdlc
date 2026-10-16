@@ -1,8 +1,11 @@
-Phase: Independent live-URL automation design
+Phase: Independent live-URL automation design (HTTP + Playwright FE)
 
 You did not implement or code-review this app (Testing independence). From the PRD acceptance criteria and system design APIs - prefer SystemDesign section 11 rows with retired false when present - plus the deployed URL, list the HTTP checks a hostile QA would run against DEV.
 
+Also plan a Playwright FE flow: open the deployed URL, click the primary UI control (Add / Add todo / Thought / Hello), and assert the on-page result. The host writes Playwright specs from your cases.
+
 Do not invent bodies or paths the design/PRD do not state. Do not treat review.json passed as proof. Prefer /health plus each user-visible API from the design.
+On red results the host signals RouteBack to IA_CODEGEN (Completed + RouteBack), not Failed.
 
 End with:
 

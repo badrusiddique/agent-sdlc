@@ -34,6 +34,9 @@ public static class PipelineAgentConstants
     public const string StageTaReport = "TA_REPORT";
     public const string StageTaMerge = "TA_MERGE";
 
+    /// <summary>POC deployment stub — publishes sandbox URL; no re-deploy.</summary>
+    public const string StageDeploySandbox = "DEPLOY_SANDBOX";
+
     public static readonly IReadOnlyList<string> SupportedStages =
     [
         StagePrd,
@@ -46,6 +49,7 @@ public static class PipelineAgentConstants
         StageTaVerify,
         StageTaReport,
         StageTaMerge,
+        StageDeploySandbox,
         StageImplementation,
         StageTesting,
         StageDeployDev

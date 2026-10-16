@@ -21,6 +21,8 @@ public sealed class PocPipelineOrchestrator
         WriteIndented = true
     };
 
+    private const int MaxTaRoutebacks = 2;
+
     private static readonly string[] StageOrder =
     [
         "PRD",
@@ -32,7 +34,8 @@ public sealed class PocPipelineOrchestrator
         "TA_GENERATE",
         "TA_VERIFY",
         "TA_REPORT",
-        "TA_MERGE"
+        "TA_MERGE",
+        "DEPLOY_SANDBOX"
     ];
 
     private static readonly (string Id, string Label)[] StageStrip =
@@ -48,6 +51,7 @@ public sealed class PocPipelineOrchestrator
         ("TA_VERIFY", "Verify Deployed"),
         ("TA_REPORT", "Test Report"),
         ("TA_MERGE", "Merge PR"),
+        ("DEPLOY_SANDBOX", "Sandbox URL"),
         ("DONE", "Done")
     ];
 
@@ -840,8 +844,8 @@ public sealed class PocPipelineOrchestrator
                 MergeArtifacts(artifacts, mergeResult.Artifacts);
                 var mergeCommit = mergeResult.Outputs.GetValueOrDefault("mergeCommit") ?? headCommit;
                 prUrl = mergeResult.Outputs.GetValueOrDefault("prUrl") ?? prUrl;
-                item.Status = WorkItemStatuses.Completed;
-                item.CurrentStage = "DONE";
+                deployedUrl = mergeResult.Outputs.GetValueOrDefault("deployedUrls") ?? deployedUrl;
+                session.DeployedUrl = deployedUrl;
                 item.RepoFactsJson = JsonSerializer.Serialize(
                     new { headCommit, deployedUrl, workspaceRoot, mergeCommit, prUrl, prNumber },
                     JsonOptions);
@@ -850,16 +854,92 @@ public sealed class PocPipelineOrchestrator
                 await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
                 await AppendEventAsync(
                         session,
-                        "DONE",
-                        WorkItemStatuses.Completed,
-                        "Finalized",
+                        "TA_MERGE",
+                        "Completed",
+                        "StageCompleted",
                         $"TA merged PR; app at {deployedUrl}"
                         + (string.IsNullOrWhiteSpace(prUrl) ? string.Empty : $"; PR {prUrl}"),
                         mergeResult.TaskId,
                         cancellationToken)
                     .ConfigureAwait(false);
-                await WriteBaselineAsync(item, artifacts, mergeCommit, cancellationToken).ConfigureAwait(false);
+                // Fall through to DEPLOY_SANDBOX in StageOrder — do not break yet.
+                continue;
+            }
+
+            if (stage == "DEPLOY_SANDBOX")
+            {
+                var sandboxResult = await RunStageAsync(
+                        session,
+                        stage,
+                        deploymentAction: null,
+                        projectName,
+                        projectSlug,
+                        stack,
+                        mode,
+                        artifacts,
+                        workspaceRoot,
+                        headCommit,
+                        deployedUrl,
+                        prUrl,
+                        prNumber,
+                        request.BaselineArtifacts,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                MergeArtifacts(artifacts, sandboxResult.Artifacts);
+                deployedUrl = sandboxResult.Outputs.GetValueOrDefault("deployedUrls")
+                              ?? sandboxResult.Outputs.GetValueOrDefault("sandboxUrl")
+                              ?? deployedUrl;
+                session.DeployedUrl = deployedUrl;
+                var sandboxApproved = await RaiseGateAndWaitAsync(
+                        session,
+                        stage,
+                        "Sandbox app is live — approve to finish (next env is out of scope for this POC)",
+                        sandboxResult.TaskId,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                if (!sandboxApproved)
+                {
+                    await HonorSteerAfterStageAsync(session, cancellationToken).ConfigureAwait(false);
+                    stageIndex = -1;
+                    continue;
+                }
+
+                item.Status = WorkItemStatuses.Completed;
+                item.CurrentStage = "DONE";
+                item.RepoFactsJson = JsonSerializer.Serialize(
+                    new
+                    {
+                        headCommit,
+                        deployedUrl,
+                        workspaceRoot,
+                        prUrl,
+                        prNumber,
+                        sandboxUrl = deployedUrl,
+                        deploymentStatus = "sandbox_accepted"
+                    },
+                    JsonOptions);
+                item.UpdatedAt = DateTimeOffset.UtcNow;
+                await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
+                await AppendEventAsync(
+                        session,
+                        "DONE",
+                        WorkItemStatuses.Completed,
+                        "Finalized",
+                        $"Sandbox URL shared with BuildGenix: {deployedUrl}",
+                        sandboxResult.TaskId,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                await WriteBaselineAsync(item, artifacts, headCommit, cancellationToken).ConfigureAwait(false);
                 break;
+            }
+
+            // Seed RouteBack probe artifact before first TA_GENERATE when requested.
+            if (stage == "TA_GENERATE"
+                && request.SimulateTaRouteback
+                && session.TaRoutebackCount == 0
+                && !artifacts.ContainsKey("taRoutebackProbe"))
+            {
+                artifacts["taRoutebackProbe"] = "1";
             }
 
             var result = await RunStageAsync(
@@ -885,6 +965,47 @@ public sealed class PocPipelineOrchestrator
             deployedUrl = result.Outputs.GetValueOrDefault("deployedUrls") ?? deployedUrl;
             session.DeployedUrl = deployedUrl ?? session.DeployedUrl;
             prUrl = result.Outputs.GetValueOrDefault("prUrl") ?? prUrl;
+
+            // TA red → Completed + RouteBack to IA (new artifact revision).
+            if (stage == "TA_VERIFY"
+                && string.Equals(
+                    result.Outputs.GetValueOrDefault("signal.kind"),
+                    "RouteBack",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                session.TaRoutebackCount++;
+                if (session.TaRoutebackCount > MaxTaRoutebacks)
+                {
+                    throw new InvalidOperationException(
+                        $"TA RouteBack exhausted after {MaxTaRoutebacks} attempts. See ta-concerns.json.");
+                }
+
+                artifacts.Remove("taRoutebackProbe");
+                BumpArtifactRevision(session);
+                session.Audit.Transitions.Add(new AuditTransition
+                {
+                    Stage = "TA_VERIFY:RouteBack",
+                    Status = "RouteBack",
+                    At = DateTimeOffset.UtcNow,
+                    Message =
+                        $"attempt={session.TaRoutebackCount}; to={result.Outputs.GetValueOrDefault("signal.routeBackTo") ?? "IA_CODEGEN"}; rev=v{session.ArtifactRevision}",
+                    ArtifactPath = result.Artifacts.GetValueOrDefault("taConcerns")
+                });
+                await WriteAuditAsync(session, cancellationToken).ConfigureAwait(false);
+                await AppendEventAsync(
+                        session,
+                        "TA_VERIFY",
+                        "RouteBack",
+                        "RouteBack",
+                        $"TA raised concerns → IA_CODEGEN (revision v{session.ArtifactRevision})",
+                        result.TaskId,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                session.ResumeFromStage = result.Outputs.GetValueOrDefault("signal.routeBackTo")
+                                         ?? "IA_CODEGEN";
+                stageIndex = -1;
+                continue;
+            }
 
             if (stage is "PRD" or "SYSTEM_DESIGN" or "IA_PLAN" or "IA_REVIEW" or "TA_REPORT")
             {
@@ -1107,7 +1228,7 @@ public sealed class PocPipelineOrchestrator
             correlationId = Guid.NewGuid().ToString("N"),
             causationId = item.PendingMessage,
             inputVersion = item.CurrentInputVersion,
-            outputRevision = 1,
+            outputRevision = Math.Max(1, session.ArtifactRevision),
             pipelineVersion = item.PipelineVersion,
             blobPrefix = item.BlobPrefix,
             stateContextId = $"{item.ProjectId}:{item.WorkItemId}",
@@ -1159,7 +1280,13 @@ public sealed class PocPipelineOrchestrator
 
         foreach (var pair in result.Artifacts ?? [])
         {
-            await RegisterArtifactAsync(session, pair.Key, 1, pair.Value, cancellationToken).ConfigureAwait(false);
+            await RegisterArtifactAsync(
+                    session,
+                    pair.Key,
+                    Math.Max(1, session.ArtifactRevision),
+                    pair.Value,
+                    cancellationToken)
+                .ConfigureAwait(false);
         }
 
         // Replay intra-stage tasks into WorkItemEvents so the chat UI/DB show step progress
@@ -1385,6 +1512,44 @@ public sealed class PocPipelineOrchestrator
         await File.WriteAllTextAsync(blobStyle, json, cancellationToken).ConfigureAwait(false);
         await WriteLocalArtifactAsync($"{item.BlobPrefix}AuditLog.json", json, cancellationToken)
             .ConfigureAwait(false);
+        var rev = Math.Max(1, session.ArtifactRevision);
+        var versioned = Path.Combine(
+            _options.AuditLogDirectory,
+            item.ProjectId,
+            item.WorkItemId,
+            $"AuditLog_V{rev}.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(versioned)!);
+        await File.WriteAllTextAsync(versioned, json, cancellationToken).ConfigureAwait(false);
+        await WriteLocalArtifactAsync(
+                $"{item.ProjectId}/{item.WorkItemId}/AuditLog_V{rev}.json",
+                json,
+                cancellationToken)
+            .ConfigureAwait(false);
+        await WriteLocalArtifactAsync(
+                $"{item.ProjectId}/{item.WorkItemId}/LATEST.json",
+                JsonSerializer.Serialize(
+                    new
+                    {
+                        projectId = item.ProjectId,
+                        workItemId = item.WorkItemId,
+                        revision = rev,
+                        blobPrefix = item.BlobPrefix,
+                        deployedUrl = session.DeployedUrl,
+                        stage = item.CurrentStage,
+                        updatedAt = DateTimeOffset.UtcNow
+                    },
+                    JsonOptions),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private void BumpArtifactRevision(PipelineSession session)
+    {
+        session.ArtifactRevision = Math.Max(1, session.ArtifactRevision) + 1;
+        var item = session.Item;
+        item.BlobPrefix = $"{item.ProjectId}/{item.WorkItemId}/v{session.ArtifactRevision}/";
+        item.CurrentInputVersion += 1;
+        item.UpdatedAt = DateTimeOffset.UtcNow;
     }
 
     private async Task WriteLocalArtifactAsync(string blobPath, string json, CancellationToken cancellationToken)
@@ -1649,6 +1814,9 @@ public sealed class PocPipelineOrchestrator
         public required bool AutoApprove { get; init; }
         public Dictionary<string, string>? BaselineArtifacts { get; init; }
         public required AuditLogDocument Audit { get; init; }
+        /// <summary>Monotonic artifact folder revision (v1, v2, …) bumped on TA→IA RouteBack.</summary>
+        public int ArtifactRevision { get; set; } = 1;
+        public int TaRoutebackCount { get; set; }
         public required CancellationTokenSource Cts { get; init; }
         public Task? RunTask { get; set; }
         public string? PendingGate { get; set; }

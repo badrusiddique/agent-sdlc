@@ -14,6 +14,12 @@ public sealed class PocPipelineStartRequest
     /// Interactive chat uses POST /start which forces this false.
     /// </summary>
     public bool AutoApprove { get; set; } = true;
+
+    /// <summary>
+    /// When true, first TA_GENERATE poisons an HTTP expect so TA_VERIFY RouteBacks to IA once.
+    /// Used by Manual QA to prove the TA→IA→TA loop without changing product code.
+    /// </summary>
+    public bool SimulateTaRouteback { get; set; }
 }
 
 public sealed record PocPipelineRunResult(
