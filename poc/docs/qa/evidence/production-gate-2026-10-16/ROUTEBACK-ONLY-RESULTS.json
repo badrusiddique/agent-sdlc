@@ -1,0 +1,68 @@
+{
+  "startedAt": "2026-10-16T03:13:02Z",
+  "cases": [
+    {
+      "name": "RouteBack",
+      "checks": [
+        {
+          "check": "Completed",
+          "pass": true,
+          "evidence": "Completed"
+        },
+        {
+          "check": "RouteBack_in_trail",
+          "pass": true,
+          "evidence": "['TA_VERIFY:Completed', 'TA_VERIFY:RouteBack:RouteBack', 'TA_VERIFY:Completed']"
+        },
+        {
+          "check": "RouteBack_event",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "revision_bumped_v2",
+          "pass": true,
+          "evidence": "['v1', 'v2']"
+        },
+        {
+          "check": "concerns_v1",
+          "pass": true,
+          "evidence": "['01a142b2e60d7822bb4b113a57f644a5/01a142b2e6107b8baa226d9c5ec8cd71/v1/ta-concerns.json', '01a142b2e60d7822bb4b113a57f644a5/01a142b2e6107b8baa226d9c5ec8cd71/TA_CONCERNS_V1.json']"
+        },
+        {
+          "check": "final_url",
+          "pass": true,
+          "evidence": "http://127.0.0.1:34107"
+        },
+        {
+          "check": "final_add",
+          "pass": true,
+          "evidence": "{\"operation\":\"add\",\"a\":2,\"b\":3,\"result\":5}"
+        }
+      ],
+      "pass": true
+    }
+  ],
+  "failures": [],
+  "infra": {
+    "buildgenix": {
+      "status": 200,
+      "body": "{\"service\":\"BuildGenix.WebApi\",\"status\":\"ok\",\"docs\":\"/swagger\",\"pocPipeline\":\"/api/poc/pipeline/run\",\"pocInteractive\":\"/"
+    },
+    "agenthub": {
+      "status": 200,
+      "body": "{\"service\":\"AgentHub.WebApi\",\"status\":\"ok\",\"docs\":\"/swagger\",\"healthy\":\"/api/connectivity/healthy\",\"pipeline\":\"/api/pipe"
+    },
+    "gitea": {
+      "status": 200,
+      "body": "{\"version\":\"1.22.6\"}\n"
+    },
+    "azuriteConfigured": true,
+    "llm": "Fixture (local POC; Azure Gateway unchanged for other machine)",
+    "onlyCases": [
+      "RouteBack"
+    ]
+  },
+  "finishedAt": "2026-10-16T03:13:39Z",
+  "overallPass": true
+}

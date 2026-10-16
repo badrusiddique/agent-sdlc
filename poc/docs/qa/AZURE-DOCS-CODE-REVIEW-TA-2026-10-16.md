@@ -19,8 +19,9 @@ Confirm dual-mode Azure seams still match docs after TA/Deploy/Artifacts work. *
 1. **DEPLOY_SANDBOX** is a POC stub (publish URL + wait). Cloud promotion remains human/ClickOps — do not treat stub as App Service create.  
 2. **Playwright browser install** may soft-skip in locked-down hosts; HTTP smoke remains the hard gate (documented in testing-agent-system.txt).  
 3. **RouteBack** bumps `BlobPrefix` to `v{n}/` — AzDO/App Service providers must keep reading `Context.DeployedUrl` / workspace from task context (they do).  
-4. Named copies (`PRD_V1.json`) are additional blobs in the same container; no schema break for Gate C/D scripts that still read `v1/prd.json`.
+4. Named copies (`PRD_V1.json`) are additional blobs in the same container; no schema break for Gate C/D scripts that still read `v1/prd.json`.  
+5. **Rewrite FE (2026-10-16 gate):** `GreenfieldRewriteBuilder` must emit Playwright-aligned `#a/#b/#go` UI (not legacy fixture `#add`). Fixed and re-verified on Azurite; TA Playwright green for Rewrite.
 
 ## Conclusion
 
-Azure dual-mode documentation remains accurate. TA/RouteBack/versioning are local-artifact + orchestrator concerns that do not bypass Git/Deploy/Storage providers.
+Azure dual-mode documentation remains accurate. TA/RouteBack/versioning are local-artifact + orchestrator concerns that do not bypass Git/Deploy/Storage providers. Production gate evidence: `PRODUCTION-GATE-SIGNOFF-2026-10-16.md`.

@@ -230,22 +230,13 @@ public static class GreenfieldRewriteBuilder
             File.WriteAllText(program, text);
         }
 
+        // Always replace baseline FE with a net10 greenfield UI that matches
+        // PlaywrightSuiteGenerator contracts (#a/#b/#go for add, etc.). Keeping the
+        // legacy fixture markup (#add only) makes TA Playwright permanently red.
         var frontend = Path.Combine(workspace, "frontend");
         Directory.CreateDirectory(frontend);
         var index = Path.Combine(frontend, "index.html");
-        if (!File.Exists(index))
-        {
-            File.WriteAllText(
-                index,
-                $"""
-                <!doctype html>
-                <html lang="en"><head><meta charset="utf-8"><title>Rewritten app</title></head>
-                <body>
-                  <h1>Rewritten to {TargetFramework}</h1>
-                  <p>{System.Net.WebUtility.HtmlEncode(userRequest)}</p>
-                </body></html>
-                """);
-        }
+        File.WriteAllText(index, BuildGreenfieldFrontendHtml(routes, userRequest));
 
         var apiName = Path.GetFileNameWithoutExtension(csproj);
         File.WriteAllText(
@@ -333,5 +324,48 @@ public static class GreenfieldRewriteBuilder
             """ : "")}}
             }
             """);
+    }
+
+    private static string BuildGreenfieldFrontendHtml(string[] routes, string userRequest)
+    {
+        var hasAdd = routes.Any(r => r.Contains("/api/add", StringComparison.Ordinal));
+        var title = "Rewritten Calculator (net10)";
+        string body;
+        if (hasAdd)
+        {
+            body =
+                """
+                <label>a <input id="a" type="number" value="2"></label>
+                <label>b <input id="b" type="number" value="3"></label>
+                <button id="go">Add</button>
+                <pre id="out"></pre>
+                <script>
+                document.getElementById('go').onclick = async () => {
+                  const a = document.getElementById('a').value;
+                  const b = document.getElementById('b').value;
+                  const r = await fetch('/api/add?a=' + a + '&b=' + b);
+                  document.getElementById('out').textContent = await r.text();
+                };
+                </script>
+                """;
+        }
+        else
+        {
+            var safe = System.Net.WebUtility.HtmlEncode(userRequest);
+            body =
+                "<p>" + safe + "</p>\n"
+                + "<button id=\"go\">Ping</button>\n"
+                + "<pre id=\"out\"></pre>\n"
+                + "<script>\n"
+                + "document.getElementById('go').onclick = async () => {\n"
+                + "  const r = await fetch('/health');\n"
+                + "  document.getElementById('out').textContent = await r.text();\n"
+                + "};\n"
+                + "</script>\n";
+        }
+
+        return "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>"
+               + title + "</title></head>\n<body>\n<h1>" + title + "</h1>\n"
+               + body + "\n</body></html>\n";
     }
 }

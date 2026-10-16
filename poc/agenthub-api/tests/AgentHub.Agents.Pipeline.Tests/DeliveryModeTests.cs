@@ -39,6 +39,15 @@ public sealed class DeliveryModeTests
             var csproj = Directory.EnumerateFiles(Path.Combine(root, "backend"), "*.csproj").First();
             Assert.Contains("net10.0", File.ReadAllText(csproj), StringComparison.Ordinal);
             Assert.True(File.Exists(Path.Combine(root, "REWRITE.md")));
+            // Greenfield FE must match Playwright calculator selectors (not legacy #add-only).
+            var fe = File.ReadAllText(Path.Combine(root, "frontend", "index.html"));
+            Assert.Contains("id=\"a\"", fe, StringComparison.Ordinal);
+            Assert.Contains("id=\"b\"", fe, StringComparison.Ordinal);
+            Assert.Contains("id=\"go\"", fe, StringComparison.Ordinal);
+            Assert.Contains("id=\"out\"", fe, StringComparison.Ordinal);
+            Assert.DoesNotContain("id=\"add\"", fe, StringComparison.Ordinal);
+            var www = File.ReadAllText(Path.Combine(root, "backend", "wwwroot", "index.html"));
+            Assert.Contains("id=\"go\"", www, StringComparison.Ordinal);
         }
         finally
         {

@@ -1,0 +1,641 @@
+{
+  "cases": [
+    {
+      "name": "Calc_Add",
+      "pass": false,
+      "checks": [
+        {
+          "check": "decision_PRD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_SystemDesign",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_IA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_TA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_Deploy",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decisionSummary",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "ta_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "playwright_ok",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "verification_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "named_PRD_V1",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "named_DECISION_LOG",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "named_TA_VERIFICATION",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_ArtifactReady",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_GateApproved",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_Finalized",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_StageStarted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_StageCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_TaskCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "live_health",
+          "pass": false,
+          "evidence": "<urlopen error [Errno 111] Connection refused>"
+        }
+      ]
+    },
+    {
+      "name": "Hello_no_LLM",
+      "pass": false,
+      "checks": [
+        {
+          "check": "decision_PRD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_SystemDesign",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_IA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_TA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_Deploy",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decisionSummary",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "ta_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "playwright_ok",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "verification_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "named_PRD_V1",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "named_DECISION_LOG",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "named_TA_VERIFICATION",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_ArtifactReady",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_GateApproved",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_Finalized",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_StageStarted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_StageCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_TaskCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "live_health",
+          "pass": false,
+          "evidence": "<urlopen error [Errno 111] Connection refused>"
+        }
+      ]
+    },
+    {
+      "name": "Hello_LLM",
+      "pass": false,
+      "checks": [
+        {
+          "check": "decision_PRD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_SystemDesign",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_IA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_TA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_Deploy",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decisionSummary",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "ta_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "playwright_ok",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "verification_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "named_PRD_V1",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "named_DECISION_LOG",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "named_TA_VERIFICATION",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_ArtifactReady",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_GateApproved",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_Finalized",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_StageStarted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_StageCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_TaskCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "live_health",
+          "pass": false,
+          "evidence": "<urlopen error [Errno 111] Connection refused>"
+        }
+      ]
+    },
+    {
+      "name": "MultiWI_Add",
+      "pass": false,
+      "checks": [
+        {
+          "check": "decision_PRD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_SystemDesign",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_IA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_TA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_Deploy",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decisionSummary",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "ta_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "playwright_ok",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "verification_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "named_PRD_V1",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "named_DECISION_LOG",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "named_TA_VERIFICATION",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_ArtifactReady",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_GateApproved",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_Finalized",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_StageStarted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_StageCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_TaskCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "live_health",
+          "pass": false,
+          "evidence": "<urlopen error [Errno 111] Connection refused>"
+        }
+      ]
+    },
+    {
+      "name": "MultiWI_Subtract",
+      "pass": false,
+      "checks": [
+        {
+          "check": "decision_PRD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_SystemDesign",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_IA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_TA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_Deploy",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decisionSummary",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true,
+          "evidence": "FeatureIncrement"
+        },
+        {
+          "check": "ta_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "playwright_ok",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "verification_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "named_PRD_V1",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "named_DECISION_LOG",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "named_TA_VERIFICATION",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_ArtifactReady",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_GateApproved",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_Finalized",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_StageStarted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_StageCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_TaskCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "live_health",
+          "pass": false,
+          "evidence": "<urlopen error [Errno 111] Connection refused>"
+        }
+      ]
+    },
+    {
+      "name": "Todo",
+      "pass": false,
+      "checks": [
+        {
+          "check": "decision_PRD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_SystemDesign",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_IA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_TA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_Deploy",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decisionSummary",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "ta_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "playwright_ok",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "verification_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "named_PRD_V1",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "named_DECISION_LOG",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "named_TA_VERIFICATION",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_ArtifactReady",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_GateApproved",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_Finalized",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_StageStarted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_StageCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "event_TaskCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "live_health",
+          "pass": false,
+          "evidence": "<urlopen error [Errno 111] Connection refused>"
+        }
+      ]
+    }
+  ],
+  "overall": false
+}
