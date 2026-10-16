@@ -3,7 +3,8 @@
 **Purpose:** After ClickOps wires a real Azure subscription on another machine, run this runbook to prove the **same code** works locally (Docker stand-ins) **and** against Azure / Azure DevOps.  
 **Code branch:** `main-greenfield` (or `main-azure` for dual-mode-only tip). Tip must include dual-mode providers + builder image + request-driven/greenfield IA.  
 **Companion ClickOps:** [`../azure-clickops-integration.md`](../azure-clickops-integration.md)  
-**Local Manual QA (Docker Gitea+Compose):** `./scripts/manual-qa-greenfield-deep.sh` then `./scripts/verify-greenfield.sh`.
+**Local Manual QA (Docker Gitea+Compose):** `./scripts/manual-qa-greenfield-deep.sh` then `./scripts/verify-greenfield.sh`.  
+**After each agent integration (detailed Copilot runbook):** [`POST-AGENT-INTEGRATION-RUNBOOK.md`](POST-AGENT-INTEGRATION-RUNBOOK.md) — Azurite+Fixture matrix, agent-by-agent log/blob/DB/decision checks, RouteBack.
 
 ---
 

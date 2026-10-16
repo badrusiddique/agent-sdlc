@@ -13,6 +13,7 @@ Related docs:
 | [`azure-clickops-integration.md`](azure-clickops-integration.md) | Portal clicks for Azure resources + auth modes |
 | [`azure-devops-provision-brief.md`](azure-devops-provision-brief.md) | Pass to DevOps: `cc-sb-sb-aisdlc-rg` vs `cc-sb-sb-aisdlc-apps-rg`, ACR placement, RBAC |
 | [`qa/QA_Runbook-azure-dual-mode.md`](qa/QA_Runbook-azure-dual-mode.md) | Gates A–E after wiring Azure |
+| [`qa/POST-AGENT-INTEGRATION-RUNBOOK.md`](qa/POST-AGENT-INTEGRATION-RUNBOOK.md) | **After every agent integration:** full use-case matrix + log/blob/DB/decision deep inspect (give this to Copilot) |
 | [`../agenthub-api/docker/ia-builder/EXPORT-NOTE.md`](../agenthub-api/docker/ia-builder/EXPORT-NOTE.md) | Optional builder image → ACR |
 
 ### Auth rule (read once)
