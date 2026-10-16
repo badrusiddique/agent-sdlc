@@ -21,11 +21,15 @@ Reply with JSON only:
     }
   ],
   "nonGoals": ["explicit out-of-scope item"],
-  "stackProfile": "echo the provided stack profile"
+  "stackProfile": "echo the provided stack profile",
+  "projectMode": "New | Existing | Rewrite (echo intake)",
+  "deliveryMode": "Basic | Rewrite | FeatureIncrement (match projectMode / ask)",
+  "targetFramework": "net10.0",
+  "baselineSourcePath": "path when Rewrite, otherwise null"
 }
 
 ===STAGE:SYSTEM_DESIGN===
-Produce a technical design that can be implemented from the checked-in templates.
+Produce a technical design that Implementation can execute without inventing primary routes.
 Reply with JSON only:
 {
   "components": ["fe", "be"],
@@ -38,7 +42,10 @@ Reply with JSON only:
   ],
   "risks": ["short risk and mitigation"],
   "deploy": "local-compose",
-  "stackProfile": "echo the provided stack profile"
+  "stackProfile": "echo the provided stack profile",
+  "deliveryMode": "Basic | Rewrite | FeatureIncrement (must match PRD)",
+  "targetFramework": "net10.0",
+  "appKind": "Calculator | Todo | Hello | HelloLlm | Generic"
 }
 
 ===STAGE:IMPLEMENTATION===

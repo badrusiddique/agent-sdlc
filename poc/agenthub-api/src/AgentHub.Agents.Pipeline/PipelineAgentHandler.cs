@@ -2,6 +2,8 @@ using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using AgentHub.Agents.Pipeline.Ia;
+using AgentHub.Agents.Pipeline.Prd;
+using AgentHub.Agents.Pipeline.Sd;
 using AgentHub.Agents.Pipeline.Ta;
 using AgentHub.Core.Abstractions;
 using AgentHub.Core.Guardrails;
@@ -184,7 +186,7 @@ public sealed class PipelineAgentHandler
         await BeginStepAsync(message, run, "prd.draft", "Draft PRD with model", cancellationToken)
             .ConfigureAwait(false);
         var llm = await CallStageLlmAsync(message, 100, cancellationToken).ConfigureAwait(false);
-        var prdJson = EnsureJson(llm.Text, () => DefaultPrd(message));
+        var prdJson = EnsureJson(llm.Text, () => PrdDocumentBuilder.BuildJson(message));
         await CompleteStepAsync(message, run, "prd.draft", "PRD draft ready", cancellationToken)
             .ConfigureAwait(false);
 
@@ -199,7 +201,7 @@ public sealed class PipelineAgentHandler
         await BeginStepAsync(message, run, "prd.persistMd", "Persist PRD markdown", cancellationToken)
             .ConfigureAwait(false);
         var mdPath = message.BlobPrefix + "prd.md";
-        var md = $"# {message.Context.ProjectName ?? "PRD"}\n\n{message.Context.UserRequest}\n\n```json\n{prdJson}\n```\n";
+        var md = PrdDocumentBuilder.BuildMarkdown(message, prdJson);
         await WriteArtifactAsync(
                 message,
                 mdPath,
@@ -222,7 +224,7 @@ public sealed class PipelineAgentHandler
         await BeginStepAsync(message, run, "sd.draft", "Draft system design with model", cancellationToken)
             .ConfigureAwait(false);
         var llm = await CallStageLlmAsync(message, 300, cancellationToken).ConfigureAwait(false);
-        var tech = EnsureJson(llm.Text, () => DefaultTechSpec(message));
+        var tech = EnsureJson(llm.Text, () => TechSpecBuilder.BuildJson(message));
         await CompleteStepAsync(message, run, "sd.draft", "System design draft ready", cancellationToken)
             .ConfigureAwait(false);
 
@@ -237,7 +239,7 @@ public sealed class PipelineAgentHandler
         await BeginStepAsync(message, run, "sd.persistMd", "Persist system-design.md", cancellationToken)
             .ConfigureAwait(false);
         var mdPath = message.BlobPrefix + "system-design.md";
-        var md = $"# System design\n\nStack: {message.Context.StackProfile}\n\n```json\n{tech}\n```\n";
+        var md = TechSpecBuilder.BuildMarkdown(message, tech);
         await WriteArtifactAsync(message, mdPath, JsonSerializer.Serialize(new { content = md }), 410, cancellationToken)
             .ConfigureAwait(false);
         artifacts["techSpecMd"] = mdPath;
@@ -1803,116 +1805,6 @@ public sealed class PipelineAgentHandler
         {
             return fallback();
         }
-    }
-
-    private static string DefaultPrd(TaskMessage message)
-    {
-        var delivery = DeliveryModeClassifier.Classify(
-            message.Context.UserRequest,
-            message.Context.ProjectMode,
-            message.Context.BaselineArtifacts);
-        var stories = delivery switch
-        {
-            DeliveryMode.Rewrite => new[]
-            {
-                new
-                {
-                    id = "S1",
-                    title = "Greenfield rewrite to net10",
-                    acceptance = new[]
-                    {
-                        "Baseline ingested from baselineSourcePath (or default fixture)",
-                        "Target framework is net10.0",
-                        "Preserved public APIs still pass smoke (/health and primary route)",
-                        "code-state from graphify extract . --code-only after review"
-                    }
-                }
-            },
-            DeliveryMode.FeatureIncrement => new[]
-            {
-                new
-                {
-                    id = "S1",
-                    title = "Feature increment on existing project",
-                    acceptance = new[]
-                    {
-                        "Prior project workspace reused (not wiped)",
-                        "New feature route works",
-                        "Prior primary behaviour still works where applicable",
-                        "code-state from graphify after review"
-                    }
-                }
-            },
-            _ => new[]
-            {
-                new
-                {
-                    id = "S1",
-                    title = "Primary behaviour",
-                    acceptance = new[] { "Happy path works locally", "Request-driven scaffold matches the ask" }
-                }
-            }
-        };
-
-        return JsonSerializer.Serialize(
-            new
-            {
-                title = message.Context.ProjectName ?? "App",
-                summary = message.Context.UserRequest,
-                stories,
-                stackProfile = message.Context.StackProfile,
-                projectMode = message.Context.ProjectMode ?? "New",
-                deliveryMode = delivery.ToString(),
-                targetFramework = GreenfieldRewriteBuilder.TargetFramework,
-                baselineSourcePath = DeliveryModeClassifier.ResolveBaselinePath(message.Context.BaselineArtifacts)
-            },
-            JsonOptions);
-    }
-
-    private static string DefaultTechSpec(TaskMessage message)
-    {
-        var delivery = DeliveryModeClassifier.Classify(
-            message.Context.UserRequest,
-            message.Context.ProjectMode,
-            message.Context.BaselineArtifacts);
-        var kind = RequestDrivenCodegen.Classify(
-            message.Context.UserRequest,
-            message.Context.StackProfile,
-            message.Context.ProjectName);
-        object api = delivery switch
-        {
-            DeliveryMode.Rewrite =>
-                new { method = "GET", path = "/api/add", purpose = "preserved after net10 rewrite" },
-            DeliveryMode.FeatureIncrement when FeatureIncrementBuilder.ClassifyFeature(message.Context.UserRequest)
-                == FeatureIncrementBuilder.FeatureKind.Subtract =>
-                new { method = "GET", path = "/api/subtract", purpose = "feature increment" },
-            DeliveryMode.FeatureIncrement when FeatureIncrementBuilder.ClassifyFeature(message.Context.UserRequest)
-                == FeatureIncrementBuilder.FeatureKind.Multiply =>
-                new { method = "GET", path = "/api/multiply", purpose = "feature increment" },
-            _ => kind switch
-            {
-                RequestDrivenCodegen.AppKind.Calculator =>
-                    new { method = "GET", path = "/api/add", purpose = "add two numbers" },
-                RequestDrivenCodegen.AppKind.Todo =>
-                    new { method = "GET", path = "/api/todos", purpose = "list todos" },
-                RequestDrivenCodegen.AppKind.HelloLlm =>
-                    new { method = "GET", path = "/api/thought", purpose = "thought of the day" },
-                _ => new { method = "GET", path = "/api/hello", purpose = "hello" }
-            }
-        };
-        return JsonSerializer.Serialize(
-            new
-            {
-                components = new[] { "fe", "be" },
-                apis = new object[] { api },
-                phases = new[] { new { id = 1, name = delivery == DeliveryMode.Rewrite ? "Rewrite baseline" : "Scaffold and run" } },
-                deploy = "local-compose",
-                stackProfile = message.Context.StackProfile,
-                deliveryMode = delivery.ToString(),
-                targetFramework = GreenfieldRewriteBuilder.TargetFramework,
-                appKind = kind.ToString()
-            },
-            JsonOptions);
     }
 
     private static TokenUsage Tokens(LlmCompletionResult llm) =>

@@ -34,6 +34,8 @@ Both use: hard rules, LOCKED/OPEN, independence, required artifacts, procedure, 
 
 `poc/agenthub-api/.../Prompts/{ia,ta,persona}-*.txt` stay conversational adjuncts for local Docker. They now point at SystemDesign section authority when that Markdown is present in context.
 
+**2026-10-16:** POC `pipeline-system.txt` `===STAGE:PRD===` / `===STAGE:SYSTEM_DESIGN===` JSON schemas now include `deliveryMode`, `targetFramework`, and related greenfield fields so Fixture/LLM drafts match `Prd/PrdDocumentBuilder` and `Sd/TechSpecBuilder` (folder extract parallel to `Ia/`). Phase 0 `system-design-system.txt` was already authoritative for Markdown `SystemDesign_v{version}.md` and was not weakened.
+
 ## Verify later (when production agents exist)
 
 1. Fixture: SD writer emits §11 nine-column table; Testing prompt refuses invented bodies.
