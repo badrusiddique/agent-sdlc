@@ -167,6 +167,31 @@ public sealed class PocPipelineOrchestrator
         }
 
         session.ApprovalFeedback = feedback;
+        var approvedStage = session.PendingGate!;
+
+        // Topic-agent path: HITL approve → enqueue next stage on AgentHub bus (no orchestrator loop).
+        if (_options.UseTopicAgents && !session.AutoApprove)
+        {
+            await RecordApprovalAsync(session, approvedStage, auto: false, cancellationToken).ConfigureAwait(false);
+            if (string.Equals(approvedStage, "DEPLOY_SANDBOX", StringComparison.OrdinalIgnoreCase))
+            {
+                await FinalizeTopicPipelineAsync(session, cancellationToken).ConfigureAwait(false);
+                session.TopicDone.TrySetResult();
+                return;
+            }
+
+            var next = NextStageAfter(approvedStage);
+            if (next is null)
+            {
+                await FinalizeTopicPipelineAsync(session, cancellationToken).ConfigureAwait(false);
+                session.TopicDone.TrySetResult();
+                return;
+            }
+
+            await EnqueueStageAsync(session, next, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
         if (session.ApprovalGate is null || session.ApprovalGate.Task.IsCompleted)
         {
             throw new InvalidOperationException("Approval gate is not active.");
@@ -174,6 +199,250 @@ public sealed class PocPipelineOrchestrator
 
         session.ApprovalGate.TrySetResult(true);
         await Task.CompletedTask.ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// AgentHub topic worker REST callback — records stage progress; agents chain via Service Bus.
+    /// </summary>
+    public async Task ApplyAgentCallbackAsync(
+        PocAgentCallbackRequest body,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_sessions.TryGetValue(body.WorkItemId, out var session))
+        {
+            throw new InvalidOperationException($"Unknown work item {body.WorkItemId}.");
+        }
+
+        var item = session.Item;
+        var stage = body.Stage.Trim();
+        var taskId = string.IsNullOrWhiteSpace(body.TaskId) ? item.CurrentTaskId : body.TaskId;
+        item.CurrentTaskId = taskId;
+        item.CurrentStage = stage;
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+
+        if (body.OutputRevision > session.ArtifactRevision)
+        {
+            session.ArtifactRevision = body.OutputRevision;
+            item.BlobPrefix = $"{item.ProjectId}/{item.WorkItemId}/v{session.ArtifactRevision}/";
+        }
+
+        if (body.Artifacts is { Count: > 0 })
+        {
+            MergeArtifacts(session.LiveArtifacts, body.Artifacts);
+            foreach (var pair in body.Artifacts)
+            {
+                await RegisterArtifactAsync(
+                        session,
+                        pair.Key,
+                        Math.Max(1, session.ArtifactRevision),
+                        pair.Value,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+        }
+
+        if (body.Outputs is { Count: > 0 })
+        {
+            session.WorkspaceRoot = body.Outputs.GetValueOrDefault("workspaceRoot") ?? session.WorkspaceRoot;
+            session.HeadCommit = body.Outputs.GetValueOrDefault("headCommit") ?? session.HeadCommit;
+            session.DeployedUrl = body.Outputs.GetValueOrDefault("deployedUrls")
+                                  ?? body.Outputs.GetValueOrDefault("deployedUrl")
+                                  ?? body.Outputs.GetValueOrDefault("sandboxUrl")
+                                  ?? session.DeployedUrl;
+            session.PrUrl = body.Outputs.GetValueOrDefault("prUrl") ?? session.PrUrl;
+            if (body.Outputs.TryGetValue("prNumber", out var pn) && int.TryParse(pn, out var n))
+            {
+                session.PrNumber = n;
+            }
+
+            item.RepoFactsJson = JsonSerializer.Serialize(
+                new
+                {
+                    headCommit = session.HeadCommit,
+                    deployedUrl = session.DeployedUrl,
+                    workspaceRoot = session.WorkspaceRoot,
+                    prUrl = session.PrUrl,
+                    prNumber = session.PrNumber
+                },
+                JsonOptions);
+        }
+
+        foreach (var step in body.Steps ?? [])
+        {
+            var stepStatus = string.IsNullOrWhiteSpace(step.Status) ? "Completed" : step.Status;
+            var eventType = stepStatus.Equals("Running", StringComparison.OrdinalIgnoreCase)
+                ? "TaskStarted"
+                : "TaskCompleted";
+            var label = string.IsNullOrWhiteSpace(step.Label) ? step.Id : step.Label;
+            var detail = string.IsNullOrWhiteSpace(step.Message) ? label : step.Message;
+            await AppendEventAsync(
+                    session,
+                    stage,
+                    stepStatus,
+                    eventType,
+                    $"[{step.Id}] {detail}",
+                    taskId,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (!string.Equals(body.Status, "Completed", StringComparison.OrdinalIgnoreCase))
+        {
+            session.ErrorMessage = body.ErrorMessage ?? $"Stage {stage} failed.";
+            item.Status = WorkItemStatuses.Failed;
+            item.UpdatedAt = DateTimeOffset.UtcNow;
+            await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
+            await AppendEventAsync(
+                    session,
+                    stage,
+                    WorkItemStatuses.Failed,
+                    "StageFailed",
+                    session.ErrorMessage,
+                    taskId,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            session.Audit.CompletedAt = DateTimeOffset.UtcNow;
+            session.Audit.FinalStatus = WorkItemStatuses.Failed;
+            await WriteAuditAsync(session, cancellationToken).ConfigureAwait(false);
+            Bump(session);
+            session.TopicDone.TrySetException(
+                new InvalidOperationException(session.ErrorMessage));
+            return;
+        }
+
+        item.Status = WorkItemStatuses.Running;
+        item.LastAppliedResultId = $"result:{taskId}:{item.CurrentInputVersion}";
+        item.PendingMessage = null;
+        await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
+        await AppendEventAsync(
+                session,
+                stage,
+                "Completed",
+                "StageCompleted",
+                body.Outputs?.GetValueOrDefault("deployedUrls")
+                ?? body.Outputs?.GetValueOrDefault("deployedUrl")
+                ?? $"{stage} completed"
+                   + (string.IsNullOrWhiteSpace(body.AgentName) ? string.Empty : $" ({body.AgentName})"),
+                taskId,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        session.Audit.Transitions.Add(new AuditTransition
+        {
+            Stage = stage,
+            Status = "Completed",
+            At = DateTimeOffset.UtcNow,
+            Message = $"task {taskId}"
+                      + (string.IsNullOrWhiteSpace(body.AgentName) ? string.Empty : $" agent={body.AgentName}"),
+            ArtifactPath = body.Artifacts?.Values.FirstOrDefault()
+        });
+        await WriteAuditAsync(session, cancellationToken).ConfigureAwait(false);
+
+        if (body.RouteBack
+            || (body.Outputs is not null
+                && body.Outputs.TryGetValue("signal.kind", out var kind)
+                && kind.Equals("RouteBack", StringComparison.OrdinalIgnoreCase)))
+        {
+            session.TaRoutebackCount++;
+            BumpArtifactRevision(session);
+            session.Audit.Transitions.Add(new AuditTransition
+            {
+                Stage = "TA_VERIFY:RouteBack",
+                Status = "RouteBack",
+                At = DateTimeOffset.UtcNow,
+                Message =
+                    $"attempt={session.TaRoutebackCount}; rev=v{session.ArtifactRevision}",
+                ArtifactPath = body.Artifacts?.GetValueOrDefault("taConcerns")
+            });
+            await WriteAuditAsync(session, cancellationToken).ConfigureAwait(false);
+            await AppendEventAsync(
+                    session,
+                    stage,
+                    "RouteBack",
+                    "RouteBack",
+                    $"TA raised concerns → IA_CODEGEN (revision v{session.ArtifactRevision})",
+                    taskId,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            Bump(session);
+            // Worker already republished IA on the bus when AutoApprove; interactive path enqueues via Approve.
+            if (!session.AutoApprove)
+            {
+                await EnqueueStageAsync(session, "IA_CODEGEN", cancellationToken).ConfigureAwait(false);
+            }
+
+            return;
+        }
+
+        if (string.Equals(stage, "DEPLOY_SANDBOX", StringComparison.OrdinalIgnoreCase))
+        {
+            if (session.AutoApprove)
+            {
+                await RecordApprovalAsync(session, stage, auto: true, cancellationToken).ConfigureAwait(false);
+                await FinalizeTopicPipelineAsync(session, cancellationToken).ConfigureAwait(false);
+                session.TopicDone.TrySetResult();
+            }
+            else
+            {
+                await RaiseTopicGateAsync(
+                        session,
+                        stage,
+                        "Sandbox app is live — approve to finish (next env is out of scope for this POC)",
+                        taskId,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            return;
+        }
+
+        if (session.AutoApprove)
+        {
+            if (IsHitlGateStage(stage))
+            {
+                await RecordApprovalAsync(session, stage, auto: true, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                item.Status = WorkItemStatuses.Queued;
+                item.UpdatedAt = DateTimeOffset.UtcNow;
+                await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
+            }
+
+            Bump(session);
+            // Agents chain on Service Bus; BuildGenix only waits for TopicDone.
+            return;
+        }
+
+        // Interactive: gate stages wait for human; other stages enqueue next immediately.
+        if (IsHitlGateStage(stage))
+        {
+            var label = stage switch
+            {
+                "PRD" => "Review the PRD document, then approve to continue",
+                "SYSTEM_DESIGN" => "Review the System Design document, then approve to continue",
+                "IA_PLAN" => "Review the Implementation Plan, then approve Code Generation",
+                "IA_REVIEW" => "Review the generated code summary, then approve Push & Deploy",
+                "TA_REPORT" => "Review the Testing Agent report, then approve Merge PR",
+                _ => "Review and approve to continue"
+            };
+            await RaiseTopicGateAsync(session, stage, label, taskId, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        var nextStage = NextStageAfter(stage);
+        if (nextStage is null)
+        {
+            await FinalizeTopicPipelineAsync(session, cancellationToken).ConfigureAwait(false);
+            session.TopicDone.TrySetResult();
+            return;
+        }
+
+        item.Status = WorkItemStatuses.Queued;
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+        await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
+        Bump(session);
+        await EnqueueStageAsync(session, nextStage, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<PocSteerResult> SteerAsync(
@@ -744,6 +1013,22 @@ public sealed class PocPipelineOrchestrator
             }
         }
 
+        // Preferred path: no orchestrator stage loop — agents chain on SB topics.
+        if (_options.UseTopicAgents)
+        {
+            await ExecuteViaTopicAgentsAsync(
+                    session,
+                    request,
+                    projectName,
+                    projectSlug,
+                    stack,
+                    mode,
+                    artifacts,
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return;
+        }
+
         for (var stageIndex = 0; stageIndex < StageOrder.Length; stageIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -1054,6 +1339,245 @@ public sealed class PocPipelineOrchestrator
         await WriteAuditAsync(session, cancellationToken).ConfigureAwait(false);
         Bump(session);
     }
+
+    /// <summary>
+    /// Intake + enqueue PRD on AgentHub bus; agents chain via topics and REST-callback results.
+    /// No stage-for-loop orchestration.
+    /// </summary>
+    private async Task ExecuteViaTopicAgentsAsync(
+        PipelineSession session,
+        PocPipelineStartRequest request,
+        string projectName,
+        string projectSlug,
+        string stack,
+        string mode,
+        Dictionary<string, string> artifacts,
+        CancellationToken cancellationToken)
+    {
+        foreach (var pair in artifacts)
+        {
+            session.LiveArtifacts[pair.Key] = pair.Value;
+        }
+
+        if (request.SimulateTaRouteback)
+        {
+            session.LiveArtifacts["taRoutebackProbe"] = "1";
+        }
+
+        await EnqueueStageAsync(session, "PRD", cancellationToken).ConfigureAwait(false);
+
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken,
+            session.Cts.Token);
+        try
+        {
+            await session.TopicDone.Task.WaitAsync(TimeSpan.FromMinutes(20), linked.Token)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (session.AbortRequested)
+        {
+            return;
+        }
+        catch (TimeoutException)
+        {
+            session.ErrorMessage = "Topic-agent pipeline timed out waiting for DONE.";
+            session.Item.Status = WorkItemStatuses.Failed;
+            session.Item.UpdatedAt = DateTimeOffset.UtcNow;
+            await UpsertWorkItemAsync(session.Item, cancellationToken).ConfigureAwait(false);
+            session.Audit.CompletedAt = DateTimeOffset.UtcNow;
+            session.Audit.FinalStatus = WorkItemStatuses.Failed;
+            await WriteAuditAsync(session, cancellationToken).ConfigureAwait(false);
+            Bump(session);
+            throw new InvalidOperationException(session.ErrorMessage);
+        }
+
+        if (session.AbortRequested || session.Item.Status == WorkItemStatuses.Aborted)
+        {
+            return;
+        }
+
+        if (session.Item.Status == WorkItemStatuses.Failed)
+        {
+            throw new InvalidOperationException(session.ErrorMessage ?? "Pipeline failed.");
+        }
+
+        // Ensure audit closed if callback already finalized.
+        if (session.Audit.CompletedAt is null && session.Item.Status == WorkItemStatuses.Completed)
+        {
+            session.Audit.CompletedAt = DateTimeOffset.UtcNow;
+            session.Audit.FinalStatus = WorkItemStatuses.Completed;
+            session.Audit.DeployedUrl = session.DeployedUrl;
+            await WriteAuditAsync(session, cancellationToken).ConfigureAwait(false);
+        }
+
+        Bump(session);
+    }
+
+    private async Task EnqueueStageAsync(
+        PipelineSession session,
+        string stage,
+        CancellationToken cancellationToken)
+    {
+        var item = session.Item;
+        item.CurrentInputVersion = Math.Max(1, item.CurrentInputVersion);
+        var taskId = Guid.CreateVersion7().ToString("N");
+        item.CurrentTaskId = taskId;
+        item.CurrentStage = stage;
+        item.Status = WorkItemStatuses.Running;
+        item.PendingMessage = $"{stage}:{taskId}:{item.CurrentInputVersion}";
+        item.PendingAt = DateTimeOffset.UtcNow;
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+        await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
+        await AppendEventAsync(
+                session,
+                stage,
+                WorkItemStatuses.Running,
+                "StageStarted",
+                $"Enqueued {stage} on agent topic…",
+                taskId,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var task = new
+        {
+            workItemId = item.WorkItemId,
+            projectId = item.ProjectId,
+            stage,
+            taskId,
+            correlationId = Guid.NewGuid().ToString("N"),
+            causationId = item.PendingMessage,
+            inputVersion = item.CurrentInputVersion,
+            outputRevision = Math.Max(1, session.ArtifactRevision),
+            pipelineVersion = item.PipelineVersion,
+            blobPrefix = item.BlobPrefix,
+            stateContextId = $"{item.ProjectId}:{item.WorkItemId}",
+            artifacts = session.LiveArtifacts,
+            context = new
+            {
+                userRequest = item.UserRequest,
+                projectName = item.ProjectName,
+                projectSlug = session.ProjectSlug,
+                projectMode = session.ProjectMode,
+                stackProfile = item.StackProfile,
+                templateId = item.TemplateId,
+                environment = "DEV",
+                deploymentAction = string.Equals(stage, "IA_PUSH_DEPLOY", StringComparison.OrdinalIgnoreCase)
+                    ? "Deploy"
+                    : (string?)null,
+                workBranch = $"feature/project-{item.ProjectId}-work-item-{item.WorkItemId}",
+                headCommit = session.HeadCommit,
+                workspaceRoot = session.WorkspaceRoot,
+                deployedUrl = session.DeployedUrl,
+                prUrl = session.PrUrl,
+                prNumber = session.PrNumber,
+                baselineArtifacts = session.BaselineArtifacts ?? new Dictionary<string, string>(),
+                autoApprove = session.AutoApprove,
+                simulateTaRouteback = session.LiveArtifacts.ContainsKey("taRoutebackProbe"),
+                routeBackCount = session.TaRoutebackCount
+            },
+            config = new
+            {
+                modelId = string.IsNullOrWhiteSpace(_options.ModelId) ? null : _options.ModelId,
+                reasoningEffort = "low"
+            }
+        };
+
+        var client = _httpClientFactory.CreateClient("agenthub");
+        using var response = await client
+            .PostAsJsonAsync("/api/pipeline/enqueue", task, cancellationToken)
+            .ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException($"AgentHub enqueue failed ({(int)response.StatusCode}): {body}");
+        }
+
+        Bump(session);
+    }
+
+    private async Task RaiseTopicGateAsync(
+        PipelineSession session,
+        string stage,
+        string label,
+        string? taskId,
+        CancellationToken cancellationToken)
+    {
+        var item = session.Item;
+        item.Status = WorkItemStatuses.AwaitingApproval;
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+        await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
+        session.PendingGate = stage;
+        session.PendingGateLabel = label;
+        // Interactive topic path: ApproveAsync records approval + enqueues next (no ApprovalGate wait).
+        session.ApprovalGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        await AppendEventAsync(
+                session,
+                stage,
+                WorkItemStatuses.AwaitingApproval,
+                "GateRaised",
+                label,
+                taskId,
+                cancellationToken)
+            .ConfigureAwait(false);
+        var waitMessage = stage switch
+        {
+            "PRD" => "PRD is ready for review. Open the document, then approve to continue.",
+            "SYSTEM_DESIGN" => "System Design is ready for review. Open the document, then approve to continue.",
+            "DEPLOY_SANDBOX" => "Sandbox is ready. Approve to finish.",
+            _ => "Waiting for your approval in the chat…"
+        };
+        await AppendEventAsync(
+                session,
+                stage,
+                WorkItemStatuses.AwaitingApproval,
+                "WaitingForUser",
+                waitMessage,
+                taskId,
+                cancellationToken)
+            .ConfigureAwait(false);
+        Bump(session);
+    }
+
+    private async Task FinalizeTopicPipelineAsync(PipelineSession session, CancellationToken cancellationToken)
+    {
+        var item = session.Item;
+        var deployedUrl = session.DeployedUrl;
+        item.Status = WorkItemStatuses.Completed;
+        item.CurrentStage = "DONE";
+        item.RepoFactsJson = JsonSerializer.Serialize(
+            new
+            {
+                headCommit = session.HeadCommit,
+                deployedUrl,
+                workspaceRoot = session.WorkspaceRoot,
+                prUrl = session.PrUrl,
+                prNumber = session.PrNumber,
+                sandboxUrl = deployedUrl,
+                deploymentStatus = "sandbox_accepted"
+            },
+            JsonOptions);
+        item.UpdatedAt = DateTimeOffset.UtcNow;
+        await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
+        await AppendEventAsync(
+                session,
+                "DONE",
+                WorkItemStatuses.Completed,
+                "Finalized",
+                $"Sandbox URL shared with BuildGenix: {deployedUrl}",
+                item.CurrentTaskId,
+                cancellationToken)
+            .ConfigureAwait(false);
+        await WriteBaselineAsync(item, session.LiveArtifacts, session.HeadCommit, cancellationToken)
+            .ConfigureAwait(false);
+        session.Audit.CompletedAt = DateTimeOffset.UtcNow;
+        session.Audit.FinalStatus = WorkItemStatuses.Completed;
+        session.Audit.DeployedUrl = deployedUrl;
+        await WriteAuditAsync(session, cancellationToken).ConfigureAwait(false);
+        Bump(session);
+    }
+
+    private static bool IsHitlGateStage(string stage) =>
+        stage is "PRD" or "SYSTEM_DESIGN" or "IA_PLAN" or "IA_REVIEW" or "TA_REPORT" or "DEPLOY_SANDBOX";
 
     /// <returns>true if approved and pipeline should continue; false if STOP aborted the gate.</returns>
     private async Task<bool> RaiseGateAndWaitAsync(
@@ -1839,6 +2363,13 @@ public sealed class PocPipelineOrchestrator
         public List<ArtifactIndexEntry> ArtifactIndex { get; } = [];
         public ConcurrentBag<ChannelWriter<PocPipelineStatusDto>> Subscribers { get; } = [];
         public ConcurrentBag<ChannelWriter<PocPipelineStatusDto>> DeadWriters { get; } = [];
+        /// <summary>Live artifact map carried across topic-agent callbacks.</summary>
+        public Dictionary<string, string> LiveArtifacts { get; } = new(StringComparer.Ordinal);
+        public string? WorkspaceRoot { get; set; }
+        public string? HeadCommit { get; set; }
+        public string? PrUrl { get; set; }
+        public int? PrNumber { get; set; }
+        public TaskCompletionSource TopicDone { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     }
 
     private sealed record SessionEvent(int Sequence, WorkItemEventEntity Entity, string? ArtifactKey);

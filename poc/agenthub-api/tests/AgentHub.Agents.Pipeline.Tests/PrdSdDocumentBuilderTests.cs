@@ -88,7 +88,22 @@ public sealed class PrdSdDocumentBuilderTests
             null));
         using var doc = JsonDocument.Parse(json);
         Assert.Equal("FeatureIncrement", doc.RootElement.GetProperty("deliveryMode").GetString());
-        Assert.Equal("/api/subtract", doc.RootElement.GetProperty("apis")[0].GetProperty("path").GetString());
+        Assert.Equal("/api/add", doc.RootElement.GetProperty("apis")[0].GetProperty("path").GetString());
+        Assert.Equal("/api/subtract", doc.RootElement.GetProperty("apis")[1].GetProperty("path").GetString());
+        Assert.True(doc.RootElement.TryGetProperty("acceptanceChecks", out _));
+        Assert.True(doc.RootElement.TryGetProperty("primaryApi", out _));
+        var md = TechSpecBuilder.BuildMarkdown(Msg("u", "Existing", "Multi", null), json);
+        Assert.Contains("## 6. APIs", md, StringComparison.Ordinal);
+        Assert.Contains("/api/subtract", md, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TechSpec_spoon_feed_reads_app_kind()
+    {
+        var json = TechSpecBuilder.BuildJson(Msg("Create a todo list app", "New", "Todo", null));
+        Assert.True(TechSpecBuilder.TryReadSpoonFeed(json, out var kind, out var path));
+        Assert.Equal(AgentHub.Agents.Pipeline.Ia.RequestDrivenCodegen.AppKind.Todo, kind);
+        Assert.Equal("/api/todos", path);
     }
 
     private static TaskMessage Msg(

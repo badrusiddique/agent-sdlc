@@ -1,7 +1,9 @@
 using AgentHub.Agents.Pipeline;
 using AgentHub.Core.Abstractions;
+using AgentHub.Core.Messaging;
 using AgentHub.Core.Models;
 using AgentHub.Infrastructure.Llm;
+using AgentHub.Infrastructure.Messaging;
 using AgentHub.WebApi.Infrastructure;
 using Microsoft.Extensions.Options;
 
@@ -16,10 +18,16 @@ public static class PipelineEndpoints
 
         group.MapPost("/dispatch", DispatchAsync)
             .WithName("DispatchPipelineTask")
-            .WithSummary("In-process dispatch of one pipeline stage task (POC / InProcessOnly).")
+            .WithSummary("In-process dispatch of one pipeline stage task (POC / InProcessOnly / unit tests).")
             .Produces<AgentResult>(StatusCodes.Status200OK)
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .ProducesProblem(StatusCodes.Status500InternalServerError);
+
+        group.MapPost("/enqueue", EnqueueAsync)
+            .WithName("EnqueuePipelineTask")
+            .WithSummary("Publish a TaskMessage onto the agent topic for its Stage (BuildGenix → agents via bus).")
+            .Produces(StatusCodes.Status202Accepted)
+            .ProducesProblem(StatusCodes.Status400BadRequest);
 
         group.MapPost("/llm-smoke", LlmSmokeAsync)
             .WithName("PipelineLlmSmoke")
@@ -61,6 +69,45 @@ public static class PipelineEndpoints
         }
 
         return Results.Content(body, "application/json");
+    }
+
+    private static async Task<IResult> EnqueueAsync(
+        TaskMessage? message,
+        IAgentTaskBus bus,
+        CancellationToken cancellationToken)
+    {
+        if (message is null)
+        {
+            return ApiProblems.ValidationFailed("TaskMessage body is required.");
+        }
+
+        message.EnsureDefaults();
+        var errors = PipelineTaskValidation.Validate(message);
+        if (errors.Count > 0)
+        {
+            return ApiProblems.ValidationFailed(string.Join(" ", errors));
+        }
+
+        string topic;
+        try
+        {
+            topic = AgentTopics.TopicForStage(message.Stage);
+        }
+        catch (ArgumentOutOfRangeException ex)
+        {
+            return ApiProblems.ValidationFailed(ex.Message);
+        }
+
+        await bus.PublishAsync(topic, message, cancellationToken).ConfigureAwait(false);
+        return Results.Accepted(
+            value: new
+            {
+                enqueued = true,
+                topic,
+                stage = message.Stage,
+                taskId = message.TaskId,
+                workItemId = message.WorkItemId
+            });
     }
 
     private static async Task<IResult> DispatchAsync(

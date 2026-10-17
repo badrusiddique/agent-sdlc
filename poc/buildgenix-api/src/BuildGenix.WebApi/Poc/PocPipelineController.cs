@@ -47,6 +47,37 @@ public sealed class PocPipelineController : ControllerBase
         return Accepted(result);
     }
 
+    /// <summary>
+    /// AgentHub topic workers POST stage results here (REST). Between agents = Service Bus only.
+    /// </summary>
+    [HttpPost("agent-callback")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AgentCallbackAsync(
+        [FromBody] PocAgentCallbackRequest? body,
+        CancellationToken cancellationToken)
+    {
+        if (body is null || string.IsNullOrWhiteSpace(body.WorkItemId) || string.IsNullOrWhiteSpace(body.Stage))
+        {
+            return BadRequest(new { error = "WorkItemId and Stage are required." });
+        }
+
+        try
+        {
+            await _orchestrator.ApplyAgentCallbackAsync(body, cancellationToken).ConfigureAwait(false);
+            return Ok(new { accepted = true, workItemId = body.WorkItemId, stage = body.Stage });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("Unknown", StringComparison.Ordinal))
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
     [HttpPost("{workItemId}/approve")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

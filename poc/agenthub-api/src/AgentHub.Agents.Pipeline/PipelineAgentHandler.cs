@@ -439,10 +439,27 @@ public sealed class PipelineAgentHandler
             }
             else
             {
+                // Prefer System Design spoon-feed (techspec) over classifier-only when present.
                 var kind = RequestDrivenCodegen.Classify(
                     message.Context.UserRequest,
                     stack,
                     message.Context.ProjectName);
+                if (artifacts.TryGetValue("techSpec", out var techPath)
+                    && !string.IsNullOrWhiteSpace(techPath))
+                {
+                    var techBody = await _blobs.TryReadJsonAsync(techPath, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (TechSpecBuilder.TryReadSpoonFeed(techBody, out var sdKind, out var primaryPath)
+                        && sdKind is { } fromSd)
+                    {
+                        kind = fromSd;
+                        if (!string.IsNullOrWhiteSpace(primaryPath))
+                        {
+                            outputs["primaryApi"] = primaryPath;
+                        }
+                    }
+                }
+
                 var hintJson = ExtractTrailingJson(llm.Text) ?? llm.Text;
                 meta = RequestDrivenCodegen.Generate(
                     workspace,
@@ -451,7 +468,7 @@ public sealed class PipelineAgentHandler
                     message.WorkItemId,
                     message.Context.UserRequest ?? "",
                     hintJson);
-                summary = $"Generated {kind}";
+                summary = $"Generated {kind} (SD spoon-feed)";
                 outputs["appKind"] = kind.ToString();
                 outputs["deliveryMode"] = nameof(DeliveryMode.Basic);
             }

@@ -89,6 +89,34 @@ public sealed class PocSteerRequest
     public string Command { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// REST callback from AgentHub topic workers (AgentHub → BuildGenix).
+/// Agents chain via Service Bus; BuildGenix only records progress and finalizes.
+/// </summary>
+public sealed class PocAgentCallbackRequest
+{
+    public string WorkItemId { get; set; } = string.Empty;
+    public string? ProjectId { get; set; }
+    public string Stage { get; set; } = string.Empty;
+    public string? TaskId { get; set; }
+    public string Status { get; set; } = string.Empty;
+    public string? ErrorMessage { get; set; }
+    public Dictionary<string, string>? Artifacts { get; set; }
+    public Dictionary<string, string>? Outputs { get; set; }
+    public List<PocAgentCallbackStep>? Steps { get; set; }
+    public int OutputRevision { get; set; } = 1;
+    public bool RouteBack { get; set; }
+    public string? AgentName { get; set; }
+}
+
+public sealed class PocAgentCallbackStep
+{
+    public string Id { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string Message { get; set; } = string.Empty;
+}
+
 public sealed record PocSteerResult(
     string WorkItemId,
     string Command,

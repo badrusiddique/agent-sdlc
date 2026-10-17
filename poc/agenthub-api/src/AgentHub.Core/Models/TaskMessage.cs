@@ -99,4 +99,13 @@ public sealed class TaskMessageContext
     public string? PrUrl { get; set; }
     public int? PrNumber { get; set; }
     public Dictionary<string, string> BaselineArtifacts { get; set; } = new(StringComparer.Ordinal);
+
+    /// <summary>When true, agents chain to the next topic without waiting for BuildGenix HITL.</summary>
+    public bool AutoApprove { get; set; } = true;
+
+    /// <summary>POC: first TA_VERIFY injects a one-shot red probe for RouteBack.</summary>
+    public bool SimulateTaRouteback { get; set; }
+
+    /// <summary>Count of TA→IA RouteBack attempts already taken for this work item.</summary>
+    public int RouteBackCount { get; set; }
 }

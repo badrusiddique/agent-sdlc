@@ -3,6 +3,7 @@ using AgentHub.Agents.Pipeline;
 using AgentHub.Agents.Pipeline.Ia;
 using AgentHub.Core.Abstractions;
 using AgentHub.Core.Guardrails;
+using AgentHub.Hosting.Agents;
 using AgentHub.Infrastructure.Messaging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,7 +15,7 @@ namespace AgentHub.Hosting;
 public static class AgentWorkersServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers Phase 0 BackgroundService workers (D-AS-1): HEALTHY harness + POC Pipeline.
+    /// Registers Phase 0 BackgroundService workers: HEALTHY harness + per-agent topic workers (PRD/SD/IA/TA/Deploy).
     /// </summary>
     public static IServiceCollection AddAgentWorkers(
         this IServiceCollection services,
@@ -24,8 +25,12 @@ public static class AgentWorkersServiceCollectionExtensions
             configuration.GetSection(HealthyWorkerOptions.SectionName));
         services.Configure<PipelineWorkerOptions>(
             configuration.GetSection(PipelineWorkerOptions.SectionName));
+        services.Configure<AgentBusOptions>(
+            configuration.GetSection(AgentBusOptions.SectionName));
 
         services.AddSingleton<IGuardrailPipeline, LocalGuardrailPipeline>();
+        services.AddSingleton<IAgentTaskBus, InMemoryAgentTaskBus>();
+        services.AddHttpClient("buildgenix-callback");
 
         services.AddSingleton(sp =>
         {
@@ -63,7 +68,20 @@ public static class AgentWorkersServiceCollectionExtensions
                 deploy);
         });
         services.AddSingleton<PipelineAgentDispatcher>();
-        services.AddHostedService<PipelineAgentWorker>();
+
+        // One BackgroundService per agent topic (no central orchestrator loop).
+        services.AddHostedService<PrdAgentWorker>();
+        services.AddHostedService<SystemDesignAgentWorker>();
+        services.AddHostedService<IaAgentWorker>();
+        services.AddHostedService<TaAgentWorker>();
+        services.AddHostedService<DeployAgentWorker>();
+
+        // Legacy monolithic SB listener — only when topic agents are off.
+        var useTopics = configuration.GetValue("Workers:Pipeline:UseTopicAgents", true);
+        if (!useTopics)
+        {
+            services.AddHostedService<PipelineAgentWorker>();
+        }
 
         return services;
     }

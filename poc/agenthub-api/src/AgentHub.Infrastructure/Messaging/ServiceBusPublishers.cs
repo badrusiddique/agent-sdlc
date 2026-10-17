@@ -58,6 +58,12 @@ public sealed class PipelineWorkerOptions
 
     /// <summary>When true, skip Service Bus processor and rely on in-process dispatch.</summary>
     public bool InProcessOnly { get; set; } = true;
+
+    /// <summary>
+    /// When true, run PRD/SD/IA/TA/Deploy as separate topic BackgroundServices (preferred).
+    /// Legacy monolithic PipelineAgentWorker stays idle when this is true.
+    /// </summary>
+    public bool UseTopicAgents { get; set; } = true;
 }
 
 public sealed class ServiceBusHealthyTaskPublisher : IHealthyTaskPublisher, IAsyncDisposable

@@ -23,4 +23,11 @@ public sealed class PocPipelineOptions
 
     /// <summary>Model id passed on each task (null/empty lets AgentHub use its provider default).</summary>
     public string? ModelId { get; set; }
+
+    /// <summary>
+    /// When true (default), BuildGenix only intakes + enqueues PRD on the agent bus;
+    /// PRD/SD/IA/TA/Deploy BackgroundServices chain via Service Bus topics and REST-callback results.
+    /// When false, legacy synchronous HTTP /dispatch stage loop is used.
+    /// </summary>
+    public bool UseTopicAgents { get; set; } = true;
 }

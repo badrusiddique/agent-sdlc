@@ -1,0 +1,2854 @@
+{
+  "startedAt": "2026-10-17T04:32:32Z",
+  "cases": [
+    {
+      "name": "Calc_Add",
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true,
+          "evidence": "Completed"
+        },
+        {
+          "check": "stage_DONE",
+          "pass": true,
+          "evidence": "DONE"
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true,
+          "evidence": "http://127.0.0.1:40777"
+        },
+        {
+          "check": "trail_has_PRD",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_SYSTEM_DESIGN",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_DEPLOY_SANDBOX",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_ArtifactReady",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_GateApproved",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_Finalized",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_StageStarted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_StageCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_TaskCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "deploy_health",
+          "pass": true,
+          "evidence": "{\"status\":\"ok\"}"
+        },
+        {
+          "check": "smoke_/api/add?a=2&b=3",
+          "pass": true,
+          "evidence": "{\"operation\":\"add\",\"a\":2,\"b\":3,\"result\":5}"
+        },
+        {
+          "check": "fe_index_200",
+          "pass": true,
+          "evidence": "\ufeff<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>Calculator</title></head>\n<body>\n<h1>Calculator</h1>"
+        },
+        {
+          "check": "revision_dir_present",
+          "pass": true,
+          "evidence": "['v1']"
+        },
+        {
+          "check": "azurite_prd.json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/prd.json']"
+        },
+        {
+          "check": "azurite_prd.md",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/prd.md']"
+        },
+        {
+          "check": "azurite_techspec.json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/techspec.json']"
+        },
+        {
+          "check": "azurite_system-design.md",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/system-design.md']"
+        },
+        {
+          "check": "azurite_implementation-plan.md",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/implementation-plan.md']"
+        },
+        {
+          "check": "azurite_test-results.json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/test-results.json']"
+        },
+        {
+          "check": "azurite_review.json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/review.json']"
+        },
+        {
+          "check": "azurite_code-review.md",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/code-review.md']"
+        },
+        {
+          "check": "azurite_code-state.json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/code-state.json']"
+        },
+        {
+          "check": "azurite_code-graph.json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/code-graph.json']"
+        },
+        {
+          "check": "azurite_pull-request.json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/pull-request.json']"
+        },
+        {
+          "check": "azurite_ta-test-plan.md",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/ta-test-plan.md']"
+        },
+        {
+          "check": "azurite_ta-results.json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/ta-results.json']"
+        },
+        {
+          "check": "azurite_ta-report.md",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/ta-report.md']"
+        },
+        {
+          "check": "azurite_ta-status.json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/ta-status.json']"
+        },
+        {
+          "check": "azurite_ta-verification-report.json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/ta-verification-report.json']"
+        },
+        {
+          "check": "azurite_merge.json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/merge.json']"
+        },
+        {
+          "check": "azurite_sandbox-url.json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/sandbox-url.json']"
+        },
+        {
+          "check": "azurite_decision-log.json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/decision-log.json']"
+        },
+        {
+          "check": "file_AuditLog.json",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc-blobs/01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/AuditLog.json"
+        },
+        {
+          "check": "azurite_completion-summary.json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/completion-summary.json']"
+        },
+        {
+          "check": "LATEST_json",
+          "pass": true,
+          "evidence": "local"
+        },
+        {
+          "check": "DECISION_LOG_json",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/DECISION_LOG.json']"
+        },
+        {
+          "check": "PRD_Vn",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/PRD_V1.json']"
+        },
+        {
+          "check": "TA_VERIFICATION_REPORT_Vn",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/TA_VERIFICATION_REPORT_V1.json']"
+        },
+        {
+          "check": "decision_has_PRD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_SD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_IA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_TA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_Deploy",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decisionSummary_present",
+          "pass": true,
+          "evidence": "PRD/PRD: Drafted PRD for 'Gate-Calc' from user request. \u2192 SystemDesign/SYSTEM_DESIGN: Published techspec + system-design for IA/TA spoon-feed. \u2192 IA/IA_PLAN: Imp"
+        },
+        {
+          "check": "verification_ready",
+          "pass": true,
+          "evidence": true
+        },
+        {
+          "check": "verification_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "verification_has_plan",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "tech_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "ta_status_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "ta_mentions_HealthOk",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "ta_mentions_Add",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "playwright_status",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "graphify_command",
+          "pass": true,
+          "evidence": "graphify extract . --code-only"
+        },
+        {
+          "check": "pr_gitea",
+          "pass": true,
+          "evidence": "gitea"
+        },
+        {
+          "check": "pr_feature_branch",
+          "pass": true,
+          "evidence": "feature/project-01a14822092976089676ff5cd344c3dd-work-item-01a14822092b7adb9af147b988215b5d"
+        },
+        {
+          "check": "gitea_pr_http",
+          "pass": true,
+          "evidence": 200
+        },
+        {
+          "check": "merge_has_deployedUrl",
+          "pass": true,
+          "evidence": "http://127.0.0.1:40777"
+        },
+        {
+          "check": "sandbox_url",
+          "pass": true,
+          "evidence": "http://127.0.0.1:40777"
+        },
+        {
+          "check": "sandbox_has_verification",
+          "pass": true,
+          "evidence": "['environment', 'status', 'message', 'deployedUrl', 'prUrl', 'projectId', 'workItemId', 'revision', 'at', 'taVerificationReport', 'taVerificationReady']"
+        },
+        {
+          "check": "audit_present",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc-audit/01a14822092b7adb9af147b988215b5d-AuditLog.json"
+        },
+        {
+          "check": "audit_transitions",
+          "pass": true,
+          "evidence": 18
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true,
+          "evidence": "http://127.0.0.1:40777"
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc/project-01a14822092976089676ff5cd344c3dd-work-item-01a14822092b7adb9af147b988215b5d"
+        },
+        {
+          "check": "code_route_/api/add",
+          "pass": true,
+          "evidence": "/api/add"
+        },
+        {
+          "check": "code_route_/health",
+          "pass": true,
+          "evidence": "/health"
+        },
+        {
+          "check": "code_MapGet",
+          "pass": true,
+          "evidence": "MapGet"
+        },
+        {
+          "check": "e2e_suite",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "playwright_suite",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "azurite_prd_blob",
+          "pass": true,
+          "evidence": "['01a14822092976089676ff5cd344c3dd/01a14822092b7adb9af147b988215b5d/v1/prd.json']"
+        },
+        {
+          "check": "bgx_status_api",
+          "pass": true,
+          "evidence": "Completed"
+        }
+      ],
+      "pass": true,
+      "decisionAgents": [
+        "Deploy",
+        "IA",
+        "PRD",
+        "SystemDesign",
+        "TA"
+      ],
+      "decisionSource": "azurite:DECISION_LOG.json"
+    },
+    {
+      "name": "Hello_no_LLM",
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true,
+          "evidence": "Completed"
+        },
+        {
+          "check": "stage_DONE",
+          "pass": true,
+          "evidence": "DONE"
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true,
+          "evidence": "http://127.0.0.1:45815"
+        },
+        {
+          "check": "trail_has_PRD",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_SYSTEM_DESIGN",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_DEPLOY_SANDBOX",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_ArtifactReady",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_GateApproved",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_Finalized",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_StageStarted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_StageCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_TaskCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "deploy_health",
+          "pass": true,
+          "evidence": "{\"status\":\"ok\"}"
+        },
+        {
+          "check": "smoke_/api/hello",
+          "pass": true,
+          "evidence": "{\"status\":\"ok\",\"message\":\"Hello World\"}"
+        },
+        {
+          "check": "fe_index_200",
+          "pass": true,
+          "evidence": "\ufeff<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>Hello World</title></head>\n<body>\n<h1>Hello World</h"
+        },
+        {
+          "check": "revision_dir_present",
+          "pass": true,
+          "evidence": "['v1']"
+        },
+        {
+          "check": "azurite_prd.json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/prd.json']"
+        },
+        {
+          "check": "azurite_prd.md",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/prd.md']"
+        },
+        {
+          "check": "azurite_techspec.json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/techspec.json']"
+        },
+        {
+          "check": "azurite_system-design.md",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/system-design.md']"
+        },
+        {
+          "check": "azurite_implementation-plan.md",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/implementation-plan.md']"
+        },
+        {
+          "check": "azurite_test-results.json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/test-results.json']"
+        },
+        {
+          "check": "azurite_review.json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/review.json']"
+        },
+        {
+          "check": "azurite_code-review.md",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/code-review.md']"
+        },
+        {
+          "check": "azurite_code-state.json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/code-state.json']"
+        },
+        {
+          "check": "azurite_code-graph.json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/code-graph.json']"
+        },
+        {
+          "check": "azurite_pull-request.json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/pull-request.json']"
+        },
+        {
+          "check": "azurite_ta-test-plan.md",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/ta-test-plan.md']"
+        },
+        {
+          "check": "azurite_ta-results.json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/ta-results.json']"
+        },
+        {
+          "check": "azurite_ta-report.md",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/ta-report.md']"
+        },
+        {
+          "check": "azurite_ta-status.json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/ta-status.json']"
+        },
+        {
+          "check": "azurite_ta-verification-report.json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/ta-verification-report.json']"
+        },
+        {
+          "check": "azurite_merge.json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/merge.json']"
+        },
+        {
+          "check": "azurite_sandbox-url.json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/sandbox-url.json']"
+        },
+        {
+          "check": "azurite_decision-log.json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/decision-log.json']"
+        },
+        {
+          "check": "file_AuditLog.json",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc-blobs/01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/AuditLog.json"
+        },
+        {
+          "check": "azurite_completion-summary.json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/completion-summary.json']"
+        },
+        {
+          "check": "LATEST_json",
+          "pass": true,
+          "evidence": "local"
+        },
+        {
+          "check": "DECISION_LOG_json",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/DECISION_LOG.json']"
+        },
+        {
+          "check": "PRD_Vn",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/PRD_V1.json']"
+        },
+        {
+          "check": "TA_VERIFICATION_REPORT_Vn",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/TA_VERIFICATION_REPORT_V1.json']"
+        },
+        {
+          "check": "decision_has_PRD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_SD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_IA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_TA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_Deploy",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decisionSummary_present",
+          "pass": true,
+          "evidence": "PRD/PRD: Drafted PRD for 'Gate-Hello' from user request. \u2192 SystemDesign/SYSTEM_DESIGN: Published techspec + system-design for IA/TA spoon-feed. \u2192 IA/IA_PLAN: Im"
+        },
+        {
+          "check": "verification_ready",
+          "pass": true,
+          "evidence": true
+        },
+        {
+          "check": "verification_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "verification_has_plan",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "tech_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "ta_status_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "ta_mentions_HealthOk",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "ta_mentions_Hello",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "playwright_status",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "graphify_command",
+          "pass": true,
+          "evidence": "graphify extract . --code-only"
+        },
+        {
+          "check": "pr_gitea",
+          "pass": true,
+          "evidence": "gitea"
+        },
+        {
+          "check": "pr_feature_branch",
+          "pass": true,
+          "evidence": "feature/project-01a148225a8774b18301b0a284fef44c-work-item-01a148225a897c7298b8ba0301a4b91e"
+        },
+        {
+          "check": "gitea_pr_http",
+          "pass": true,
+          "evidence": 200
+        },
+        {
+          "check": "merge_has_deployedUrl",
+          "pass": true,
+          "evidence": "http://127.0.0.1:45815"
+        },
+        {
+          "check": "sandbox_url",
+          "pass": true,
+          "evidence": "http://127.0.0.1:45815"
+        },
+        {
+          "check": "sandbox_has_verification",
+          "pass": true,
+          "evidence": "['environment', 'status', 'message', 'deployedUrl', 'prUrl', 'projectId', 'workItemId', 'revision', 'at', 'taVerificationReport', 'taVerificationReady']"
+        },
+        {
+          "check": "audit_present",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc-audit/01a148225a897c7298b8ba0301a4b91e-AuditLog.json"
+        },
+        {
+          "check": "audit_transitions",
+          "pass": true,
+          "evidence": 18
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true,
+          "evidence": "http://127.0.0.1:45815"
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc/project-01a148225a8774b18301b0a284fef44c-work-item-01a148225a897c7298b8ba0301a4b91e"
+        },
+        {
+          "check": "code_route_/api/hello",
+          "pass": true,
+          "evidence": "/api/hello"
+        },
+        {
+          "check": "e2e_suite",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "playwright_suite",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "azurite_prd_blob",
+          "pass": true,
+          "evidence": "['01a148225a8774b18301b0a284fef44c/01a148225a897c7298b8ba0301a4b91e/v1/prd.json']"
+        },
+        {
+          "check": "bgx_status_api",
+          "pass": true,
+          "evidence": "Completed"
+        }
+      ],
+      "pass": true,
+      "decisionAgents": [
+        "Deploy",
+        "IA",
+        "PRD",
+        "SystemDesign",
+        "TA"
+      ],
+      "decisionSource": "azurite:DECISION_LOG.json"
+    },
+    {
+      "name": "Hello_LLM",
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true,
+          "evidence": "Completed"
+        },
+        {
+          "check": "stage_DONE",
+          "pass": true,
+          "evidence": "DONE"
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true,
+          "evidence": "http://127.0.0.1:42017"
+        },
+        {
+          "check": "trail_has_PRD",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_SYSTEM_DESIGN",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_DEPLOY_SANDBOX",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_ArtifactReady",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_GateApproved",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_Finalized",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_StageStarted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_StageCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_TaskCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "deploy_health",
+          "pass": true,
+          "evidence": "{\"status\":\"ok\"}"
+        },
+        {
+          "check": "smoke_/api/thought",
+          "pass": true,
+          "evidence": "{\"thought\":\"A thought for today.\",\"source\":\"fallback\"}"
+        },
+        {
+          "check": "fe_index_200",
+          "pass": true,
+          "evidence": "\ufeff<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>Hello + thought</title></head>\n<body>\n<h1>Hello + th"
+        },
+        {
+          "check": "revision_dir_present",
+          "pass": true,
+          "evidence": "['v1']"
+        },
+        {
+          "check": "azurite_prd.json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/prd.json']"
+        },
+        {
+          "check": "azurite_prd.md",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/prd.md']"
+        },
+        {
+          "check": "azurite_techspec.json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/techspec.json']"
+        },
+        {
+          "check": "azurite_system-design.md",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/system-design.md']"
+        },
+        {
+          "check": "azurite_implementation-plan.md",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/implementation-plan.md']"
+        },
+        {
+          "check": "azurite_test-results.json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/test-results.json']"
+        },
+        {
+          "check": "azurite_review.json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/review.json']"
+        },
+        {
+          "check": "azurite_code-review.md",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/code-review.md']"
+        },
+        {
+          "check": "azurite_code-state.json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/code-state.json']"
+        },
+        {
+          "check": "azurite_code-graph.json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/code-graph.json']"
+        },
+        {
+          "check": "azurite_pull-request.json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/pull-request.json']"
+        },
+        {
+          "check": "azurite_ta-test-plan.md",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/ta-test-plan.md']"
+        },
+        {
+          "check": "azurite_ta-results.json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/ta-results.json']"
+        },
+        {
+          "check": "azurite_ta-report.md",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/ta-report.md']"
+        },
+        {
+          "check": "azurite_ta-status.json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/ta-status.json']"
+        },
+        {
+          "check": "azurite_ta-verification-report.json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/ta-verification-report.json']"
+        },
+        {
+          "check": "azurite_merge.json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/merge.json']"
+        },
+        {
+          "check": "azurite_sandbox-url.json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/sandbox-url.json']"
+        },
+        {
+          "check": "azurite_decision-log.json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/decision-log.json']"
+        },
+        {
+          "check": "file_AuditLog.json",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc-blobs/01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/AuditLog.json"
+        },
+        {
+          "check": "azurite_completion-summary.json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/completion-summary.json']"
+        },
+        {
+          "check": "LATEST_json",
+          "pass": true,
+          "evidence": "local"
+        },
+        {
+          "check": "DECISION_LOG_json",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/DECISION_LOG.json']"
+        },
+        {
+          "check": "PRD_Vn",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/PRD_V1.json']"
+        },
+        {
+          "check": "TA_VERIFICATION_REPORT_Vn",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/TA_VERIFICATION_REPORT_V1.json']"
+        },
+        {
+          "check": "decision_has_PRD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_SD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_IA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_TA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_Deploy",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decisionSummary_present",
+          "pass": true,
+          "evidence": "PRD/PRD: Drafted PRD for 'Gate-HelloLlm' from user request. \u2192 SystemDesign/SYSTEM_DESIGN: Published techspec + system-design for IA/TA spoon-feed. \u2192 IA/IA_PLAN:"
+        },
+        {
+          "check": "verification_ready",
+          "pass": true,
+          "evidence": true
+        },
+        {
+          "check": "verification_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "verification_has_plan",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "tech_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "ta_status_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "ta_mentions_HealthOk",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "ta_mentions_Thought",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "playwright_status",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "graphify_command",
+          "pass": true,
+          "evidence": "graphify extract . --code-only"
+        },
+        {
+          "check": "pr_gitea",
+          "pass": true,
+          "evidence": "gitea"
+        },
+        {
+          "check": "pr_feature_branch",
+          "pass": true,
+          "evidence": "feature/project-01a14822ab7872dcac12d8628aec57db-work-item-01a14822ab7a764b9316bd59ea1df3f2"
+        },
+        {
+          "check": "gitea_pr_http",
+          "pass": true,
+          "evidence": 200
+        },
+        {
+          "check": "merge_has_deployedUrl",
+          "pass": true,
+          "evidence": "http://127.0.0.1:42017"
+        },
+        {
+          "check": "sandbox_url",
+          "pass": true,
+          "evidence": "http://127.0.0.1:42017"
+        },
+        {
+          "check": "sandbox_has_verification",
+          "pass": true,
+          "evidence": "['environment', 'status', 'message', 'deployedUrl', 'prUrl', 'projectId', 'workItemId', 'revision', 'at', 'taVerificationReport', 'taVerificationReady']"
+        },
+        {
+          "check": "audit_present",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc-audit/01a14822ab7a764b9316bd59ea1df3f2-AuditLog.json"
+        },
+        {
+          "check": "audit_transitions",
+          "pass": true,
+          "evidence": 18
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true,
+          "evidence": "http://127.0.0.1:42017"
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc/project-01a14822ab7872dcac12d8628aec57db-work-item-01a14822ab7a764b9316bd59ea1df3f2"
+        },
+        {
+          "check": "code_route_/api/thought",
+          "pass": true,
+          "evidence": "/api/thought"
+        },
+        {
+          "check": "e2e_suite",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "playwright_suite",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "azurite_prd_blob",
+          "pass": true,
+          "evidence": "['01a14822ab7872dcac12d8628aec57db/01a14822ab7a764b9316bd59ea1df3f2/v1/prd.json']"
+        },
+        {
+          "check": "bgx_status_api",
+          "pass": true,
+          "evidence": "Completed"
+        }
+      ],
+      "pass": true,
+      "decisionAgents": [
+        "Deploy",
+        "IA",
+        "PRD",
+        "SystemDesign",
+        "TA"
+      ],
+      "decisionSource": "azurite:DECISION_LOG.json"
+    },
+    {
+      "name": "MultiWI_Add",
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true,
+          "evidence": "Completed"
+        },
+        {
+          "check": "stage_DONE",
+          "pass": true,
+          "evidence": "DONE"
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true,
+          "evidence": "http://127.0.0.1:44067"
+        },
+        {
+          "check": "trail_has_PRD",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_SYSTEM_DESIGN",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_DEPLOY_SANDBOX",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_ArtifactReady",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_GateApproved",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_Finalized",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_StageStarted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_StageCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_TaskCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "deploy_health",
+          "pass": true,
+          "evidence": "{\"status\":\"ok\"}"
+        },
+        {
+          "check": "smoke_/api/add?a=2&b=3",
+          "pass": true,
+          "evidence": "{\"operation\":\"add\",\"a\":2,\"b\":3,\"result\":5}"
+        },
+        {
+          "check": "fe_index_200",
+          "pass": true,
+          "evidence": "\ufeff<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>Calculator</title></head>\n<body>\n<h1>Calculator</h1>"
+        },
+        {
+          "check": "revision_dir_present",
+          "pass": true,
+          "evidence": "['v1']"
+        },
+        {
+          "check": "azurite_prd.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/prd.json']"
+        },
+        {
+          "check": "azurite_prd.md",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/prd.md']"
+        },
+        {
+          "check": "azurite_techspec.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/techspec.json']"
+        },
+        {
+          "check": "azurite_system-design.md",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/system-design.md']"
+        },
+        {
+          "check": "azurite_implementation-plan.md",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/implementation-plan.md']"
+        },
+        {
+          "check": "azurite_test-results.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/test-results.json']"
+        },
+        {
+          "check": "azurite_review.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/review.json']"
+        },
+        {
+          "check": "azurite_code-review.md",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/code-review.md']"
+        },
+        {
+          "check": "azurite_code-state.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/code-state.json']"
+        },
+        {
+          "check": "azurite_code-graph.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/code-graph.json']"
+        },
+        {
+          "check": "azurite_pull-request.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/pull-request.json']"
+        },
+        {
+          "check": "azurite_ta-test-plan.md",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/ta-test-plan.md']"
+        },
+        {
+          "check": "azurite_ta-results.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/ta-results.json']"
+        },
+        {
+          "check": "azurite_ta-report.md",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/ta-report.md']"
+        },
+        {
+          "check": "azurite_ta-status.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/ta-status.json']"
+        },
+        {
+          "check": "azurite_ta-verification-report.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/ta-verification-report.json']"
+        },
+        {
+          "check": "azurite_merge.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/merge.json']"
+        },
+        {
+          "check": "azurite_sandbox-url.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/sandbox-url.json']"
+        },
+        {
+          "check": "azurite_decision-log.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/decision-log.json']"
+        },
+        {
+          "check": "file_AuditLog.json",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc-blobs/01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/AuditLog.json"
+        },
+        {
+          "check": "azurite_completion-summary.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/completion-summary.json']"
+        },
+        {
+          "check": "LATEST_json",
+          "pass": true,
+          "evidence": "local"
+        },
+        {
+          "check": "DECISION_LOG_json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/DECISION_LOG.json']"
+        },
+        {
+          "check": "PRD_Vn",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/PRD_V1.json']"
+        },
+        {
+          "check": "TA_VERIFICATION_REPORT_Vn",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/TA_VERIFICATION_REPORT_V1.json']"
+        },
+        {
+          "check": "decision_has_PRD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_SD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_IA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_TA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_Deploy",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decisionSummary_present",
+          "pass": true,
+          "evidence": "PRD/PRD: Drafted PRD for 'Gate-Multi' from user request. \u2192 SystemDesign/SYSTEM_DESIGN: Published techspec + system-design for IA/TA spoon-feed. \u2192 IA/IA_PLAN: Im"
+        },
+        {
+          "check": "verification_ready",
+          "pass": true,
+          "evidence": true
+        },
+        {
+          "check": "verification_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "verification_has_plan",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "tech_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "ta_status_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "ta_mentions_HealthOk",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "ta_mentions_Add",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "playwright_status",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "graphify_command",
+          "pass": true,
+          "evidence": "graphify extract . --code-only"
+        },
+        {
+          "check": "pr_gitea",
+          "pass": true,
+          "evidence": "gitea"
+        },
+        {
+          "check": "pr_feature_branch",
+          "pass": true,
+          "evidence": "feature/project-01a1482300877962a7ace81776ec55fe-work-item-01a1482300887501a74bbb4fd7fb090c"
+        },
+        {
+          "check": "gitea_pr_http",
+          "pass": true,
+          "evidence": 200
+        },
+        {
+          "check": "merge_has_deployedUrl",
+          "pass": true,
+          "evidence": "http://127.0.0.1:44067"
+        },
+        {
+          "check": "sandbox_url",
+          "pass": true,
+          "evidence": "http://127.0.0.1:44067"
+        },
+        {
+          "check": "sandbox_has_verification",
+          "pass": true,
+          "evidence": "['environment', 'status', 'message', 'deployedUrl', 'prUrl', 'projectId', 'workItemId', 'revision', 'at', 'taVerificationReport', 'taVerificationReady']"
+        },
+        {
+          "check": "audit_present",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc-audit/01a1482300887501a74bbb4fd7fb090c-AuditLog.json"
+        },
+        {
+          "check": "audit_transitions",
+          "pass": true,
+          "evidence": 18
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true,
+          "evidence": "http://127.0.0.1:44067"
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc/project-01a1482300877962a7ace81776ec55fe-work-item-01a1482300887501a74bbb4fd7fb090c"
+        },
+        {
+          "check": "code_route_/api/add",
+          "pass": true,
+          "evidence": "/api/add"
+        },
+        {
+          "check": "e2e_suite",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "playwright_suite",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "azurite_prd_blob",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482300887501a74bbb4fd7fb090c/v1/prd.json']"
+        },
+        {
+          "check": "bgx_status_api",
+          "pass": true,
+          "evidence": "Completed"
+        }
+      ],
+      "pass": true,
+      "decisionAgents": [
+        "Deploy",
+        "IA",
+        "PRD",
+        "SystemDesign",
+        "TA"
+      ],
+      "decisionSource": "azurite:DECISION_LOG.json"
+    },
+    {
+      "name": "MultiWI_Subtract",
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true,
+          "evidence": "Completed"
+        },
+        {
+          "check": "stage_DONE",
+          "pass": true,
+          "evidence": "DONE"
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true,
+          "evidence": "http://127.0.0.1:41377"
+        },
+        {
+          "check": "trail_has_PRD",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_SYSTEM_DESIGN",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_DEPLOY_SANDBOX",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_ArtifactReady",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_GateApproved",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_Finalized",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_StageStarted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_StageCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_TaskCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "deploy_health",
+          "pass": true,
+          "evidence": "{\"status\":\"ok\"}"
+        },
+        {
+          "check": "smoke_/api/add?a=2&b=3",
+          "pass": true,
+          "evidence": "{\"operation\":\"add\",\"a\":2,\"b\":3,\"result\":5}"
+        },
+        {
+          "check": "smoke_/api/subtract?a=5&b=2",
+          "pass": true,
+          "evidence": "{\"operation\":\"subtract\",\"a\":5,\"b\":2,\"result\":3}"
+        },
+        {
+          "check": "fe_index_200",
+          "pass": true,
+          "evidence": "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>Calculator</title></head>\n<body>\n<h1>Calculator</h1>\n"
+        },
+        {
+          "check": "revision_dir_present",
+          "pass": true,
+          "evidence": "['v1']"
+        },
+        {
+          "check": "azurite_prd.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/prd.json']"
+        },
+        {
+          "check": "azurite_prd.md",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/prd.md']"
+        },
+        {
+          "check": "azurite_techspec.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/techspec.json']"
+        },
+        {
+          "check": "azurite_system-design.md",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/system-design.md']"
+        },
+        {
+          "check": "azurite_implementation-plan.md",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/implementation-plan.md']"
+        },
+        {
+          "check": "azurite_test-results.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/test-results.json']"
+        },
+        {
+          "check": "azurite_review.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/review.json']"
+        },
+        {
+          "check": "azurite_code-review.md",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/code-review.md']"
+        },
+        {
+          "check": "azurite_code-state.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/code-state.json']"
+        },
+        {
+          "check": "azurite_code-graph.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/code-graph.json']"
+        },
+        {
+          "check": "azurite_pull-request.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/pull-request.json']"
+        },
+        {
+          "check": "azurite_ta-test-plan.md",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/ta-test-plan.md']"
+        },
+        {
+          "check": "azurite_ta-results.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/ta-results.json']"
+        },
+        {
+          "check": "azurite_ta-report.md",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/ta-report.md']"
+        },
+        {
+          "check": "azurite_ta-status.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/ta-status.json']"
+        },
+        {
+          "check": "azurite_ta-verification-report.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/ta-verification-report.json']"
+        },
+        {
+          "check": "azurite_merge.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/merge.json']"
+        },
+        {
+          "check": "azurite_sandbox-url.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/sandbox-url.json']"
+        },
+        {
+          "check": "azurite_decision-log.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/decision-log.json']"
+        },
+        {
+          "check": "file_AuditLog.json",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc-blobs/01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/AuditLog.json"
+        },
+        {
+          "check": "azurite_completion-summary.json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/completion-summary.json']"
+        },
+        {
+          "check": "LATEST_json",
+          "pass": true,
+          "evidence": "local"
+        },
+        {
+          "check": "DECISION_LOG_json",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/DECISION_LOG.json']"
+        },
+        {
+          "check": "PRD_Vn",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/PRD_V1.json']"
+        },
+        {
+          "check": "TA_VERIFICATION_REPORT_Vn",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/TA_VERIFICATION_REPORT_V1.json']"
+        },
+        {
+          "check": "decision_has_PRD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_SD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_IA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_TA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_Deploy",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decisionSummary_present",
+          "pass": true,
+          "evidence": "PRD/PRD: Drafted PRD for 'Gate-Multi' from user request. \u2192 SystemDesign/SYSTEM_DESIGN: Published techspec + system-design for IA/TA spoon-feed. \u2192 IA/IA_PLAN: Im"
+        },
+        {
+          "check": "verification_ready",
+          "pass": true,
+          "evidence": true
+        },
+        {
+          "check": "verification_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "verification_has_plan",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true,
+          "evidence": "FeatureIncrement"
+        },
+        {
+          "check": "tech_deliveryMode",
+          "pass": true,
+          "evidence": "FeatureIncrement"
+        },
+        {
+          "check": "ta_status_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "ta_mentions_HealthOk",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "ta_mentions_Subtract",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "playwright_status",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "graphify_command",
+          "pass": true,
+          "evidence": "graphify extract . --code-only"
+        },
+        {
+          "check": "pr_gitea",
+          "pass": true,
+          "evidence": "gitea"
+        },
+        {
+          "check": "pr_feature_branch",
+          "pass": true,
+          "evidence": "feature/project-01a1482300877962a7ace81776ec55fe-work-item-01a1482354987b508cc5c54068f02284"
+        },
+        {
+          "check": "gitea_pr_http",
+          "pass": true,
+          "evidence": 200
+        },
+        {
+          "check": "merge_has_deployedUrl",
+          "pass": true,
+          "evidence": "http://127.0.0.1:41377"
+        },
+        {
+          "check": "sandbox_url",
+          "pass": true,
+          "evidence": "http://127.0.0.1:41377"
+        },
+        {
+          "check": "sandbox_has_verification",
+          "pass": true,
+          "evidence": "['environment', 'status', 'message', 'deployedUrl', 'prUrl', 'projectId', 'workItemId', 'revision', 'at', 'taVerificationReport', 'taVerificationReady']"
+        },
+        {
+          "check": "audit_present",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc-audit/01a1482354987b508cc5c54068f02284-AuditLog.json"
+        },
+        {
+          "check": "audit_transitions",
+          "pass": true,
+          "evidence": 18
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true,
+          "evidence": "http://127.0.0.1:41377"
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc/project-01a1482300877962a7ace81776ec55fe-work-item-01a1482354987b508cc5c54068f02284"
+        },
+        {
+          "check": "code_route_/api/add",
+          "pass": true,
+          "evidence": "/api/add"
+        },
+        {
+          "check": "code_route_/api/subtract",
+          "pass": true,
+          "evidence": "/api/subtract"
+        },
+        {
+          "check": "e2e_suite",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "playwright_suite",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "azurite_prd_blob",
+          "pass": true,
+          "evidence": "['01a1482300877962a7ace81776ec55fe/01a1482354987b508cc5c54068f02284/v1/prd.json']"
+        },
+        {
+          "check": "bgx_status_api",
+          "pass": true,
+          "evidence": "Completed"
+        }
+      ],
+      "pass": true,
+      "decisionAgents": [
+        "Deploy",
+        "IA",
+        "PRD",
+        "SystemDesign",
+        "TA"
+      ],
+      "decisionSource": "azurite:DECISION_LOG.json"
+    },
+    {
+      "name": "Todo",
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true,
+          "evidence": "Completed"
+        },
+        {
+          "check": "stage_DONE",
+          "pass": true,
+          "evidence": "DONE"
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true,
+          "evidence": "http://127.0.0.1:37383"
+        },
+        {
+          "check": "trail_has_PRD",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_SYSTEM_DESIGN",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_DEPLOY_SANDBOX",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_ArtifactReady",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_GateApproved",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_Finalized",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_StageStarted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_StageCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_TaskCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "deploy_health",
+          "pass": true,
+          "evidence": "{\"status\":\"ok\"}"
+        },
+        {
+          "check": "smoke_/api/todos",
+          "pass": true,
+          "evidence": "[{\"id\":1,\"title\":\"qa-item\",\"done\":false}]"
+        },
+        {
+          "check": "fe_index_200",
+          "pass": true,
+          "evidence": "\ufeff<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>Todo</title></head>\n<body>\n<h1>Todo</h1>\n<input id=\""
+        },
+        {
+          "check": "revision_dir_present",
+          "pass": true,
+          "evidence": "['v1']"
+        },
+        {
+          "check": "azurite_prd.json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/prd.json']"
+        },
+        {
+          "check": "azurite_prd.md",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/prd.md']"
+        },
+        {
+          "check": "azurite_techspec.json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/techspec.json']"
+        },
+        {
+          "check": "azurite_system-design.md",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/system-design.md']"
+        },
+        {
+          "check": "azurite_implementation-plan.md",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/implementation-plan.md']"
+        },
+        {
+          "check": "azurite_test-results.json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/test-results.json']"
+        },
+        {
+          "check": "azurite_review.json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/review.json']"
+        },
+        {
+          "check": "azurite_code-review.md",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/code-review.md']"
+        },
+        {
+          "check": "azurite_code-state.json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/code-state.json']"
+        },
+        {
+          "check": "azurite_code-graph.json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/code-graph.json']"
+        },
+        {
+          "check": "azurite_pull-request.json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/pull-request.json']"
+        },
+        {
+          "check": "azurite_ta-test-plan.md",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/ta-test-plan.md']"
+        },
+        {
+          "check": "azurite_ta-results.json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/ta-results.json']"
+        },
+        {
+          "check": "azurite_ta-report.md",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/ta-report.md']"
+        },
+        {
+          "check": "azurite_ta-status.json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/ta-status.json']"
+        },
+        {
+          "check": "azurite_ta-verification-report.json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/ta-verification-report.json']"
+        },
+        {
+          "check": "azurite_merge.json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/merge.json']"
+        },
+        {
+          "check": "azurite_sandbox-url.json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/sandbox-url.json']"
+        },
+        {
+          "check": "azurite_decision-log.json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/decision-log.json']"
+        },
+        {
+          "check": "file_AuditLog.json",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc-blobs/01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/AuditLog.json"
+        },
+        {
+          "check": "azurite_completion-summary.json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/completion-summary.json']"
+        },
+        {
+          "check": "LATEST_json",
+          "pass": true,
+          "evidence": "local"
+        },
+        {
+          "check": "DECISION_LOG_json",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/DECISION_LOG.json']"
+        },
+        {
+          "check": "PRD_Vn",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/PRD_V1.json']"
+        },
+        {
+          "check": "TA_VERIFICATION_REPORT_Vn",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/TA_VERIFICATION_REPORT_V1.json']"
+        },
+        {
+          "check": "decision_has_PRD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_SD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_IA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_TA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_Deploy",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decisionSummary_present",
+          "pass": true,
+          "evidence": "PRD/PRD: Drafted PRD for 'Gate-Todo' from user request. \u2192 SystemDesign/SYSTEM_DESIGN: Published techspec + system-design for IA/TA spoon-feed. \u2192 IA/IA_PLAN: Imp"
+        },
+        {
+          "check": "verification_ready",
+          "pass": true,
+          "evidence": true
+        },
+        {
+          "check": "verification_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "verification_has_plan",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "tech_deliveryMode",
+          "pass": true,
+          "evidence": "Basic"
+        },
+        {
+          "check": "ta_status_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "ta_mentions_HealthOk",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "ta_mentions_Todos",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "playwright_status",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "graphify_command",
+          "pass": true,
+          "evidence": "graphify extract . --code-only"
+        },
+        {
+          "check": "pr_gitea",
+          "pass": true,
+          "evidence": "gitea"
+        },
+        {
+          "check": "pr_feature_branch",
+          "pass": true,
+          "evidence": "feature/project-01a14823aa347e37ba1e431a0d1b210d-work-item-01a14823aa357d48acb11165ca513ddd"
+        },
+        {
+          "check": "gitea_pr_http",
+          "pass": true,
+          "evidence": 200
+        },
+        {
+          "check": "merge_has_deployedUrl",
+          "pass": true,
+          "evidence": "http://127.0.0.1:37383"
+        },
+        {
+          "check": "sandbox_url",
+          "pass": true,
+          "evidence": "http://127.0.0.1:37383"
+        },
+        {
+          "check": "sandbox_has_verification",
+          "pass": true,
+          "evidence": "['environment', 'status', 'message', 'deployedUrl', 'prUrl', 'projectId', 'workItemId', 'revision', 'at', 'taVerificationReport', 'taVerificationReady']"
+        },
+        {
+          "check": "audit_present",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc-audit/01a14823aa357d48acb11165ca513ddd-AuditLog.json"
+        },
+        {
+          "check": "audit_transitions",
+          "pass": true,
+          "evidence": 18
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true,
+          "evidence": "http://127.0.0.1:37383"
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc/project-01a14823aa347e37ba1e431a0d1b210d-work-item-01a14823aa357d48acb11165ca513ddd"
+        },
+        {
+          "check": "code_route_/api/todos",
+          "pass": true,
+          "evidence": "/api/todos"
+        },
+        {
+          "check": "e2e_suite",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "playwright_suite",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "azurite_prd_blob",
+          "pass": true,
+          "evidence": "['01a14823aa347e37ba1e431a0d1b210d/01a14823aa357d48acb11165ca513ddd/v1/prd.json']"
+        },
+        {
+          "check": "bgx_status_api",
+          "pass": true,
+          "evidence": "Completed"
+        }
+      ],
+      "pass": true,
+      "decisionAgents": [
+        "Deploy",
+        "IA",
+        "PRD",
+        "SystemDesign",
+        "TA"
+      ],
+      "decisionSource": "azurite:DECISION_LOG.json"
+    },
+    {
+      "name": "Rewrite_net8",
+      "checks": [
+        {
+          "check": "pipeline_Completed",
+          "pass": true,
+          "evidence": "Completed"
+        },
+        {
+          "check": "stage_DONE",
+          "pass": true,
+          "evidence": "DONE"
+        },
+        {
+          "check": "deployedUrl_present",
+          "pass": true,
+          "evidence": "http://127.0.0.1:45991"
+        },
+        {
+          "check": "trail_has_PRD",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_SYSTEM_DESIGN",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_IA_CODEGEN",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_IA_PUSH_DEPLOY",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_TA_VERIFY",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_TA_MERGE",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "trail_has_DEPLOY_SANDBOX",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_ArtifactReady",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_GateApproved",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_Finalized",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_StageStarted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_StageCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "events_TaskCompleted",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "deploy_health",
+          "pass": true,
+          "evidence": "{\"status\":\"ok\",\"runtime\":\"net10\"}"
+        },
+        {
+          "check": "smoke_/api/add?a=2&b=3",
+          "pass": true,
+          "evidence": "{\"operation\":\"add\",\"a\":2,\"b\":3,\"result\":5}"
+        },
+        {
+          "check": "smoke_/health",
+          "pass": true,
+          "evidence": "{\"status\":\"ok\",\"runtime\":\"net10\"}"
+        },
+        {
+          "check": "fe_index_200",
+          "pass": true,
+          "evidence": "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><title>Rewritten Calculator (net10)</title></head>\n<body>\n<h"
+        },
+        {
+          "check": "revision_dir_present",
+          "pass": true,
+          "evidence": "['v1']"
+        },
+        {
+          "check": "azurite_prd.json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/prd.json']"
+        },
+        {
+          "check": "azurite_prd.md",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/prd.md']"
+        },
+        {
+          "check": "azurite_techspec.json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/techspec.json']"
+        },
+        {
+          "check": "azurite_system-design.md",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/system-design.md']"
+        },
+        {
+          "check": "azurite_implementation-plan.md",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/implementation-plan.md']"
+        },
+        {
+          "check": "azurite_test-results.json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/test-results.json']"
+        },
+        {
+          "check": "azurite_review.json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/review.json']"
+        },
+        {
+          "check": "azurite_code-review.md",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/code-review.md']"
+        },
+        {
+          "check": "azurite_code-state.json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/code-state.json']"
+        },
+        {
+          "check": "azurite_code-graph.json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/code-graph.json']"
+        },
+        {
+          "check": "azurite_pull-request.json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/pull-request.json']"
+        },
+        {
+          "check": "azurite_ta-test-plan.md",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/ta-test-plan.md']"
+        },
+        {
+          "check": "azurite_ta-results.json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/ta-results.json']"
+        },
+        {
+          "check": "azurite_ta-report.md",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/ta-report.md']"
+        },
+        {
+          "check": "azurite_ta-status.json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/ta-status.json']"
+        },
+        {
+          "check": "azurite_ta-verification-report.json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/ta-verification-report.json']"
+        },
+        {
+          "check": "azurite_merge.json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/merge.json']"
+        },
+        {
+          "check": "azurite_sandbox-url.json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/sandbox-url.json']"
+        },
+        {
+          "check": "azurite_decision-log.json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/decision-log.json']"
+        },
+        {
+          "check": "file_AuditLog.json",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc-blobs/01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/AuditLog.json"
+        },
+        {
+          "check": "azurite_completion-summary.json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/completion-summary.json']"
+        },
+        {
+          "check": "LATEST_json",
+          "pass": true,
+          "evidence": "local"
+        },
+        {
+          "check": "DECISION_LOG_json",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/DECISION_LOG.json']"
+        },
+        {
+          "check": "PRD_Vn",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/PRD_V1.json']"
+        },
+        {
+          "check": "TA_VERIFICATION_REPORT_Vn",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/TA_VERIFICATION_REPORT_V1.json']"
+        },
+        {
+          "check": "decision_has_PRD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_SD",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_IA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_TA",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decision_has_Deploy",
+          "pass": true,
+          "evidence": "['Deploy', 'IA', 'PRD', 'SystemDesign', 'TA']"
+        },
+        {
+          "check": "decisionSummary_present",
+          "pass": true,
+          "evidence": "PRD/PRD: Drafted PRD for 'Gate-Rewrite' from user request. \u2192 SystemDesign/SYSTEM_DESIGN: Published techspec + system-design for IA/TA spoon-feed. \u2192 IA/IA_PLAN: "
+        },
+        {
+          "check": "verification_ready",
+          "pass": true,
+          "evidence": true
+        },
+        {
+          "check": "verification_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "verification_has_plan",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "prd_deliveryMode",
+          "pass": true,
+          "evidence": "Rewrite"
+        },
+        {
+          "check": "tech_deliveryMode",
+          "pass": true,
+          "evidence": "Rewrite"
+        },
+        {
+          "check": "ta_status_green",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "ta_mentions_HealthOk",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "ta_mentions_Add",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "playwright_status",
+          "pass": true,
+          "evidence": "green"
+        },
+        {
+          "check": "graphify_command",
+          "pass": true,
+          "evidence": "graphify extract . --code-only"
+        },
+        {
+          "check": "pr_gitea",
+          "pass": true,
+          "evidence": "gitea"
+        },
+        {
+          "check": "pr_feature_branch",
+          "pass": true,
+          "evidence": "feature/project-01a14823ff5671c082f3c4275e4cbb7d-work-item-01a14823ff577b858948e03de828876a"
+        },
+        {
+          "check": "gitea_pr_http",
+          "pass": true,
+          "evidence": 200
+        },
+        {
+          "check": "merge_has_deployedUrl",
+          "pass": true,
+          "evidence": "http://127.0.0.1:45991"
+        },
+        {
+          "check": "sandbox_url",
+          "pass": true,
+          "evidence": "http://127.0.0.1:45991"
+        },
+        {
+          "check": "sandbox_has_verification",
+          "pass": true,
+          "evidence": "['environment', 'status', 'message', 'deployedUrl', 'prUrl', 'projectId', 'workItemId', 'revision', 'at', 'taVerificationReport', 'taVerificationReady']"
+        },
+        {
+          "check": "audit_present",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc-audit/01a14823ff577b858948e03de828876a-AuditLog.json"
+        },
+        {
+          "check": "audit_transitions",
+          "pass": true,
+          "evidence": 18
+        },
+        {
+          "check": "audit_deployedUrl",
+          "pass": true,
+          "evidence": "http://127.0.0.1:45991"
+        },
+        {
+          "check": "workspace_exists",
+          "pass": true,
+          "evidence": "/tmp/bgx-poc/project-01a14823ff5671c082f3c4275e4cbb7d-work-item-01a14823ff577b858948e03de828876a"
+        },
+        {
+          "check": "code_route_/api/add",
+          "pass": true,
+          "evidence": "/api/add"
+        },
+        {
+          "check": "code_net10",
+          "pass": true,
+          "evidence": "net10"
+        },
+        {
+          "check": "e2e_suite",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "playwright_suite",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "azurite_prd_blob",
+          "pass": true,
+          "evidence": "['01a14823ff5671c082f3c4275e4cbb7d/01a14823ff577b858948e03de828876a/v1/prd.json']"
+        },
+        {
+          "check": "bgx_status_api",
+          "pass": true,
+          "evidence": "Completed"
+        }
+      ],
+      "pass": true,
+      "decisionAgents": [
+        "Deploy",
+        "IA",
+        "PRD",
+        "SystemDesign",
+        "TA"
+      ],
+      "decisionSource": "azurite:DECISION_LOG.json"
+    },
+    {
+      "name": "RouteBack",
+      "checks": [
+        {
+          "check": "Completed",
+          "pass": true,
+          "evidence": "Completed"
+        },
+        {
+          "check": "RouteBack_in_trail",
+          "pass": true,
+          "evidence": "['TA_VERIFY:Completed', 'TA_VERIFY:RouteBack:RouteBack', 'TA_VERIFY:Completed']"
+        },
+        {
+          "check": "RouteBack_event",
+          "pass": true,
+          "evidence": null
+        },
+        {
+          "check": "revision_bumped_v2",
+          "pass": true,
+          "evidence": "['v1', 'v2']"
+        },
+        {
+          "check": "concerns_v1",
+          "pass": true,
+          "evidence": "['01a1482452257f8ab134f2e6dd169785/01a14824522673d7ac666bd78b088c59/v1/ta-concerns.json', '01a1482452257f8ab134f2e6dd169785/01a14824522673d7ac666bd78b088c59/TA_CONCERNS_V1.json']"
+        },
+        {
+          "check": "final_url",
+          "pass": true,
+          "evidence": "http://127.0.0.1:33513"
+        },
+        {
+          "check": "final_add",
+          "pass": true,
+          "evidence": "{\"operation\":\"add\",\"a\":2,\"b\":3,\"result\":5}"
+        }
+      ],
+      "pass": true
+    }
+  ],
+  "failures": [],
+  "infra": {
+    "buildgenix": {
+      "status": 200,
+      "body": "{\"service\":\"BuildGenix.WebApi\",\"status\":\"ok\",\"docs\":\"/swagger\",\"pocPipeline\":\"/api/poc/pipeline/run\",\"pocInteractive\":\"/"
+    },
+    "agenthub": {
+      "status": 200,
+      "body": "{\"service\":\"AgentHub.WebApi\",\"status\":\"ok\",\"docs\":\"/swagger\",\"healthy\":\"/api/connectivity/healthy\",\"pipeline\":\"/api/pipe"
+    },
+    "gitea": {
+      "status": 200,
+      "body": "{\"version\":\"1.22.6\"}\n"
+    },
+    "azuriteConfigured": true,
+    "llm": "Fixture (local POC; Azure Gateway unchanged for other machine)",
+    "onlyCases": []
+  },
+  "finishedAt": "2026-10-17T04:35:43Z",
+  "overallPass": true
+}

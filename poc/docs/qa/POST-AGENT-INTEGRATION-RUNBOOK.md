@@ -7,13 +7,14 @@
 
 | Field | Value |
 |---|---|
-| **Reference branch** | `main-azure` (contains greenfield + TA Playwright/RouteBack + production gate) |
-| **Reference tip proven** | `d629d18` — *fix(poc): production gate — Rewrite FE Playwright + Azurite QA* |
-| **Reference totals** | **8 cases · 545 checks · 0 failed** · Pipeline.Tests **58/58** |
-| **Evidence JSON** | [`evidence/production-gate-2026-10-16/PRODUCTION-GATE-RESULTS.json`](evidence/production-gate-2026-10-16/PRODUCTION-GATE-RESULTS.json) |
+| **Reference branch** | `main-azure` (contains greenfield + TA Playwright/RouteBack + production gate + **topic agents**) |
+| **Reference tip proven** | See [`PRODUCTION-GATE-SIGNOFF-2026-10-17-TOPIC-AGENTS.md`](PRODUCTION-GATE-SIGNOFF-2026-10-17-TOPIC-AGENTS.md) (prior: `d629d18`) |
+| **Reference totals** | **8 cases · 545 checks · 0 failed** · Pipeline.Tests **59/59** (topic-agent path) |
+| **Evidence JSON** | Gate output under `/tmp/bgx-production-gate-sb-full/` (or local `OUT_DIR`) |
 | **Harness** | `poc/scripts/manual-qa-production-gate.sh` (`ONLY_CASES=` for per-agent slices) |
 | **LLM for local proof** | `Llm__Provider=Fixture` — **do not change Azure Gateway** to make Fixture work |
 | **Storage for local proof** | Azurite (`BlobStorage__Provider=Azure` + `TableStorage__Provider=Azure`) — **do not assume File/Memory == Azure** |
+| **Agent topology** | Per-agent `BackgroundService` + SB topics (`UseTopicAgents=true`); InMemory bus for local; BuildGenix callback REST |
 
 ---
 
@@ -91,6 +92,11 @@ export Messaging__Provider=InProcessOnly
 export Llm__Provider=Fixture
 export Workers__Pipeline__InProcessOnly=true
 export Workers__Pipeline__Enabled=true
+# Multi-agent topic path (default): each agent = BackgroundService on its SB topic
+export Workers__Pipeline__UseTopicAgents=true
+export Workers__AgentBus__UseInMemory=true
+export BUILDGENIX_CALLBACK_BASE_URL=http://127.0.0.1:43181
+export PocPipeline__UseTopicAgents=true
 ```
 
 Ensure blob container + tables exist (AgentHub/BuildGenix also ensure on startup):
@@ -120,7 +126,8 @@ cd poc/agenthub-api
 ASPNETCORE_URLS=http://127.0.0.1:43180 dotnet run --project src/AgentHub.WebApi --no-launch-profile
 ```
 
-Expect log: `PIPELINE worker idle (Enabled=True, InProcessOnly=True)` and `Now listening on: http://127.0.0.1:43180`.  
+Expect logs: `PRD listening on topic=agenthub.agent.prd`, `SystemDesign` / `IA` / `TA` / `Deploy` listening, and `Now listening on: http://127.0.0.1:43180`.  
+(`/health` may be 503 if Service Bus emulator is down — InMemory topic bus still works.)  
 `curl -s http://127.0.0.1:43180/` → `"status":"ok"`.
 
 ### 2.4 Start BuildGenix (terminal B)
