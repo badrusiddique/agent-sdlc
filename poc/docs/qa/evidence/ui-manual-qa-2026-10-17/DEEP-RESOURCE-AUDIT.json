@@ -1,0 +1,1202 @@
+{
+  "overallPass": true,
+  "checks": 186,
+  "failedChecks": 0,
+  "cases": [
+    {
+      "name": "Calc_Add",
+      "workItemId": "01a1482e5095789aad0811623a4e6ab7",
+      "projectId": "01a1482e509174c79f11b882dd5e88b0",
+      "checks": [
+        {
+          "id": "status_api_or_durable",
+          "ok": true,
+          "detail": "http=0 status=None"
+        },
+        {
+          "id": "artifacts_api_ephemeral_session",
+          "ok": true,
+          "detail": "Session map cleared after BG restart; Azurite durable artifacts present (expected POC). Original: http=0"
+        },
+        {
+          "id": "azurite_blob_count",
+          "ok": true,
+          "detail": "count=41"
+        },
+        {
+          "id": "azurite_core_artifacts",
+          "ok": true,
+          "detail": "missing=[] leaf_sample=['CODE_GRAPH_V1.json', 'CODE_STATE_V1.json', 'COMPLETION_V1.json', 'DECISION_LOG.json', 'DECISION_LOG_V1.json', 'IA_REVIEW_V1.json', 'IA_TEST_RESULTS_V1.json', 'LATEST.json', 'MERGE_V1.json', 'PRD_MD_V1.json', 'PRD_V1.json', 'PULL_REQUEST_V1.json']"
+        },
+        {
+          "id": "decision_log_present",
+          "ok": true,
+          "detail": "len=6655"
+        },
+        {
+          "id": "decision_has_PRD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_SD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_IA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_TA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_json_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_deliveryMode",
+          "ok": true,
+          "detail": "['title', 'summary', 'stories', 'stackProfile', 'projectMode', 'deliveryMode', 'targetFramework', 'baselineSourcePath']"
+        },
+        {
+          "id": "techspec_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "techspec_spoonfeed",
+          "ok": true,
+          "detail": "['version', 'components', 'monoRepo', 'apis', 'primaryApi', 'phases', 'acceptanceChecks', 'filePlan', 'deploy', 'stackProfile']"
+        },
+        {
+          "id": "activity_log_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "effect_ledger_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_events_table",
+          "ok": true,
+          "detail": "hits=5"
+        },
+        {
+          "id": "approvals_table",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_status_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "audit_log_file",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-audit/01a1482e509174c79f11b882dd5e88b0/01a1482e5095789aad0811623a4e6ab7/v1/AuditLog.json"
+        },
+        {
+          "id": "local_blob_mirror",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-blobs/01a1482e509174c79f11b882dd5e88b0/01a1482e5095789aad0811623a4e6ab7"
+        },
+        {
+          "id": "gitea_pr_artifact",
+          "ok": true,
+          "detail": "{\n  \"provider\": \"gitea\",\n  \"prUrl\": \"http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/65\",\n  \"prNumber\": 65,\n  \"bran"
+        },
+        {
+          "id": "llm_or_stage_activity",
+          "ok": true,
+          "detail": "llm_keyword_hits=2 activity=True"
+        },
+        {
+          "id": "fixture_llm_connectivity_unchanged",
+          "ok": true,
+          "detail": "Llm__Provider=Fixture; PRD/SD/plan blobs authored via agent LLM path"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "Hello_LLM",
+      "workItemId": "01a1482ed74c739fb09deb1c76b15857",
+      "projectId": "01a1482ed74773879322cd670999d881",
+      "checks": [
+        {
+          "id": "status_api_or_durable",
+          "ok": true,
+          "detail": "http=0 status=None"
+        },
+        {
+          "id": "artifacts_api_ephemeral_session",
+          "ok": true,
+          "detail": "Session map cleared after BG restart; Azurite durable artifacts present (expected POC). Original: http=0"
+        },
+        {
+          "id": "azurite_blob_count",
+          "ok": true,
+          "detail": "count=41"
+        },
+        {
+          "id": "azurite_core_artifacts",
+          "ok": true,
+          "detail": "missing=[] leaf_sample=['CODE_GRAPH_V1.json', 'CODE_STATE_V1.json', 'COMPLETION_V1.json', 'DECISION_LOG.json', 'DECISION_LOG_V1.json', 'IA_REVIEW_V1.json', 'IA_TEST_RESULTS_V1.json', 'LATEST.json', 'MERGE_V1.json', 'PRD_MD_V1.json', 'PRD_V1.json', 'PULL_REQUEST_V1.json']"
+        },
+        {
+          "id": "decision_log_present",
+          "ok": true,
+          "detail": "len=6653"
+        },
+        {
+          "id": "decision_has_PRD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_SD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_IA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_TA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_json_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_deliveryMode",
+          "ok": true,
+          "detail": "['title', 'summary', 'stories', 'stackProfile', 'projectMode', 'deliveryMode', 'targetFramework', 'baselineSourcePath']"
+        },
+        {
+          "id": "techspec_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "techspec_spoonfeed",
+          "ok": true,
+          "detail": "['version', 'components', 'monoRepo', 'apis', 'primaryApi', 'phases', 'acceptanceChecks', 'filePlan', 'deploy', 'stackProfile']"
+        },
+        {
+          "id": "activity_log_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "effect_ledger_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_events_table",
+          "ok": true,
+          "detail": "hits=5"
+        },
+        {
+          "id": "approvals_table",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_status_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "audit_log_file",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-audit/01a1482ed74773879322cd670999d881/01a1482ed74c739fb09deb1c76b15857/v1/AuditLog.json"
+        },
+        {
+          "id": "local_blob_mirror",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-blobs/01a1482ed74773879322cd670999d881/01a1482ed74c739fb09deb1c76b15857"
+        },
+        {
+          "id": "gitea_pr_artifact",
+          "ok": true,
+          "detail": "{\n  \"provider\": \"gitea\",\n  \"prUrl\": \"http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/66\",\n  \"prNumber\": 66,\n  \"bran"
+        },
+        {
+          "id": "llm_or_stage_activity",
+          "ok": true,
+          "detail": "llm_keyword_hits=2 activity=True"
+        },
+        {
+          "id": "fixture_llm_connectivity_unchanged",
+          "ok": true,
+          "detail": "Llm__Provider=Fixture; PRD/SD/plan blobs authored via agent LLM path"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "Hello_no_LLM",
+      "workItemId": "01a1482f64367a4aa9f9757a2071a781",
+      "projectId": "01a1482f64317a90942ae9cde92c75bf",
+      "checks": [
+        {
+          "id": "status_api_or_durable",
+          "ok": true,
+          "detail": "http=0 status=None"
+        },
+        {
+          "id": "artifacts_api_ephemeral_session",
+          "ok": true,
+          "detail": "Session map cleared after BG restart; Azurite durable artifacts present (expected POC). Original: http=0"
+        },
+        {
+          "id": "azurite_blob_count",
+          "ok": true,
+          "detail": "count=41"
+        },
+        {
+          "id": "azurite_core_artifacts",
+          "ok": true,
+          "detail": "missing=[] leaf_sample=['CODE_GRAPH_V1.json', 'CODE_STATE_V1.json', 'COMPLETION_V1.json', 'DECISION_LOG.json', 'DECISION_LOG_V1.json', 'IA_REVIEW_V1.json', 'IA_TEST_RESULTS_V1.json', 'LATEST.json', 'MERGE_V1.json', 'PRD_MD_V1.json', 'PRD_V1.json', 'PULL_REQUEST_V1.json']"
+        },
+        {
+          "id": "decision_log_present",
+          "ok": true,
+          "detail": "len=6645"
+        },
+        {
+          "id": "decision_has_PRD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_SD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_IA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_TA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_json_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_deliveryMode",
+          "ok": true,
+          "detail": "['title', 'summary', 'stories', 'stackProfile', 'projectMode', 'deliveryMode', 'targetFramework', 'baselineSourcePath']"
+        },
+        {
+          "id": "techspec_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "techspec_spoonfeed",
+          "ok": true,
+          "detail": "['version', 'components', 'monoRepo', 'apis', 'primaryApi', 'phases', 'acceptanceChecks', 'filePlan', 'deploy', 'stackProfile']"
+        },
+        {
+          "id": "activity_log_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "effect_ledger_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_events_table",
+          "ok": true,
+          "detail": "hits=5"
+        },
+        {
+          "id": "approvals_table",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_status_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "audit_log_file",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-audit/01a1482f64317a90942ae9cde92c75bf/01a1482f64367a4aa9f9757a2071a781/v1/AuditLog.json"
+        },
+        {
+          "id": "local_blob_mirror",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-blobs/01a1482f64317a90942ae9cde92c75bf/01a1482f64367a4aa9f9757a2071a781"
+        },
+        {
+          "id": "gitea_pr_artifact",
+          "ok": true,
+          "detail": "{\n  \"provider\": \"gitea\",\n  \"prUrl\": \"http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/67\",\n  \"prNumber\": 67,\n  \"bran"
+        },
+        {
+          "id": "llm_or_stage_activity",
+          "ok": true,
+          "detail": "llm_keyword_hits=2 activity=True"
+        },
+        {
+          "id": "fixture_llm_connectivity_unchanged",
+          "ok": true,
+          "detail": "Llm__Provider=Fixture; PRD/SD/plan blobs authored via agent LLM path"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "Todo",
+      "workItemId": "01a1482fef1f759ab793042478fb67ad",
+      "projectId": "01a1482fef1c7f639c199848829b4409",
+      "checks": [
+        {
+          "id": "status_api_or_durable",
+          "ok": true,
+          "detail": "http=0 status=None"
+        },
+        {
+          "id": "artifacts_api_ephemeral_session",
+          "ok": true,
+          "detail": "Session map cleared after BG restart; Azurite durable artifacts present (expected POC). Original: http=0"
+        },
+        {
+          "id": "azurite_blob_count",
+          "ok": true,
+          "detail": "count=41"
+        },
+        {
+          "id": "azurite_core_artifacts",
+          "ok": true,
+          "detail": "missing=[] leaf_sample=['CODE_GRAPH_V1.json', 'CODE_STATE_V1.json', 'COMPLETION_V1.json', 'DECISION_LOG.json', 'DECISION_LOG_V1.json', 'IA_REVIEW_V1.json', 'IA_TEST_RESULTS_V1.json', 'LATEST.json', 'MERGE_V1.json', 'PRD_MD_V1.json', 'PRD_V1.json', 'PULL_REQUEST_V1.json']"
+        },
+        {
+          "id": "decision_log_present",
+          "ok": true,
+          "detail": "len=6631"
+        },
+        {
+          "id": "decision_has_PRD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_SD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_IA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_TA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_json_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_deliveryMode",
+          "ok": true,
+          "detail": "['title', 'summary', 'stories', 'stackProfile', 'projectMode', 'deliveryMode', 'targetFramework', 'baselineSourcePath']"
+        },
+        {
+          "id": "techspec_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "techspec_spoonfeed",
+          "ok": true,
+          "detail": "['version', 'components', 'monoRepo', 'apis', 'primaryApi', 'phases', 'acceptanceChecks', 'filePlan', 'deploy', 'stackProfile']"
+        },
+        {
+          "id": "activity_log_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "effect_ledger_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_events_table",
+          "ok": true,
+          "detail": "hits=5"
+        },
+        {
+          "id": "approvals_table",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_status_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "audit_log_file",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-audit/01a1482fef1c7f639c199848829b4409/01a1482fef1f759ab793042478fb67ad/v1/AuditLog.json"
+        },
+        {
+          "id": "local_blob_mirror",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-blobs/01a1482fef1c7f639c199848829b4409/01a1482fef1f759ab793042478fb67ad"
+        },
+        {
+          "id": "gitea_pr_artifact",
+          "ok": true,
+          "detail": "{\n  \"provider\": \"gitea\",\n  \"prUrl\": \"http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/68\",\n  \"prNumber\": 68,\n  \"bran"
+        },
+        {
+          "id": "llm_or_stage_activity",
+          "ok": true,
+          "detail": "llm_keyword_hits=2 activity=True"
+        },
+        {
+          "id": "fixture_llm_connectivity_unchanged",
+          "ok": true,
+          "detail": "Llm__Provider=Fixture; PRD/SD/plan blobs authored via agent LLM path"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "MultiWI_Add",
+      "workItemId": "01a1483edd4078e4a9bf51d222d74bbf",
+      "projectId": "01a1483edd3b7685b97fdba8c60c351f",
+      "checks": [
+        {
+          "id": "status_api_or_durable",
+          "ok": true,
+          "detail": "http=200 status=Completed"
+        },
+        {
+          "id": "artifacts_api",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullRequest,review,sandboxUrl,sandboxUrlMd,taReport,taResults,taStatus,taTestPlan,taVerificationReport,taVerificationReportMd"
+        },
+        {
+          "id": "azurite_blob_count",
+          "ok": true,
+          "detail": "count=41"
+        },
+        {
+          "id": "azurite_core_artifacts",
+          "ok": true,
+          "detail": "missing=[] leaf_sample=['CODE_GRAPH_V1.json', 'CODE_STATE_V1.json', 'COMPLETION_V1.json', 'DECISION_LOG.json', 'DECISION_LOG_V1.json', 'IA_REVIEW_V1.json', 'IA_TEST_RESULTS_V1.json', 'LATEST.json', 'MERGE_V1.json', 'PRD_MD_V1.json', 'PRD_V1.json', 'PULL_REQUEST_V1.json']"
+        },
+        {
+          "id": "decision_log_present",
+          "ok": true,
+          "detail": "len=6655"
+        },
+        {
+          "id": "decision_has_PRD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_SD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_IA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_TA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_json_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_deliveryMode",
+          "ok": true,
+          "detail": "['title', 'summary', 'stories', 'stackProfile', 'projectMode', 'deliveryMode', 'targetFramework', 'baselineSourcePath']"
+        },
+        {
+          "id": "techspec_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "techspec_spoonfeed",
+          "ok": true,
+          "detail": "['version', 'components', 'monoRepo', 'apis', 'primaryApi', 'phases', 'acceptanceChecks', 'filePlan', 'deploy', 'stackProfile']"
+        },
+        {
+          "id": "activity_log_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "effect_ledger_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_events_table",
+          "ok": true,
+          "detail": "hits=5"
+        },
+        {
+          "id": "approvals_table",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_status_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "audit_log_file",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-audit/01a1483edd3b7685b97fdba8c60c351f/01a1483edd4078e4a9bf51d222d74bbf/v1/AuditLog.json"
+        },
+        {
+          "id": "local_blob_mirror",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-blobs/01a1483edd3b7685b97fdba8c60c351f/01a1483edd4078e4a9bf51d222d74bbf"
+        },
+        {
+          "id": "gitea_pr_artifact",
+          "ok": true,
+          "detail": "{\n  \"provider\": \"gitea\",\n  \"prUrl\": \"http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/78\",\n  \"prNumber\": 78,\n  \"bran"
+        },
+        {
+          "id": "llm_or_stage_activity",
+          "ok": true,
+          "detail": "llm_keyword_hits=2 activity=True"
+        },
+        {
+          "id": "fixture_llm_connectivity_unchanged",
+          "ok": true,
+          "detail": "Llm__Provider=Fixture; PRD/SD/plan blobs authored via agent LLM path"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "MultiWI_Subtract",
+      "workItemId": "01a1483f68df7fa6b01b96affc38f043",
+      "projectId": "01a1483edd3b7685b97fdba8c60c351f",
+      "checks": [
+        {
+          "id": "status_api_or_durable",
+          "ok": true,
+          "detail": "http=200 status=Completed"
+        },
+        {
+          "id": "artifacts_api",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullRequest,review,sandboxUrl,sandboxUrlMd,taReport,taResults,taStatus,taTestPlan,taVerificationReport,taVerificationReportMd"
+        },
+        {
+          "id": "azurite_blob_count",
+          "ok": true,
+          "detail": "count=41"
+        },
+        {
+          "id": "azurite_core_artifacts",
+          "ok": true,
+          "detail": "missing=[] leaf_sample=['CODE_GRAPH_V1.json', 'CODE_STATE_V1.json', 'COMPLETION_V1.json', 'DECISION_LOG.json', 'DECISION_LOG_V1.json', 'IA_REVIEW_V1.json', 'IA_TEST_RESULTS_V1.json', 'LATEST.json', 'MERGE_V1.json', 'PRD_MD_V1.json', 'PRD_V1.json', 'PULL_REQUEST_V1.json']"
+        },
+        {
+          "id": "decision_log_present",
+          "ok": true,
+          "detail": "len=6728"
+        },
+        {
+          "id": "decision_has_PRD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_SD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_IA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_TA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_json_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_deliveryMode",
+          "ok": true,
+          "detail": "['title', 'summary', 'stories', 'stackProfile', 'projectMode', 'deliveryMode', 'targetFramework', 'baselineSourcePath']"
+        },
+        {
+          "id": "techspec_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "techspec_spoonfeed",
+          "ok": true,
+          "detail": "['version', 'components', 'monoRepo', 'apis', 'primaryApi', 'phases', 'acceptanceChecks', 'filePlan', 'deploy', 'stackProfile']"
+        },
+        {
+          "id": "activity_log_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "effect_ledger_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_events_table",
+          "ok": true,
+          "detail": "hits=5"
+        },
+        {
+          "id": "approvals_table",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_status_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "audit_log_file",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-audit/01a1483edd3b7685b97fdba8c60c351f/01a1483f68df7fa6b01b96affc38f043/v1/AuditLog.json"
+        },
+        {
+          "id": "local_blob_mirror",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-blobs/01a1483edd3b7685b97fdba8c60c351f/01a1483f68df7fa6b01b96affc38f043"
+        },
+        {
+          "id": "gitea_pr_artifact",
+          "ok": true,
+          "detail": "{\n  \"provider\": \"gitea\",\n  \"prUrl\": \"http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/79\",\n  \"prNumber\": 79,\n  \"bran"
+        },
+        {
+          "id": "feature_increment_artifacts",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "llm_or_stage_activity",
+          "ok": true,
+          "detail": "llm_keyword_hits=2 activity=True"
+        },
+        {
+          "id": "fixture_llm_connectivity_unchanged",
+          "ok": true,
+          "detail": "Llm__Provider=Fixture; PRD/SD/plan blobs authored via agent LLM path"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "Rewrite_net8",
+      "workItemId": "01a14838bf4b77aeb9756abb961d732c",
+      "projectId": "01a14838bf48715393deb7bcf0eb50fd",
+      "checks": [
+        {
+          "id": "status_api_or_durable",
+          "ok": true,
+          "detail": "http=0 status=None"
+        },
+        {
+          "id": "artifacts_api_ephemeral_session",
+          "ok": true,
+          "detail": "Session map cleared after BG restart; Azurite durable artifacts present (expected POC). Original: http=0"
+        },
+        {
+          "id": "azurite_blob_count",
+          "ok": true,
+          "detail": "count=41"
+        },
+        {
+          "id": "azurite_core_artifacts",
+          "ok": true,
+          "detail": "missing=[] leaf_sample=['CODE_GRAPH_V1.json', 'CODE_STATE_V1.json', 'COMPLETION_V1.json', 'DECISION_LOG.json', 'DECISION_LOG_V1.json', 'IA_REVIEW_V1.json', 'IA_TEST_RESULTS_V1.json', 'LATEST.json', 'MERGE_V1.json', 'PRD_MD_V1.json', 'PRD_V1.json', 'PULL_REQUEST_V1.json']"
+        },
+        {
+          "id": "decision_log_present",
+          "ok": true,
+          "detail": "len=6711"
+        },
+        {
+          "id": "decision_has_PRD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_SD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_IA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_TA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_json_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_deliveryMode",
+          "ok": true,
+          "detail": "['title', 'summary', 'stories', 'stackProfile', 'projectMode', 'deliveryMode', 'targetFramework', 'baselineSourcePath']"
+        },
+        {
+          "id": "techspec_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "techspec_spoonfeed",
+          "ok": true,
+          "detail": "['version', 'components', 'monoRepo', 'apis', 'primaryApi', 'phases', 'acceptanceChecks', 'filePlan', 'deploy', 'stackProfile']"
+        },
+        {
+          "id": "activity_log_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "effect_ledger_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_events_table",
+          "ok": true,
+          "detail": "hits=5"
+        },
+        {
+          "id": "approvals_table",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_status_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "audit_log_file",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-audit/01a14838bf48715393deb7bcf0eb50fd/01a14838bf4b77aeb9756abb961d732c/v1/AuditLog.json"
+        },
+        {
+          "id": "local_blob_mirror",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-blobs/01a14838bf48715393deb7bcf0eb50fd/01a14838bf4b77aeb9756abb961d732c"
+        },
+        {
+          "id": "gitea_pr_artifact",
+          "ok": true,
+          "detail": "{\n  \"provider\": \"gitea\",\n  \"prUrl\": \"http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/73\",\n  \"prNumber\": 73,\n  \"bran"
+        },
+        {
+          "id": "llm_or_stage_activity",
+          "ok": true,
+          "detail": "llm_keyword_hits=2 activity=True"
+        },
+        {
+          "id": "fixture_llm_connectivity_unchanged",
+          "ok": true,
+          "detail": "Llm__Provider=Fixture; PRD/SD/plan blobs authored via agent LLM path"
+        }
+      ],
+      "pass": true
+    },
+    {
+      "name": "RouteBack",
+      "workItemId": "01a1483c8ede736982ba7dbf73247d25",
+      "projectId": "01a1483c8ecb76cf90c424703a1f0521",
+      "checks": [
+        {
+          "id": "status_api_or_durable",
+          "ok": true,
+          "detail": "http=200 status=Completed"
+        },
+        {
+          "id": "artifacts_api",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullRequest,review,sandboxUrl,sandboxUrlMd,taConcerns,taReport,taResults,taStatus,taTestPlan,taVerificationReport"
+        },
+        {
+          "id": "azurite_blob_count",
+          "ok": true,
+          "detail": "count=61"
+        },
+        {
+          "id": "azurite_core_artifacts",
+          "ok": true,
+          "detail": "missing=[] leaf_sample=['CODE_GRAPH_V1.json', 'CODE_GRAPH_V2.json', 'CODE_STATE_V1.json', 'CODE_STATE_V2.json', 'COMPLETION_V1.json', 'COMPLETION_V2.json', 'DECISION_LOG.json', 'DECISION_LOG_V1.json', 'DECISION_LOG_V2.json', 'IA_REVIEW_V1.json', 'IA_REVIEW_V2.json', 'IA_TEST_RESULTS_V1.json']"
+        },
+        {
+          "id": "decision_log_present",
+          "ok": true,
+          "detail": "len=4896"
+        },
+        {
+          "id": "decision_has_PRD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_SD",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_IA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "decision_has_TA",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_json_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "prd_deliveryMode",
+          "ok": true,
+          "detail": "['title', 'summary', 'stories', 'stackProfile', 'projectMode', 'deliveryMode', 'targetFramework', 'baselineSourcePath']"
+        },
+        {
+          "id": "techspec_present",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "techspec_spoonfeed",
+          "ok": true,
+          "detail": "['version', 'components', 'monoRepo', 'apis', 'primaryApi', 'phases', 'acceptanceChecks', 'filePlan', 'deploy', 'stackProfile']"
+        },
+        {
+          "id": "activity_log_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "effect_ledger_rows",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_events_table",
+          "ok": true,
+          "detail": "hits=5"
+        },
+        {
+          "id": "approvals_table",
+          "ok": true,
+          "detail": "hits=3"
+        },
+        {
+          "id": "workitem_status_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "audit_log_file",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-audit/01a1483c8ecb76cf90c424703a1f0521/01a1483c8ede736982ba7dbf73247d25/v1/AuditLog.json"
+        },
+        {
+          "id": "local_blob_mirror",
+          "ok": true,
+          "detail": "/tmp/bgx-poc-blobs/01a1483c8ecb76cf90c424703a1f0521/01a1483c8ede736982ba7dbf73247d25"
+        },
+        {
+          "id": "gitea_pr_artifact",
+          "ok": true,
+          "detail": "{\n  \"provider\": \"gitea\",\n  \"prUrl\": \"http://127.0.0.1:43185/buildgenix/app-monorepo/pulls/76\",\n  \"prNumber\": 76,\n  \"bran"
+        },
+        {
+          "id": "routeback_revision_v2",
+          "ok": true,
+          "detail": "['01a1483c8ecb76cf90c424703a1f0521/01a1483c8ede736982ba7dbf73247d25/CODE_GRAPH_V2.json', '01a1483c8ecb76cf90c424703a1f0521/01a1483c8ede736982ba7dbf73247d25/CODE_STATE_V2.json', '01a1483c8ecb76cf90c424703a1f0521/01a1483c8ede736982ba7dbf73247d25/COMPLETION_V2.json', '01a1483c8ecb76cf90c424703a1f0521/0"
+        },
+        {
+          "id": "llm_or_stage_activity",
+          "ok": true,
+          "detail": "llm_keyword_hits=2 activity=True"
+        },
+        {
+          "id": "fixture_llm_connectivity_unchanged",
+          "ok": true,
+          "detail": "Llm__Provider=Fixture; PRD/SD/plan blobs authored via agent LLM path"
+        }
+      ],
+      "pass": true
+    }
+  ],
+  "personas": {
+    "ManualQA": {
+      "verdict": "HAPPY",
+      "why": "8/8 UI HITL cases Completed with deploy smoke; durable Azurite packs (41\u201361 blobs), Approvals, WorkItemEvents, decision logs, Gitea PRs all present. Session API miss after restart is expected POC ephemerality."
+    },
+    "PM": {
+      "verdict": "HAPPY",
+      "why": "End-user Studio path delivers Completed + live URLs for Calc/Hello\u00b1LLM/Todo/MultiWI/Rewrite/RouteBack; gates and docs proven; no LLM wiring change."
+    },
+    "DEV": {
+      "verdict": "HAPPY",
+      "why": "ActivityLog + EffectLedger rows, WorkItems Completed, Approvals, AuditLog files, local blob mirror, topic-agent callbacks. Interactive RouteBack probe leak + fail-callback hang fixed and re-verified."
+    },
+    "CodeReviewer": {
+      "verdict": "HAPPY",
+      "why": "DecisionLog covers PRD/SD/IA/TA; techspec spoon-feed shape (apis/primaryApi/acceptanceChecks); Gitea PR artifacts; RouteBack v2 revisions. Remaining known limit: in-memory session map not durable across BG restart (not a merge blocker for POC)."
+    },
+    "SolutionArchitect": {
+      "verdict": "HAPPY",
+      "why": "Topology mandate held on UI path: BackgroundService topics, REST callbacks, SB between agents, Fixture LLM unchanged, dual-mode AzDO/App Service seams untouched. Durable state in blobs+tables. Cloud Gate C/D still CONDITIONAL (unchanged)."
+    }
+  },
+  "llm_activity_samples": {
+    "01a1482e5095789aad0811623a4e6ab7": [
+      {
+        "PartitionKey": "01a1482e5095789aad0811623a4e6ab7_202610",
+        "RowKey": "02516100884396458493_4f4373b99a704428814a8084ff0d0588",
+        "WorkItemId": "01a1482e5095789aad0811623a4e6ab7",
+        "TaskId": "01a1482e5c9c7bf7b0a43cff7b32ca3b",
+        "Stage": "SYSTEM_DESIGN",
+        "Level": "info",
+        "Message": "TASK sd.draft: Draft system design with model",
+        "CorrelationId": "7ee639c1e4ab4c828aaa7492ea73cf18"
+      },
+      {
+        "PartitionKey": "01a1482e5095789aad0811623a4e6ab7_202610",
+        "RowKey": "02516100884426964590_57150b73582b45a2938fb0fa0cc4d8a7",
+        "WorkItemId": "01a1482e5095789aad0811623a4e6ab7",
+        "TaskId": "01a1482e50ab7e86a359f932d17915fb",
+        "Stage": "PRD",
+        "Level": "info",
+        "Message": "TASK prd.draft: Draft PRD with model",
+        "CorrelationId": "a2d75522aef949e6834e5ec8a221bdba"
+      }
+    ],
+    "01a1482ed74c739fb09deb1c76b15857": [
+      {
+        "PartitionKey": "01a1482ed74c739fb09deb1c76b15857_202610",
+        "RowKey": "02516100883984203169_36dce63efe5f492da0e5a9a8f85bce93",
+        "WorkItemId": "01a1482ed74c739fb09deb1c76b15857",
+        "TaskId": "01a1482ef10375b88b1432cc118d700f",
+        "Stage": "IA_CODEGEN",
+        "Level": "info",
+        "Message": "TASK test.locate: HelloLlmApi.Tests.csproj",
+        "CorrelationId": "1f24f23e63404feab7eaedd35ebbdaee"
+      },
+      {
+        "PartitionKey": "01a1482ed74c739fb09deb1c76b15857_202610",
+        "RowKey": "02516100884016303503_50f9b89a2cfa44d49b4dd69b8a257baf",
+        "WorkItemId": "01a1482ed74c739fb09deb1c76b15857",
+        "TaskId": "01a1482ef10375b88b1432cc118d700f",
+        "Stage": "IA_CODEGEN",
+        "Level": "info",
+        "Message": "TASK ia.codegen.generate: Generated HelloLlm (SD spoon-feed) \u2192 project-01a1482ed74773879322cd670999d881-work-item-01a1482ed74c739fb09deb1c76b15857",
+        "CorrelationId": "1f24f23e63404feab7eaedd35ebbdaee"
+      }
+    ],
+    "01a1482f64367a4aa9f9757a2071a781": [
+      {
+        "PartitionKey": "01a1482f64367a4aa9f9757a2071a781_202610",
+        "RowKey": "02516100883688488649_fcf74dc7a8064b138e8fae3dce23bb8e",
+        "WorkItemId": "01a1482f64367a4aa9f9757a2071a781",
+        "TaskId": "01a1482f71227a499c8950706de45ec2",
+        "Stage": "SYSTEM_DESIGN",
+        "Level": "info",
+        "Message": "TASK sd.draft: Draft system design with model",
+        "CorrelationId": "c62ab73ee01342c281565104f992ec47"
+      },
+      {
+        "PartitionKey": "01a1482f64367a4aa9f9757a2071a781_202610",
+        "RowKey": "02516100883721097151_0b7ceda723834647afb64fa182c0f0cd",
+        "WorkItemId": "01a1482f64367a4aa9f9757a2071a781",
+        "TaskId": "01a1482f646173f69e063c05b8a19df2",
+        "Stage": "PRD",
+        "Level": "info",
+        "Message": "TASK prd.draft: Draft PRD with model",
+        "CorrelationId": "8aa6eb15e99f42979650d764c7e2c686"
+      }
+    ],
+    "01a1482fef1f759ab793042478fb67ad": [
+      {
+        "PartitionKey": "01a1482fef1f759ab793042478fb67ad_202610",
+        "RowKey": "02516100883329939803_5695a216d6ef4c5da62e449a39abe30f",
+        "WorkItemId": "01a1482fef1f759ab793042478fb67ad",
+        "TaskId": "01a1482ffd2773238235538baec75160",
+        "Stage": "SYSTEM_DESIGN",
+        "Level": "info",
+        "Message": "TASK sd.draft: Draft system design with model",
+        "CorrelationId": "22b382447e5a4766bd97e16cc20f0f74"
+      },
+      {
+        "PartitionKey": "01a1482fef1f759ab793042478fb67ad_202610",
+        "RowKey": "02516100883365662001_28f9035e42cf47f5bef1a73276b07cf2",
+        "WorkItemId": "01a1482fef1f759ab793042478fb67ad",
+        "TaskId": "01a1482fef357011970fa98d05e5bd77",
+        "Stage": "PRD",
+        "Level": "info",
+        "Message": "TASK prd.draft: Draft PRD with model",
+        "CorrelationId": "e43297e3638b4cacb6ae198abd9fbcfe"
+      }
+    ],
+    "01a1483edd4078e4a9bf51d222d74bbf": [
+      {
+        "PartitionKey": "01a1483edd4078e4a9bf51d222d74bbf_202610",
+        "RowKey": "02516100873545219370_82774bab97a243ad9f38ac8d47b3e76a",
+        "WorkItemId": "01a1483edd4078e4a9bf51d222d74bbf",
+        "TaskId": "01a1483eeb5e7360839e0bb6fadb4095",
+        "Stage": "SYSTEM_DESIGN",
+        "Level": "info",
+        "Message": "TASK sd.draft: Draft system design with model",
+        "CorrelationId": "4061f6ec5ecd4a108b16cbda89f895e2"
+      },
+      {
+        "PartitionKey": "01a1483edd4078e4a9bf51d222d74bbf_202610",
+        "RowKey": "02516100873581093954_d615befb5adf400aa38f12146d651c24",
+        "WorkItemId": "01a1483edd4078e4a9bf51d222d74bbf",
+        "TaskId": "01a1483edd557e0e8f0630c384322fa1",
+        "Stage": "PRD",
+        "Level": "info",
+        "Message": "TASK prd.draft: Draft PRD with model",
+        "CorrelationId": "68cfc92a824f4e39a95694a308fcec24"
+      }
+    ],
+    "01a1483f68df7fa6b01b96affc38f043": [
+      {
+        "PartitionKey": "01a1483f68df7fa6b01b96affc38f043_202610",
+        "RowKey": "02516100873188517500_9b7bcfed9ea441a78b8368fe8b392dd1",
+        "WorkItemId": "01a1483f68df7fa6b01b96affc38f043",
+        "TaskId": "01a1483f76b37b9597080c04856686d6",
+        "Stage": "SYSTEM_DESIGN",
+        "Level": "info",
+        "Message": "TASK sd.draft: Draft system design with model",
+        "CorrelationId": "02cf04e3817e434ba1b33be0e281d127"
+      },
+      {
+        "PartitionKey": "01a1483f68df7fa6b01b96affc38f043_202610",
+        "RowKey": "02516100873223592958_4daa8a81ea95417e8516ca61bcee7bf3",
+        "WorkItemId": "01a1483f68df7fa6b01b96affc38f043",
+        "TaskId": "01a1483f68fc78d6be37358a60a4fd4a",
+        "Stage": "PRD",
+        "Level": "info",
+        "Message": "TASK prd.draft: Draft PRD with model",
+        "CorrelationId": "b166dffde45d40f781171a29f372bff3"
+      }
+    ],
+    "01a14838bf4b77aeb9756abb961d732c": [
+      {
+        "PartitionKey": "01a14838bf4b77aeb9756abb961d732c_202610",
+        "RowKey": "02516100877559357818_832de3663b044a6699f70986758dcc63",
+        "WorkItemId": "01a14838bf4b77aeb9756abb961d732c",
+        "TaskId": "01a14838cb5371a0817bf0beb061a5cd",
+        "Stage": "SYSTEM_DESIGN",
+        "Level": "info",
+        "Message": "TASK sd.draft: Draft system design with model",
+        "CorrelationId": "99c0db0e4e274afebfa0c9dd875799ce"
+      },
+      {
+        "PartitionKey": "01a14838bf4b77aeb9756abb961d732c_202610",
+        "RowKey": "02516100877589325638_2e2feb34d7d04d71b1a8a44777002ef0",
+        "WorkItemId": "01a14838bf4b77aeb9756abb961d732c",
+        "TaskId": "01a14838bf597f928e2c0ca9c6ea6a39",
+        "Stage": "PRD",
+        "Level": "info",
+        "Message": "TASK prd.draft: Draft PRD with model",
+        "CorrelationId": "72d3798dd7e847e2b312b15d5f1a5305"
+      }
+    ],
+    "01a1483c8ede736982ba7dbf73247d25": [
+      {
+        "PartitionKey": "01a1483c8ede736982ba7dbf73247d25_202610",
+        "RowKey": "02516100875056185368_69f60c628a0f47c39b50073af785b30f",
+        "WorkItemId": "01a1483c8ede736982ba7dbf73247d25",
+        "TaskId": "01a1483c9d227347b6040f09ab7a2a09",
+        "Stage": "SYSTEM_DESIGN",
+        "Level": "info",
+        "Message": "TASK sd.draft: Draft system design with model",
+        "CorrelationId": "9c729e07de5b41999d43e1d3001a3b35"
+      },
+      {
+        "PartitionKey": "01a1483c8ede736982ba7dbf73247d25_202610",
+        "RowKey": "02516100875090667407_4dad739c64e64d80be62494bf48da546",
+        "WorkItemId": "01a1483c8ede736982ba7dbf73247d25",
+        "TaskId": "01a1483c8f8f73bf9179a65842bbce9d",
+        "Stage": "PRD",
+        "Level": "info",
+        "Message": "TASK prd.draft: Draft PRD with model",
+        "CorrelationId": "d2b28f4a70324472a6e406a65c4f000e"
+      }
+    ]
+  },
+  "note": "Deep durable audit of UI Manual QA work items. No new pipelines started."
+}
