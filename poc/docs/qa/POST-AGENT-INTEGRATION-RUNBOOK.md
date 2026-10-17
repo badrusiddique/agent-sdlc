@@ -3,14 +3,14 @@
 **Audience:** Copilot / engineer on the **other machine** after integrating each agent (or the full Pipeline) from this reference repo.  
 **Purpose:** Re-run **exactly** the verification performed on the reference machine (Azurite + Fixture LLM + Gitea + Compose) so every agent hand-off is proven: logs, blobs, tables, decisions, agent↔orchestrator calls, RouteBack, deploy smoke.  
 **Do not invent shortcuts.** Prefer the automated harness; then complete the agent-by-agent deep checklist.  
-**Companion docs:** [`OTHER-MACHINE-SETUP.md`](../OTHER-MACHINE-SETUP.md) · [`QA_Runbook-azure-dual-mode.md`](QA_Runbook-azure-dual-mode.md) · [`PRODUCTION-GATE-SIGNOFF-2026-10-16.md`](PRODUCTION-GATE-SIGNOFF-2026-10-16.md) · [`MANUAL-QA-GREENFIELD-SIGNOFF.md`](MANUAL-QA-GREENFIELD-SIGNOFF.md)
+**Companion docs:** [`OTHER-MACHINE-SETUP.md`](../OTHER-MACHINE-SETUP.md) · [`QA_Runbook-azure-dual-mode.md`](QA_Runbook-azure-dual-mode.md) · [`PRODUCTION-GATE-SIGNOFF-2026-10-16.md`](PRODUCTION-GATE-SIGNOFF-2026-10-16.md) · [`MANUAL-QA-GREENFIELD-SIGNOFF.md`](MANUAL-QA-GREENFIELD-SIGNOFF.md) · [`PRODUCTION-GATE-SIGNOFF-2026-10-17-TOPIC-AGENTS.md`](PRODUCTION-GATE-SIGNOFF-2026-10-17-TOPIC-AGENTS.md) · [`UI-PERSONA-RESOURCE-SIGNOFF-2026-10-17.md`](UI-PERSONA-RESOURCE-SIGNOFF-2026-10-17.md)
 
 | Field | Value |
 |---|---|
-| **Reference branch** | `main-azure` (contains greenfield + TA Playwright/RouteBack + production gate + **topic agents**) |
-| **Reference tip proven** | See [`PRODUCTION-GATE-SIGNOFF-2026-10-17-TOPIC-AGENTS.md`](PRODUCTION-GATE-SIGNOFF-2026-10-17-TOPIC-AGENTS.md) (prior: `d629d18`) |
-| **Reference totals** | **8 cases · 545 checks · 0 failed** · Pipeline.Tests **59/59** (topic-agent path) |
-| **Evidence JSON** | Gate output under `/tmp/bgx-production-gate-sb-full/` (or local `OUT_DIR`) |
+| **Reference branch** | `main-azure` (contains greenfield + TA Playwright/RouteBack + production gate + **topic agents** + per-agent `AGENT.md`) |
+| **Reference tip proven** | Topic agents gate + UI deep resource audit — see sign-offs above (tip on GitHub `main-azure` after this doc commit; prior gate tip `e350eba` / UI `1aa8bec`+) |
+| **Reference totals** | **8 cases · 545 checks · 0 failed** · Pipeline.Tests **59/59** · UI Manual QA **8/8 · 117** · Deep durable audit **186/186** |
+| **Evidence JSON** | Gate: `/tmp/bgx-production-gate-sb-full/` · UI deep: `poc/docs/qa/evidence/ui-manual-qa-2026-10-17/DEEP-RESOURCE-AUDIT.json` |
 | **Harness** | `poc/scripts/manual-qa-production-gate.sh` (`ONLY_CASES=` for per-agent slices) |
 | **LLM for local proof** | `Llm__Provider=Fixture` — **do not change Azure Gateway** to make Fixture work |
 | **Storage for local proof** | Azurite (`BlobStorage__Provider=Azure` + `TableStorage__Provider=Azure`) — **do not assume File/Memory == Azure** |
@@ -18,18 +18,37 @@
 
 ---
 
+## Agent behavior source-of-truth (read before coding)
+
+When integrating or re-wiring agents on the other machine, **use this code** and treat these markdown files as the complete behavioral contract (topic → LLM → blobs → BuildGenix REST → Studio UI → next topic). Do not invent a BuildGenix stage-loop orchestrator.
+
+| Agent | Folder `AGENT.md` (full line-by-line behavior) | Topic | Stages |
+|---|---|---|---|
+| **PRD (Product)** | [`../../agenthub-api/src/AgentHub.Agents.Pipeline/Prd/AGENT.md`](../../agenthub-api/src/AgentHub.Agents.Pipeline/Prd/AGENT.md) | `agenthub.agent.prd` | `PRD` |
+| **System Design** | [`../../agenthub-api/src/AgentHub.Agents.Pipeline/Sd/AGENT.md`](../../agenthub-api/src/AgentHub.Agents.Pipeline/Sd/AGENT.md) | `agenthub.agent.system-design` | `SYSTEM_DESIGN` |
+| **IA (Implementation)** | [`../../agenthub-api/src/AgentHub.Agents.Pipeline/Ia/AGENT.md`](../../agenthub-api/src/AgentHub.Agents.Pipeline/Ia/AGENT.md) | `agenthub.agent.ia` | `IA_PLAN` → `IA_CODEGEN` → `IA_REVIEW` → `IA_PUSH_DEPLOY` |
+| **TA (Testing)** | [`../../agenthub-api/src/AgentHub.Agents.Pipeline/Ta/AGENT.md`](../../agenthub-api/src/AgentHub.Agents.Pipeline/Ta/AGENT.md) | `agenthub.agent.ta` | `TA_GENERATE` → `TA_VERIFY` → `TA_REPORT` → `TA_MERGE` |
+| **Deploy (sandbox)** | Hosted by `DeployAgentWorker` + `RunDeploySandboxAsync` (see TA/IA docs + §4.5) | `agenthub.agent.deploy` | `DEPLOY_SANDBOX` |
+
+**Shared host path (all agents):** `AgentHub.Hosting/Agents/AgentTopicWorkerBase.cs` — subscribe → `PipelineAgentDispatcher` → `PipelineAgentHandler` → `POST /api/poc/pipeline/agent-callback` → publish next topic (`StageProgression`).  
+**BuildGenix intake:** enqueue **only PRD** via `POST /api/pipeline/enqueue`, then wait `TopicDone`.  
+**Design spec:** `poc/docs/superpowers/specs/2026-10-17-multi-agent-service-bus-design.md`.
+
+---
+
 ## 0. How Copilot should use this document
 
-1. Checkout `main-azure` at or after `d629d18`.  
-2. Bring up infra + AgentHub + BuildGenix (§1–2).  
-3. After integrating **one** agent (e.g. only PRD, or only TA), run the **agent slice** in §4 for that agent, then at least one end-to-end case that exercises it.  
-4. After integrating **the full Pipeline**, run §3 automated matrix (all cases) + §5 deep AgentHub surface.  
-5. Fill the evidence tables; attach harness JSON; refuse sign-off if any required check fails.  
-6. For **live Azure** (AzDO + App Service), additionally run [`QA_Runbook-azure-dual-mode.md`](QA_Runbook-azure-dual-mode.md) Gates C–E — not covered as green in the reference session.
+1. Checkout GitHub `main-azure` at tip (must include topic agents + `Prd|Sd|Ia|Ta/AGENT.md`).  
+2. **Before changing code**, read the four `AGENT.md` files in the table above — they list every listen/log/LLM/blob/callback/UI/chain step. Integrate against that behavior, not a summary.  
+3. Bring up infra + AgentHub + BuildGenix (§1–2). Confirm logs show all five workers listening on their topics.  
+4. After integrating **one** agent (e.g. only PRD, or only TA), run the **agent slice** in §4 for that agent, then at least one end-to-end case that exercises it.  
+5. After integrating **the full Pipeline**, run §3 automated matrix (all cases) + §5 deep AgentHub surface + optional UI Studio HITL (§12).  
+6. Fill the evidence tables; attach harness JSON; refuse sign-off if any required check fails.  
+7. For **live Azure** (AzDO + App Service), additionally run [`QA_Runbook-azure-dual-mode.md`](QA_Runbook-azure-dual-mode.md) Gates C–E — not covered as green in the reference session.
 
-**Prompt you can paste to Copilot:**
+**Prompt you can paste to Copilot on the other machine:**
 
-> Follow `poc/docs/qa/POST-AGENT-INTEGRATION-RUNBOOK.md` exactly. Start services per §1–2 with Azurite + Fixture LLM. Run `bash poc/scripts/manual-qa-production-gate.sh` and require overallPass=true with 0 failed checks. Then complete §4 agent-by-agent deep inspect and §5 surfaces for every case. Do not skip Rewrite, MultiWI Subtract, Hello±LLM, Todo, or RouteBack. Do not change Azure LLM Gateway. Record SHA, WI ids, deployed URLs, and blob prefixes in the evidence section.
+> Integrate using the code on GitHub branch `main-azure`. Follow `poc/docs/qa/POST-AGENT-INTEGRATION-RUNBOOK.md` exactly. For each agent, treat `poc/agenthub-api/src/AgentHub.Agents.Pipeline/{Prd,Sd,Ia,Ta}/AGENT.md` as the behavioral source of truth (topics, LLM, BuildGenix callback, Studio updates, next-topic chain). Topology must be: each agent = .NET BackgroundService on its SB topic; BuildGenix enqueues only PRD then REST-callbacks; agents chain via bus — no BuildGenix stage-loop. Start services per §1–2 with Azurite + Fixture LLM (`UseTopicAgents=true`). Run `bash poc/scripts/manual-qa-production-gate.sh` and require overallPass=true with 0 failed checks. Then complete §4 agent-by-agent deep inspect and §5 surfaces for every case. Do not skip Rewrite, MultiWI Subtract, Hello±LLM, Todo, or RouteBack. Do not change Azure LLM Gateway. Record SHA, WI ids, deployed URLs, and blob prefixes in the evidence section.
 
 ---
 
@@ -47,7 +66,8 @@
 docker version
 dotnet --list-sdks    # need 10.x
 python3 -c "from azure.storage.blob import BlobServiceClient; print('ok')"
-git rev-parse HEAD    # must be >= d629d18 on main-azure
+git rev-parse HEAD    # main-azure tip with topic agents + AGENT.md files
+ls poc/agenthub-api/src/AgentHub.Agents.Pipeline/{Prd,Sd,Ia,Ta}/AGENT.md
 ```
 
 ### Free ports (reference)
@@ -153,7 +173,7 @@ cd poc/agenthub-api
 dotnet test tests/AgentHub.Agents.Pipeline.Tests
 ```
 
-**Reference:** Passed 58. Fail = stop; do not run E2E.
+**Reference:** Passed **59/59**. Fail = stop; do not run E2E.
 
 ---
 
@@ -311,19 +331,24 @@ Revision folder `v{n}/` **and/or** named copies. Required logical names:
 
 ## 4. Agent-by-agent deep verification
 
-Pipeline stage order (BuildGenix `PocPipelineOrchestrator.StageOrder` — **array ends at `DEPLOY_SANDBOX`**):
+**Read first:** the matching `AGENT.md` in `Prd/`, `Sd/`, `Ia/`, or `Ta/` — this section is the verification checklist; those files are the full behavioral contract.
+
+Pipeline stage order (topic chain via `StageProgression` — **ends at `DEPLOY_SANDBOX`**):
 
 ```text
 PRD → SYSTEM_DESIGN → IA_PLAN → IA_CODEGEN → IA_REVIEW → IA_PUSH_DEPLOY
   → TA_GENERATE → TA_VERIFY → TA_REPORT → TA_MERGE → DEPLOY_SANDBOX
 ```
 
-After sandbox accept, the work item is set to **`CurrentStage=DONE` / `Status=Completed`** (terminal state — not a StageOrder entry).
+After sandbox accept, the work item is set to **`CurrentStage=DONE` / `Status=Completed`** (terminal state — not a stage in the chain).
 
-Orchestrator → AgentHub call: `POST http://127.0.0.1:43180/api/pipeline/dispatch` with stage task body.  
+**Topic path (default):** BuildGenix → `POST /api/pipeline/enqueue` (PRD only) → agents publish next topics → each stage REST-callbacks `POST /api/poc/pipeline/agent-callback`.  
+**Legacy in-process:** `POST /api/pipeline/dispatch` still exists for unit tests / `UseTopicAgents=false` — do not use it as the production integration shape.  
 Each stage: AgentHub logs `PIPELINE event AgentStarted|TaskStarted|TaskCompleted|AgentCompleted` and BuildGenix appends `WorkItemEvent` rows + audit transitions.
 
 ### 4.1 Product agent — stage `PRD`
+
+**Behavior doc:** [`Prd/AGENT.md`](../../agenthub-api/src/AgentHub.Agents.Pipeline/Prd/AGENT.md)
 
 | Surface | What to verify |
 |---|---|
@@ -339,6 +364,8 @@ Each stage: AgentHub logs `PIPELINE event AgentStarted|TaskStarted|TaskCompleted
 
 ### 4.2 Architect agent — stage `SYSTEM_DESIGN`
 
+**Behavior doc:** [`Sd/AGENT.md`](../../agenthub-api/src/AgentHub.Agents.Pipeline/Sd/AGENT.md)
+
 | Surface | Verify |
 |---|---|
 | **Logs** | Stage SYSTEM_DESIGN complete; gate approve |
@@ -348,6 +375,8 @@ Each stage: AgentHub logs `PIPELINE event AgentStarted|TaskStarted|TaskCompleted
 | **DB** | WorkItemEvents + Approvals for SD gate |
 
 ### 4.3 Implementation Agent — `IA_PLAN` → `IA_CODEGEN` → `IA_REVIEW` → `IA_PUSH_DEPLOY`
+
+**Behavior doc:** [`Ia/AGENT.md`](../../agenthub-api/src/AgentHub.Agents.Pipeline/Ia/AGENT.md)
 
 | Stage | Logs | Files / workspace | DB / git / deploy |
 |---|---|---|---|
@@ -366,6 +395,8 @@ Each stage: AgentHub logs `PIPELINE event AgentStarted|TaskStarted|TaskCompleted
 **Known failure (fixed in d629d18):** Rewrite keeping legacy `#add` FE → Playwright red → RouteBack exhaustion. After integration, assert Rewrite FE selectors.
 
 ### 4.4 Testing Agent — `TA_GENERATE` → `TA_VERIFY` → `TA_REPORT` → `TA_MERGE`
+
+**Behavior doc:** [`Ta/AGENT.md`](../../agenthub-api/src/AgentHub.Agents.Pipeline/Ta/AGENT.md)
 
 | Stage | Verify |
 |---|---|
@@ -432,9 +463,12 @@ PY
 
 ### 5.5 Agent calls
 
-- [ ] BuildGenix → AgentHub `POST /api/pipeline/dispatch` 200 per stage  
+- [ ] BuildGenix → AgentHub `POST /api/pipeline/enqueue` 202 for **PRD** (topic path)  
+- [ ] AgentHub → BuildGenix `POST /api/poc/pipeline/agent-callback` per stage  
+- [ ] Agent bus publish chain between topics (logs: `chained {From} → {To} topic=…`)  
 - [ ] Within-agent: LLM/persona, TDD, graphify, Playwright process  
 - [ ] RouteBack path exercised at least once after TA integration  
+- [ ] (Legacy only) `POST /api/pipeline/dispatch` if `UseTopicAgents=false` — not the reference topology 
 
 ### 5.6 Deploy / FE / PR
 
@@ -465,6 +499,9 @@ PY
 | Greenfield Manual QA | [`MANUAL-QA-GREENFIELD-SIGNOFF.md`](MANUAL-QA-GREENFIELD-SIGNOFF.md) · `evidence/MANUAL-QA-RESULTS-greenfield.json` | 8 cases · 443 checks PASS |
 | TA Playwright + RouteBack | [`TA-PLAYWRIGHT-ROUTEBACK-SIGNOFF.md`](TA-PLAYWRIGHT-ROUTEBACK-SIGNOFF.md) | PASS |
 | Production gate Azurite+Fixture | [`PRODUCTION-GATE-SIGNOFF-2026-10-16.md`](PRODUCTION-GATE-SIGNOFF-2026-10-16.md) · `evidence/production-gate-2026-10-16/` | 8 cases · **545** checks PASS |
+| Topic-agent gate | [`PRODUCTION-GATE-SIGNOFF-2026-10-17-TOPIC-AGENTS.md`](PRODUCTION-GATE-SIGNOFF-2026-10-17-TOPIC-AGENTS.md) | 8/8 · **545/545** · tests 59/59 |
+| UI Studio HITL + deep resources | [`UI-MANUAL-QA-SIGNOFF-2026-10-17.md`](UI-MANUAL-QA-SIGNOFF-2026-10-17.md) · [`UI-PERSONA-RESOURCE-SIGNOFF-2026-10-17.md`](UI-PERSONA-RESOURCE-SIGNOFF-2026-10-17.md) · `evidence/ui-manual-qa-2026-10-17/DEEP-RESOURCE-AUDIT.json` | UI 8/8 · 117 · deep **186/186** |
+| Per-agent behavior docs | `Prd|Sd|Ia|Ta/AGENT.md` | Full topic→callback→UI contracts |
 | Azure docs vs code | [`AZURE-DOCS-CODE-REVIEW-2026-10-16.md`](AZURE-DOCS-CODE-REVIEW-2026-10-16.md) · [`AZURE-DOCS-CODE-REVIEW-TA-2026-10-16.md`](AZURE-DOCS-CODE-REVIEW-TA-2026-10-16.md) | Dual-mode aligned; Gate C/D not live-run |
 
 ### 7.1 Fixes discovered during reference gate (must not regress)
@@ -554,4 +591,15 @@ ONLY_CASES=Calc_Add,Rewrite_net8,RouteBack bash scripts/manual-qa-production-gat
 bash scripts/prune-poc-compose.sh
 ```
 
-**Done when:** units green · gate `overallPass=true` · §5 checklist ticked for each WI · SHA recorded · no skipped cases from §3.1.
+**Done when:** units green · gate `overallPass=true` · §5 checklist ticked for each WI · SHA recorded · no skipped cases from §3.1 · agent `AGENT.md` contracts matched (topics + callback + no BuildGenix stage loop).
+
+---
+
+## 12. Optional UI Studio + deep resource pass (reference also green)
+
+After API gate is green, optional but recommended on the other machine:
+
+1. Start Studio (`buildgenix-web`, port reference used `:43182`) with `autoApprove=false` HITL for at least one Calc + one RouteBack (`simulateTaRouteback`).
+2. Approve gates through DONE; confirm Docs chips and deployed smoke.
+3. Deep durable inspect (Azurite blobs + tables + ActivityLog + decision agents PRD/SD/IA/TA/Deploy) — see [`UI-PERSONA-RESOURCE-SIGNOFF-2026-10-17.md`](UI-PERSONA-RESOURCE-SIGNOFF-2026-10-17.md).
+4. **Known non-blocker:** in-memory BuildGenix session map clears on API restart → live `/artifacts` may 404 for old WIs; **Azurite + tables remain authoritative**.
