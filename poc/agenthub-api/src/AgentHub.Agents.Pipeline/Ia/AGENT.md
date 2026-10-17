@@ -212,7 +212,7 @@ AutoApprove → Publish `TA_GENERATE` on `agenthub.agent.ta` with DeployedUrl + 
 | `IaGitOptions.cs` / `IaDeployOptions.cs` | Options + env overlays |
 | Factories | Provider selection without changing call sites |
 
-Templates under `../Templates/fe-be` and `fe-be-llm` feed scaffolds.
+Scaffolds are generated at runtime by `RequestDrivenCodegen` (stackProfile `fe-be` / `fe-be-llm` are classifiers only — checked-in `Templates/fe-be*` were removed as unused).
 
 ---
 

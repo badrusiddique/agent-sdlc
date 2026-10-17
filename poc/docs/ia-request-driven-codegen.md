@@ -4,7 +4,7 @@
 
 | Before | After |
 |---|---|
-| Copy fixed `Templates/fe-be` (calculator-shaped) | **Generate at runtime** from the user request (`RequestDrivenCodegen`) |
+| Copy fixed `Templates/fe-be` (calculator-shaped) | **Generate at runtime** from the user request (`RequestDrivenCodegen`); template folders + `TemplateMaterializer` removed |
 | `code-state.json` = file inventory from materializer | **`graphify extract . --code-only`** → `code-graph.json` + normalised `code-state.json` |
 | After codegen | After **IA_REVIEW**, before PR |
 

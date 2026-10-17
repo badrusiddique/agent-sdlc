@@ -22,11 +22,6 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
     <EmbeddedResource Include="Prompts\*.txt" />
-    <Compile Remove="Templates\**\*" />
-    <None Include="Templates\**\*">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <Content Remove="Templates\**\*" />
   </ItemGroup>
 
 </Project>
