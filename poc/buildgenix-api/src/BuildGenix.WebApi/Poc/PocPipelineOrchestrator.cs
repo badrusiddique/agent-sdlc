@@ -344,6 +344,32 @@ public sealed class PocPipelineOrchestrator
                 && kind.Equals("RouteBack", StringComparison.OrdinalIgnoreCase)))
         {
             session.TaRoutebackCount++;
+            // One-shot probe must not survive into the next IA→TA cycle (interactive LiveArtifacts).
+            session.LiveArtifacts.Remove("taRoutebackProbe");
+            if (session.TaRoutebackCount > MaxTaRoutebacks)
+            {
+                session.ErrorMessage =
+                    $"TA RouteBack exhausted after {MaxTaRoutebacks} attempts. See ta-concerns.json.";
+                item.Status = WorkItemStatuses.Failed;
+                item.UpdatedAt = DateTimeOffset.UtcNow;
+                await UpsertWorkItemAsync(item, cancellationToken).ConfigureAwait(false);
+                await AppendEventAsync(
+                        session,
+                        stage,
+                        WorkItemStatuses.Failed,
+                        "RouteBackExhausted",
+                        session.ErrorMessage,
+                        taskId,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+                session.Audit.CompletedAt = DateTimeOffset.UtcNow;
+                session.Audit.FinalStatus = WorkItemStatuses.Failed;
+                await WriteAuditAsync(session, cancellationToken).ConfigureAwait(false);
+                Bump(session);
+                session.TopicDone.TrySetException(new InvalidOperationException(session.ErrorMessage));
+                return;
+            }
+
             BumpArtifactRevision(session);
             session.Audit.Transitions.Add(new AuditTransition
             {
@@ -365,7 +391,7 @@ public sealed class PocPipelineOrchestrator
                     cancellationToken)
                 .ConfigureAwait(false);
             Bump(session);
-            // Worker already republished IA on the bus when AutoApprove; interactive path enqueues via Approve.
+            // Worker already republished IA on the bus when AutoApprove; interactive path enqueues next.
             if (!session.AutoApprove)
             {
                 await EnqueueStageAsync(session, "IA_CODEGEN", cancellationToken).ConfigureAwait(false);

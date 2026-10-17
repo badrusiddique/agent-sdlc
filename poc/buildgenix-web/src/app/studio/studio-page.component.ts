@@ -21,6 +21,8 @@ interface ExamplePrompt {
   projectName: string;
   projectMode: 'New' | 'Existing' | 'Rewrite';
   baselineArtifacts?: Record<string, string>;
+  /** POC Manual QA: poison first TA verify so RouteBack → IA once. */
+  simulateTaRouteback?: boolean;
 }
 
 @Component({
@@ -44,6 +46,13 @@ export class StudioPageComponent implements OnDestroy {
       projectMode: 'New',
     },
     {
+      label: 'Hello (no LLM)',
+      text: 'Build a simple Hello World app without an LLM',
+      stackProfile: 'fe-be',
+      projectName: 'HelloNoLlm',
+      projectMode: 'New',
+    },
+    {
       label: 'Calculator add',
       text: 'Create a calculator app that adds two numbers',
       stackProfile: 'fe-be',
@@ -58,12 +67,27 @@ export class StudioPageComponent implements OnDestroy {
       projectMode: 'Existing',
     },
     {
+      label: 'Todo list',
+      text: 'Create a todo list app',
+      stackProfile: 'fe-be',
+      projectName: 'Todo',
+      projectMode: 'New',
+    },
+    {
       label: 'Rewrite legacy → net10',
       text: 'Rewrite the existing net8 calculator repo as a greenfield .NET 10 app keeping /api/add',
       stackProfile: 'fe-be',
       projectName: 'CalculatorRewrite',
       projectMode: 'Rewrite',
       baselineArtifacts: { baselineSourcePath: 'fixtures/legacy-net8-calculator' },
+    },
+    {
+      label: 'RouteBack probe',
+      text: 'Create a calculator app that adds two numbers (RouteBack QA probe)',
+      stackProfile: 'fe-be',
+      projectName: 'RouteBackProbe',
+      projectMode: 'New',
+      simulateTaRouteback: true,
     },
   ];
 
@@ -140,6 +164,7 @@ export class StudioPageComponent implements OnDestroy {
           ? this.lastProjectId
           : undefined,
       baselineArtifacts: example?.baselineArtifacts,
+      simulateTaRouteback: example?.simulateTaRouteback === true,
     };
 
     this.error.set(null);
@@ -157,7 +182,7 @@ export class StudioPageComponent implements OnDestroy {
       {
         id: crypto.randomUUID(),
         role: 'system',
-        text: 'Starting the BuildGenix pipeline. Approve at PRD, System Design, and Deploy. You can type PAUSE, STOP, or ABORT while it runs.',
+        text: 'Starting the BuildGenix pipeline. Approve at PRD, System Design, Implementation Plan, Code Review, Test Report, and Sandbox. You can type PAUSE, STOP, or ABORT while it runs.',
         at: new Date(),
       },
     ]);

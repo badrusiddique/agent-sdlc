@@ -24,6 +24,7 @@ export class PipelineApi {
     projectName?: string;
     projectId?: string;
     baselineArtifacts?: Record<string, string>;
+    simulateTaRouteback?: boolean;
   }): Observable<StartResult> {
     return this.http.post<StartResult>(`${this.base}/start`, body, {
       headers: { 'X-User-Id': 'dummy-user' },

@@ -1,0 +1,733 @@
+{
+  "startedAt": "2026-10-17T04:45:00Z",
+  "finishedAt": "2026-10-17T05:05:00Z",
+  "ui": "http://127.0.0.1:43182",
+  "path": "Interactive HITL via Studio UI \u2192 topic agents \u2192 Docker Compose + Azurite + Gitea",
+  "overallPass": true,
+  "cases": [
+    {
+      "name": "Calc_Add",
+      "checks": [
+        {
+          "id": "chip_filled",
+          "ok": true,
+          "detail": "Create a calculator app that adds two numbers"
+        },
+        {
+          "id": "pipeline_started",
+          "ok": true,
+          "detail": "01a1482e5095789aad0811623a4e6ab7"
+        },
+        {
+          "id": "ui_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "gates_approved",
+          "ok": true,
+          "detail": "PRD,SYSTEM_DESIGN,IA_PLAN,IA_REVIEW,TA_REPORT,DEPLOY_SANDBOX"
+        },
+        {
+          "id": "status_Completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "stage_DONE",
+          "ok": true,
+          "detail": "DONE"
+        },
+        {
+          "id": "deployedUrl_present",
+          "ok": true,
+          "detail": "http://127.0.0.1:32913"
+        },
+        {
+          "id": "docs_has_prd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "docs_has_sd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "logs_stage_events",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_GateApproved",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_Finalized",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "smoke_health",
+          "ok": true,
+          "detail": "status=200 body={\"status\":\"ok\"}"
+        },
+        {
+          "id": "smoke_/api/add?a=2&b=3",
+          "ok": true,
+          "detail": "{\"operation\":\"add\",\"a\":2,\"b\":3,\"result\":5}"
+        }
+      ],
+      "pass": true,
+      "gates": [
+        "PRD",
+        "SYSTEM_DESIGN",
+        "IA_PLAN",
+        "IA_REVIEW",
+        "TA_REPORT",
+        "DEPLOY_SANDBOX"
+      ],
+      "deployedUrl": "http://127.0.0.1:32913",
+      "workItemId": "01a1482e5095789aad0811623a4e6ab7",
+      "projectId": "01a1482e509174c79f11b882dd5e88b0"
+    },
+    {
+      "name": "Hello_LLM",
+      "checks": [
+        {
+          "id": "chip_filled",
+          "ok": true,
+          "detail": "Build a Hello World app: Angular FE + .NET 10 BE + an LLM giving a thought of th"
+        },
+        {
+          "id": "pipeline_started",
+          "ok": true,
+          "detail": "01a1482ed74c739fb09deb1c76b15857"
+        },
+        {
+          "id": "ui_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "gates_approved",
+          "ok": true,
+          "detail": "PRD,SYSTEM_DESIGN,IA_PLAN,IA_REVIEW,TA_REPORT,DEPLOY_SANDBOX"
+        },
+        {
+          "id": "status_Completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "stage_DONE",
+          "ok": true,
+          "detail": "DONE"
+        },
+        {
+          "id": "deployedUrl_present",
+          "ok": true,
+          "detail": "http://127.0.0.1:35839"
+        },
+        {
+          "id": "docs_has_prd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "docs_has_sd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "logs_stage_events",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_GateApproved",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_Finalized",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "smoke_health",
+          "ok": true,
+          "detail": "status=200 body={\"status\":\"ok\"}"
+        },
+        {
+          "id": "smoke_/api/thought",
+          "ok": true,
+          "detail": "{\"thought\":\"A thought for today.\",\"source\":\"fallback\"}"
+        },
+        {
+          "id": "smoke_/api/hello",
+          "ok": true,
+          "detail": "{\"status\":\"ok\",\"message\":\"Hello + thought\"}"
+        }
+      ],
+      "pass": true,
+      "gates": [
+        "PRD",
+        "SYSTEM_DESIGN",
+        "IA_PLAN",
+        "IA_REVIEW",
+        "TA_REPORT",
+        "DEPLOY_SANDBOX"
+      ],
+      "deployedUrl": "http://127.0.0.1:35839",
+      "workItemId": "01a1482ed74c739fb09deb1c76b15857",
+      "projectId": "01a1482ed74773879322cd670999d881"
+    },
+    {
+      "name": "Hello_no_LLM",
+      "checks": [
+        {
+          "id": "chip_filled",
+          "ok": true,
+          "detail": "Build a simple Hello World app without an LLM"
+        },
+        {
+          "id": "pipeline_started",
+          "ok": true,
+          "detail": "01a1482f64367a4aa9f9757a2071a781"
+        },
+        {
+          "id": "ui_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "gates_approved",
+          "ok": true,
+          "detail": "PRD,SYSTEM_DESIGN,IA_PLAN,IA_REVIEW,TA_REPORT,DEPLOY_SANDBOX"
+        },
+        {
+          "id": "status_Completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "stage_DONE",
+          "ok": true,
+          "detail": "DONE"
+        },
+        {
+          "id": "deployedUrl_present",
+          "ok": true,
+          "detail": "http://127.0.0.1:44253"
+        },
+        {
+          "id": "docs_has_prd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "docs_has_sd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "logs_stage_events",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_GateApproved",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_Finalized",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "smoke_health",
+          "ok": true,
+          "detail": "status=200 body={\"status\":\"ok\"}"
+        },
+        {
+          "id": "smoke_/api/hello",
+          "ok": true,
+          "detail": "{\"status\":\"ok\",\"message\":\"Hello World\"}"
+        }
+      ],
+      "pass": true,
+      "gates": [
+        "PRD",
+        "SYSTEM_DESIGN",
+        "IA_PLAN",
+        "IA_REVIEW",
+        "TA_REPORT",
+        "DEPLOY_SANDBOX"
+      ],
+      "deployedUrl": "http://127.0.0.1:44253",
+      "workItemId": "01a1482f64367a4aa9f9757a2071a781",
+      "projectId": "01a1482f64317a90942ae9cde92c75bf"
+    },
+    {
+      "name": "Todo",
+      "checks": [
+        {
+          "id": "chip_filled",
+          "ok": true,
+          "detail": "Create a todo list app"
+        },
+        {
+          "id": "pipeline_started",
+          "ok": true,
+          "detail": "01a1482fef1f759ab793042478fb67ad"
+        },
+        {
+          "id": "ui_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "gates_approved",
+          "ok": true,
+          "detail": "PRD,SYSTEM_DESIGN,IA_PLAN,IA_REVIEW,TA_REPORT,DEPLOY_SANDBOX"
+        },
+        {
+          "id": "status_Completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "stage_DONE",
+          "ok": true,
+          "detail": "DONE"
+        },
+        {
+          "id": "deployedUrl_present",
+          "ok": true,
+          "detail": "http://127.0.0.1:44355"
+        },
+        {
+          "id": "docs_has_prd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "docs_has_sd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "logs_stage_events",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_GateApproved",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_Finalized",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "smoke_health",
+          "ok": true,
+          "detail": "status=200 body={\"status\":\"ok\"}"
+        },
+        {
+          "id": "smoke_/api/todos",
+          "ok": true,
+          "detail": "[{\"id\":1,\"title\":\"qa-item\",\"done\":false}]"
+        }
+      ],
+      "pass": true,
+      "gates": [
+        "PRD",
+        "SYSTEM_DESIGN",
+        "IA_PLAN",
+        "IA_REVIEW",
+        "TA_REPORT",
+        "DEPLOY_SANDBOX"
+      ],
+      "deployedUrl": "http://127.0.0.1:44355",
+      "workItemId": "01a1482fef1f759ab793042478fb67ad",
+      "projectId": "01a1482fef1c7f639c199848829b4409"
+    },
+    {
+      "name": "MultiWI_Add",
+      "checks": [
+        {
+          "id": "chip_filled",
+          "ok": true,
+          "detail": "Create a calculator app that adds two numbers"
+        },
+        {
+          "id": "pipeline_started",
+          "ok": true,
+          "detail": "01a1483edd4078e4a9bf51d222d74bbf"
+        },
+        {
+          "id": "ui_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "gates_approved",
+          "ok": true,
+          "detail": "PRD,SYSTEM_DESIGN,IA_PLAN,IA_REVIEW,TA_REPORT,DEPLOY_SANDBOX"
+        },
+        {
+          "id": "status_Completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "stage_DONE",
+          "ok": true,
+          "detail": "DONE"
+        },
+        {
+          "id": "deployedUrl_present",
+          "ok": true,
+          "detail": "http://127.0.0.1:33601"
+        },
+        {
+          "id": "docs_has_prd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "docs_has_sd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "logs_stage_events",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_GateApproved",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_Finalized",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "smoke_health",
+          "ok": true,
+          "detail": "status=200 body={\"status\":\"ok\"}"
+        },
+        {
+          "id": "smoke_/api/add?a=2&b=3",
+          "ok": true,
+          "detail": "{\"operation\":\"add\",\"a\":2,\"b\":3,\"result\":5}"
+        }
+      ],
+      "pass": true,
+      "gates": [
+        "PRD",
+        "SYSTEM_DESIGN",
+        "IA_PLAN",
+        "IA_REVIEW",
+        "TA_REPORT",
+        "DEPLOY_SANDBOX"
+      ],
+      "deployedUrl": "http://127.0.0.1:33601",
+      "workItemId": "01a1483edd4078e4a9bf51d222d74bbf",
+      "projectId": "01a1483edd3b7685b97fdba8c60c351f"
+    },
+    {
+      "name": "MultiWI_Subtract",
+      "checks": [
+        {
+          "id": "chip_filled",
+          "ok": true,
+          "detail": "Update the calculator app to subtract two numbers"
+        },
+        {
+          "id": "pipeline_started",
+          "ok": true,
+          "detail": "01a1483f68df7fa6b01b96affc38f043"
+        },
+        {
+          "id": "ui_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "gates_approved",
+          "ok": true,
+          "detail": "PRD,SYSTEM_DESIGN,IA_PLAN,IA_REVIEW,TA_REPORT,DEPLOY_SANDBOX"
+        },
+        {
+          "id": "status_Completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "stage_DONE",
+          "ok": true,
+          "detail": "DONE"
+        },
+        {
+          "id": "deployedUrl_present",
+          "ok": true,
+          "detail": "http://127.0.0.1:34947"
+        },
+        {
+          "id": "docs_has_prd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "docs_has_sd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "logs_stage_events",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_GateApproved",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_Finalized",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "smoke_health",
+          "ok": true,
+          "detail": "status=200 body={\"status\":\"ok\"}"
+        },
+        {
+          "id": "smoke_/api/add?a=2&b=3",
+          "ok": true,
+          "detail": "{\"operation\":\"add\",\"a\":2,\"b\":3,\"result\":5}"
+        },
+        {
+          "id": "smoke_/api/subtract?a=5&b=2",
+          "ok": true,
+          "detail": "{\"operation\":\"subtract\",\"a\":5,\"b\":2,\"result\":3}"
+        },
+        {
+          "id": "same_project_as_add",
+          "ok": true,
+          "detail": "01a1483edd3b7685b97fdba8c60c351f\u219201a1483edd3b7685b97fdba8c60c351f"
+        }
+      ],
+      "pass": true,
+      "gates": [
+        "PRD",
+        "SYSTEM_DESIGN",
+        "IA_PLAN",
+        "IA_REVIEW",
+        "TA_REPORT",
+        "DEPLOY_SANDBOX"
+      ],
+      "deployedUrl": "http://127.0.0.1:34947",
+      "workItemId": "01a1483f68df7fa6b01b96affc38f043",
+      "projectId": "01a1483edd3b7685b97fdba8c60c351f"
+    },
+    {
+      "name": "Rewrite_net8",
+      "checks": [
+        {
+          "id": "chip_filled",
+          "ok": true,
+          "detail": "Rewrite the existing net8 calculator repo as a greenfield .NET 10 app keeping /a"
+        },
+        {
+          "id": "pipeline_started",
+          "ok": true,
+          "detail": "01a14838bf4b77aeb9756abb961d732c"
+        },
+        {
+          "id": "ui_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "gates_approved",
+          "ok": true,
+          "detail": "PRD,SYSTEM_DESIGN,IA_PLAN,IA_REVIEW,TA_REPORT,DEPLOY_SANDBOX"
+        },
+        {
+          "id": "status_Completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "stage_DONE",
+          "ok": true,
+          "detail": "DONE"
+        },
+        {
+          "id": "deployedUrl_present",
+          "ok": true,
+          "detail": "http://127.0.0.1:36405"
+        },
+        {
+          "id": "docs_has_prd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "docs_has_sd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "logs_stage_events",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_GateApproved",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_Finalized",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "smoke_health",
+          "ok": true,
+          "detail": "status=200 body={\"status\":\"ok\",\"runtime\":\"net10\"}"
+        },
+        {
+          "id": "smoke_/api/add?a=2&b=3",
+          "ok": true,
+          "detail": "{\"operation\":\"add\",\"a\":2,\"b\":3,\"result\":5}"
+        },
+        {
+          "id": "smoke_/health",
+          "ok": true,
+          "detail": "{\"status\":\"ok\",\"runtime\":\"net10\"}"
+        }
+      ],
+      "pass": true,
+      "gates": [
+        "PRD",
+        "SYSTEM_DESIGN",
+        "IA_PLAN",
+        "IA_REVIEW",
+        "TA_REPORT",
+        "DEPLOY_SANDBOX"
+      ],
+      "deployedUrl": "http://127.0.0.1:36405",
+      "workItemId": "01a14838bf4b77aeb9756abb961d732c",
+      "projectId": "01a14838bf48715393deb7bcf0eb50fd"
+    },
+    {
+      "name": "RouteBack",
+      "checks": [
+        {
+          "id": "chip_filled",
+          "ok": true,
+          "detail": "Create a calculator app that adds two numbers (RouteBack QA probe)"
+        },
+        {
+          "id": "pipeline_started",
+          "ok": true,
+          "detail": "01a1483c8ede736982ba7dbf73247d25"
+        },
+        {
+          "id": "ui_completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "gates_approved",
+          "ok": true,
+          "detail": "PRD,SYSTEM_DESIGN,IA_PLAN,IA_REVIEW,IA_REVIEW,TA_REPORT,DEPLOY_SANDBOX"
+        },
+        {
+          "id": "status_Completed",
+          "ok": true,
+          "detail": "Completed"
+        },
+        {
+          "id": "stage_DONE",
+          "ok": true,
+          "detail": "DONE"
+        },
+        {
+          "id": "deployedUrl_present",
+          "ok": true,
+          "detail": "http://127.0.0.1:34611"
+        },
+        {
+          "id": "docs_has_prd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "docs_has_sd",
+          "ok": true,
+          "detail": "codeGraph,codeReview,codeState,completionSummary,decisionLog,implementationPlan,intakeSummary,merge,prd,prdMd,pullReques"
+        },
+        {
+          "id": "logs_stage_events",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_GateApproved",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_Finalized",
+          "ok": true,
+          "detail": ""
+        },
+        {
+          "id": "events_RouteBack",
+          "ok": true,
+          "detail": "IntakeStarted,PipelineStarted,StageStarted,ArtifactReady,ArtifactReady,TaskCompleted,TaskCompleted,TaskCompleted,StageCompleted,GateRaised,WaitingForUser,GateApproved,StageStarted,ArtifactReady,Artifa"
+        },
+        {
+          "id": "smoke_health",
+          "ok": true,
+          "detail": "status=200 body={\"status\":\"ok\"}"
+        },
+        {
+          "id": "smoke_/api/add?a=2&b=3",
+          "ok": true,
+          "detail": "{\"operation\":\"add\",\"a\":2,\"b\":3,\"result\":5}"
+        }
+      ],
+      "pass": true,
+      "gates": [
+        "PRD",
+        "SYSTEM_DESIGN",
+        "IA_PLAN",
+        "IA_REVIEW",
+        "IA_REVIEW",
+        "TA_REPORT",
+        "DEPLOY_SANDBOX"
+      ],
+      "deployedUrl": "http://127.0.0.1:34611",
+      "workItemId": "01a1483c8ede736982ba7dbf73247d25",
+      "projectId": "01a1483c8ecb76cf90c424703a1f0521"
+    }
+  ],
+  "checks": 117,
+  "failedChecks": 0
+}

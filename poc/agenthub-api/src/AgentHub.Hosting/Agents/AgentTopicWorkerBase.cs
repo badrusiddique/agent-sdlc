@@ -115,12 +115,20 @@ public abstract class AgentTopicWorkerBase : BackgroundService
         var result = outcome.Result;
         if (result is null)
         {
+            var reason = outcome.DeadLetterReason
+                         ?? $"Agent {AgentName} produced no result (kind={outcome.Kind}).";
             _logger.LogWarning(
-                "{Agent} no result for {MessageId}: kind={Kind} reason={Reason}",
+                "{Agent} no result for {MessageId}: kind={Kind} reason={Reason} — failing BuildGenix callback",
                 AgentName,
                 messageId,
                 outcome.Kind,
-                outcome.DeadLetterReason);
+                reason);
+            // Do not leave interactive UI / TopicDone hanging when the dispatcher abandons.
+            await CallbackBuildGenixAsync(
+                    message,
+                    FailTerminal(message, reason),
+                    cancellationToken)
+                .ConfigureAwait(false);
             return;
         }
 
